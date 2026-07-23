@@ -31,6 +31,7 @@ MODEL_BACKEND = "django.contrib.auth.backends.ModelBackend"
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    throttle_scope = "register"
 
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)

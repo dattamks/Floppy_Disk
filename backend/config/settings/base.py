@@ -120,6 +120,9 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "login": "10/day",
         "password_reset": "10/day",
+        "register": "20/day",
+        "report": "10/hour",
+        "share_unlock": "10/day",
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 50,

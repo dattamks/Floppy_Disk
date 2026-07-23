@@ -1,6 +1,6 @@
 """Local/dev settings."""
 from .base import *  # noqa: F401,F403
-from .base import env
+from .base import REST_FRAMEWORK, env
 
 DEBUG = env.bool("DJANGO_DEBUG", default=True)
 ALLOWED_HOSTS = ["*"]
@@ -8,8 +8,9 @@ ALLOWED_HOSTS = ["*"]
 # Console email backend for dev (verification / reset links print to stdout).
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
-# Relax throttling noise in dev; real limits are exercised in prod/tests.
+# Disable throttling in dev/E2E (real limits are exercised by unit tests).
 INTERNAL_IPS = ["127.0.0.1"]
+REST_FRAMEWORK = {**REST_FRAMEWORK, "DEFAULT_THROTTLE_CLASSES": []}
 
 # Storage: local disk-backed service in dev (R2 in production).
 STORAGE_SERVICE = "apps.storage.services.local.LocalStorageService"

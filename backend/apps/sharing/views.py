@@ -71,6 +71,14 @@ class PublicShareView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    def get_throttles(self):
+        # Throttle only password-unlock attempts (POST), not public resolves (GET).
+        from rest_framework.throttling import ScopedRateThrottle
+        if getattr(self, "request", None) and self.request.method == "POST":
+            self.throttle_scope = "share_unlock"
+            return [ScopedRateThrottle()]
+        return []
+
     def get(self, request, token):
         link = self._get_active(token)
         if link is None:

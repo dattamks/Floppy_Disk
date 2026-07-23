@@ -18,6 +18,7 @@ from .serializers import ContentReportSerializer
 
 class ReportCreateView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_scope = "report"
 
     def post(self, request):
         serializer = ContentReportSerializer(data=request.data)
