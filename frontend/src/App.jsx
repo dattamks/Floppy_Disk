@@ -1,6 +1,9 @@
 import React from 'react';
 import { api, firstError } from './api';
 
+const humanSize = (b) => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
+const kindOf = (mime) => (mime.startsWith('video') ? 'video' : mime.startsWith('image') ? 'image' : mime.startsWith('audio') ? 'audio' : 'doc');
+
 const hov = (styles) => ({
   onMouseEnter: (e) => { const el = e.currentTarget; el.__h = el.__h || {}; for (const k in styles) { el.__h[k] = el.style[k]; el.style[k] = styles[k]; } },
   onMouseLeave: (e) => { const el = e.currentTarget; if (el.__h) { for (const k in styles) el.style[k] = el.__h[k] || ''; } }
@@ -282,7 +285,8 @@ export default class App extends React.Component {
       .catch((err) => this.toast(firstError(err, 'Could not create folder')));
   }
 
-  // Pull the user's real folders from the backend and merge them in (dedupe by id).
+  // Pull the user's real folders + files from the backend and merge them in
+  // (dedupe by id, so we never duplicate what's already in state).
   loadStorage() {
     api.listFolders().then((folders) => {
       this.setState((s) => {
@@ -290,6 +294,19 @@ export default class App extends React.Component {
         const mapped = (folders || [])
           .filter(f => !existing.has(f.id))
           .map(f => ({ id: f.id, name: f.name, kind: 'folder', parentId: f.parent || null, trashed: false, real: true }));
+        return mapped.length ? { files: [...mapped, ...s.files] } : null;
+      });
+    }).catch(() => {});
+    api.listFiles().then((files) => {
+      this.setState((s) => {
+        const existing = new Set(s.files.map(f => f.id));
+        const mapped = (files || [])
+          .filter(f => !existing.has(f.id))
+          .map(f => ({
+            id: f.id, name: f.name, kind: f.kind, parentId: f.folder || null,
+            size: humanSize(f.size_bytes), modified: '', shared: false, channel: false,
+            starred: false, trashed: false, real: true,
+          }));
         return mapped.length ? { files: [...mapped, ...s.files] } : null;
       });
     }).catch(() => {});
@@ -342,26 +359,32 @@ export default class App extends React.Component {
   onFilesPicked(e) {
     const list = Array.from(e.target.files || []);
     if (!list.length) return;
-    list.forEach((f, i) => {
-      const kind = f.type.startsWith('video') ? 'video' : f.type.startsWith('image') ? 'image' : f.type.startsWith('audio') ? 'audio' : 'doc';
-      const url = URL.createObjectURL(f);
-      const id = 'up-' + Date.now() + '-' + i;
-      const sizeLabel = f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.size / 1024)) + ' KB';
-      this.setState(s => ({ uploadQueue: [...s.uploadQueue, { id, name: f.name, progress: 0 }] }));
-      const timer = setInterval(() => {
-        this.setState(s => {
-          const q = s.uploadQueue.map(u => u.id === id ? { ...u, progress: Math.min(100, u.progress + Math.round(12 + Math.random() * 22)) } : u);
-          const done = q.find(u => u.id === id && u.progress >= 100);
-          if (done) {
-            clearInterval(timer);
-            const nf = { id, name: f.name, kind, parentId: s.currentFolderId, size: sizeLabel, modified: 'Just now', duration: kind === 'video' ? '0:20' : null, poster: (kind === 'image' || kind === 'video') ? url : null, videoSrc: kind === 'video' ? url : null, audioSrc: kind === 'audio' ? url : null, docUrl: kind === 'doc' ? url : null, watchedPct: 0, shared: false, channel: false, starred: false, trashed: false, recentRank: 0 };
-            setTimeout(() => { this.setState(s2 => ({ files: [nf, ...s2.files], uploadQueue: s2.uploadQueue.filter(u => u.id !== id) })); this.addUsage(f.size / 1073741824); }, 400);
-          }
-          return { uploadQueue: q };
-        });
-      }, 300);
-    });
+    list.forEach((f) => this.realUpload(f));
     e.target.value = '';
+  }
+
+  // Real upload: reserve quota -> PUT bytes to the presigned URL -> commit/dedup.
+  realUpload(f) {
+    const kind = kindOf(f.type || '');
+    const qid = 'up-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    const cur = this.state.currentFolderId;
+    const inFolder = typeof cur === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(cur);
+    this.setState(s => ({ uploadQueue: [...s.uploadQueue, { id: qid, name: f.name, progress: 15 }], modal: null }));
+    api.initiateUpload({ name: f.name, size_bytes: f.size, kind, ...(inFolder ? { folder: cur } : {}) })
+      .then((res) => api.uploadBytes(res.upload.url, f).then(() => api.completeUpload(res.file.id)))
+      .then((file) => {
+        const nf = {
+          id: file.id, name: file.name, kind: file.kind, parentId: file.folder || null,
+          size: humanSize(file.size_bytes), modified: 'Just now',
+          shared: false, channel: false, starred: false, trashed: false, real: true,
+        };
+        this.setState(s => ({ files: [nf, ...s.files.filter(x => x.id !== qid)], uploadQueue: s.uploadQueue.filter(u => u.id !== qid) }));
+        this.toast('Uploaded');
+      })
+      .catch((err) => {
+        this.setState(s => ({ uploadQueue: s.uploadQueue.filter(u => u.id !== qid) }));
+        this.toast(firstError(err, 'Upload failed'));
+      });
   }
 
   simulateUpload() {

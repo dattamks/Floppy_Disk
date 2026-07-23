@@ -64,4 +64,19 @@ export const api = {
     request('/storage/folders', { method: 'POST', body: parent ? { name, parent } : { name } }),
   listFiles: (folder) => request(`/storage/files${folder ? `?folder=${folder}` : ''}`),
   usage: () => request('/storage/usage'),
+
+  // Upload: initiate (reserve quota) -> PUT bytes -> complete (commit + dedup)
+  initiateUpload: (payload) => request('/storage/uploads', { method: 'POST', body: payload }),
+  completeUpload: (fileId) => request(`/storage/uploads/${fileId}/complete`, { method: 'POST' }),
+  uploadBytes: async (url, file) => {
+    const headers = { 'Content-Type': 'application/octet-stream' };
+    const token = getCookie('csrftoken');
+    if (token) headers['X-CSRFToken'] = token;
+    const res = await fetch(url, { method: 'PUT', headers, credentials: 'same-origin', body: file });
+    if (!res.ok) {
+      const err = new Error('Upload failed');
+      err.status = res.status;
+      throw err;
+    }
+  },
 };
