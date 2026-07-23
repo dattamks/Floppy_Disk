@@ -12,10 +12,17 @@ MIN_SIGNUP_AGE = 18  # PRD 5.1: minimum account age
 
 
 class UserSerializer(serializers.ModelSerializer):
+    billing_enabled = serializers.SerializerMethodField()
+
     class Meta:
         model = User
-        fields = ["id", "email", "email_verified", "display_name", "storage_region", "status"]
+        fields = ["id", "email", "email_verified", "display_name", "storage_region",
+                  "status", "tier", "quota_bytes", "billing_enabled"]
         read_only_fields = fields
+
+    def get_billing_enabled(self, obj):
+        from django.conf import settings
+        return settings.RAZORPAY_ENABLED
 
 
 class RegisterSerializer(serializers.Serializer):

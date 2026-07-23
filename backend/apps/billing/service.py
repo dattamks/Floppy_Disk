@@ -15,6 +15,27 @@ class BillingError(Exception):
     pass
 
 
+def apply_signup_entitlements(user) -> None:
+    """
+    Grant a new signup its default entitlements.
+
+    While billing is deferred (settings.RAZORPAY_ENABLED is False), every new user
+    is put on the default paid plan so the product is fully usable without a
+    payment step. When billing is enabled this is a no-op (users start Free and
+    upgrade via the gateway).
+    """
+    from django.conf import settings
+
+    if settings.RAZORPAY_ENABLED:
+        return
+    plan = plan_or_none(settings.DEFAULT_SIGNUP_PLAN)
+    if plan is None:
+        return
+    user.tier = plan["tier"]
+    user.quota_bytes = plan["quota_bytes"]
+    user.save(update_fields=["tier", "quota_bytes", "updated_at"])
+
+
 @transaction.atomic
 def subscribe(user, *, plan_code: str, annual: bool = False) -> Subscription:
     plan = plan_or_none(plan_code)

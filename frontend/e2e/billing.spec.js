@@ -3,17 +3,16 @@ import { blockExternal, registerNewUser } from './helpers.js';
 
 test.beforeEach(async ({ page }) => { await blockExternal(page); });
 
-test('upgrade storage subscribes on the backend and raises the quota', async ({ page }) => {
+test('billing deferred: new users are paid by default and no upgrade CTA shows', async ({ page }) => {
   await registerNewUser(page);
 
-  const [resp] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes('/billing/subscribe')),
-    page.getByRole('button', { name: 'Upgrade storage' }).click(),
-  ]);
-  expect(resp.status()).toBe(201);
-  const body = await resp.json();
-  expect(body.tier).toBe('paid_2tb');
-  expect(body.quota_bytes).toBe(2 * 1024 ** 4); // 2 TB
+  // Paid-by-default while Razorpay is disabled (RAZORPAY_ENABLED=false).
+  const me = await page.evaluate(async () =>
+    (await fetch('/api/v1/auth/me', { credentials: 'same-origin' })).json());
+  expect(me.tier).toBe('paid_2tb');
+  expect(me.quota_bytes).toBe(2 * 1024 ** 4); // 2 TB
+  expect(me.billing_enabled).toBe(false);
 
-  await expect(page.getByText(/Upgraded to 2TB/i)).toBeVisible();
+  // No upgrade CTA when billing is off.
+  await expect(page.getByRole('button', { name: 'Upgrade storage' })).toHaveCount(0);
 });

@@ -29,6 +29,8 @@ test('an uploaded video yields a real playback descriptor', async ({ page }) => 
 
   expect(desc.status).toBe(200);
   expect(desc.body.mode).toBe('r2');          // private video streams from R2
-  expect(desc.body.max_resolution).toBe('sd'); // free tier is SD-capped
+  // Registered users are paid-by-default (billing deferred) -> HD.
+  // The free-tier SD cap is covered by the backend unit tests.
+  expect(desc.body.max_resolution).toBe('hd');
   expect(desc.body.url).toBeTruthy();
 });

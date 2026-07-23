@@ -43,6 +43,10 @@ class RegisterView(APIView):
             date_of_birth=serializer.validated_data["date_of_birth"],
         )
         user = User.objects.get(pk=result.user_id)
+        # While billing is deferred, new users default to the paid plan.
+        from apps.billing.service import apply_signup_entitlements
+        apply_signup_entitlements(user)
+        user.refresh_from_db()
         django_login(request, user, backend=MODEL_BACKEND)
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 

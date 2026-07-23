@@ -163,6 +163,10 @@ VIDEO_SERVICE = env("VIDEO_SERVICE", default="apps.storage.services.video.Cloudf
 DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(BASE_DIR / ".devstorage"))
 
 # --- Payments (Razorpay behind PaymentGateway abstraction) ------------------
+# Master switch: when disabled, billing is deferred — new signups are granted the
+# default paid plan (see DEFAULT_SIGNUP_PLAN) and the client hides upgrade/billing UI.
+RAZORPAY_ENABLED = env.bool("RAZORPAY_ENABLED", default=False)
+DEFAULT_SIGNUP_PLAN = env("DEFAULT_SIGNUP_PLAN", default="paid_2tb")  # used only when billing disabled
 PAYMENT_GATEWAY = env("PAYMENT_GATEWAY", default="apps.billing.gateways.razorpay.RazorpayGateway")
 RAZORPAY_KEY_ID = env("RAZORPAY_KEY_ID", default="")
 RAZORPAY_KEY_SECRET = env("RAZORPAY_KEY_SECRET", default="")
