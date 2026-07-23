@@ -63,6 +63,10 @@ class LocalStorageService(StorageService):
     def read_bytes(self, *, region, object_key) -> bytes:
         return self._path(region, object_key).read_bytes()
 
+    def local_path(self, *, region, object_key):
+        """Filesystem path of a stored blob (for range-served media delivery)."""
+        return self._path(region, object_key)
+
     def stat(self, *, region, object_key) -> tuple[int, str]:
         """Return (size_bytes, sha256_hex) of a stored blob."""
         data = self.read_bytes(region=region, object_key=object_key)

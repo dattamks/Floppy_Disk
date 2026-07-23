@@ -135,3 +135,25 @@ def test_storage_service_default_falls_back_without_r2(monkeypatch):
         assert reloaded.VIDEO_SERVICE.endswith("FakeVideoService")
     finally:
         importlib.reload(base)  # restore
+
+
+def test_local_media_delivery_supports_range(client, user, settings, tmp_path):
+    """Local media endpoint serves partial content for video seeking."""
+    settings.DEV_STORAGE_DIR = str(tmp_path)
+    payload = b"0123456789abcdef" * 8  # 128 bytes
+    init = client.post("/api/v1/storage/uploads",
+                       {"name": "clip.mp4", "size_bytes": len(payload), "kind": "video"},
+                       format="json").json()
+    client.put(init["upload"]["url"], data=payload, content_type="application/octet-stream")
+    client.post(f"/api/v1/storage/uploads/{init['file']['id']}/complete")
+
+    url = init["upload"]["url"]  # the local blob URL
+    # full request advertises range support with the right content type
+    full = client.get(url)
+    assert full["Accept-Ranges"] == "bytes"
+    assert full["Content-Type"] == "video/mp4"
+    # ranged request returns 206 partial content
+    partial = client.get(url, HTTP_RANGE="bytes=0-9")
+    assert partial.status_code == 206
+    assert partial["Content-Range"] == f"bytes 0-9/{len(payload)}"
+    assert partial.content == payload[:10]

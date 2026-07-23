@@ -30,6 +30,32 @@ def _object_key(user_id, file_id) -> str:
     return f"{user_id}/{file_id}"
 
 
+def _ranged_file_response(request, path, content_type):
+    """Serve a file from disk honoring the HTTP Range header (206 partial)."""
+    import re
+
+    file_size = path.stat().st_size
+    range_header = request.headers.get("Range", "")
+    m = re.match(r"bytes=(\d+)-(\d*)", range_header)
+    if m:
+        start = int(m.group(1))
+        end = int(m.group(2)) if m.group(2) else file_size - 1
+        end = min(end, file_size - 1)
+        start = min(start, end)
+        with open(path, "rb") as fh:
+            fh.seek(start)
+            chunk = fh.read(end - start + 1)
+        resp = HttpResponse(chunk, status=206, content_type=content_type)
+        resp["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+        resp["Content-Length"] = str(len(chunk))
+    else:
+        with open(path, "rb") as fh:
+            resp = HttpResponse(fh.read(), content_type=content_type)
+        resp["Content-Length"] = str(file_size)
+    resp["Accept-Ranges"] = "bytes"
+    return resp
+
+
 class FolderListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -319,11 +345,26 @@ class DevBlobView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get(self, request, region, object_key):
+        """Serve a locally-stored blob with HTTP Range support (video seeking)."""
         storage = get_storage_service()
-        if not hasattr(storage, "read_bytes"):
+        if not hasattr(storage, "local_path"):
             return Response(status=status.HTTP_404_NOT_FOUND)
+        path = storage.local_path(region=region, object_key=object_key)
+        if not path.exists():
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return _ranged_file_response(request, path, self._content_type(object_key))
+
+    @staticmethod
+    def _content_type(object_key):
+        # object_key is "<user_id>/<file_id>"; guess the type from the File's name.
+        import mimetypes
         try:
-            data = storage.read_bytes(region=region, object_key=object_key)
-        except FileNotFoundError:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        return HttpResponse(data, content_type="application/octet-stream")
+            file_id = object_key.split("/")[-1]
+            f = File.objects.filter(pk=file_id).only("name").first()
+            if f:
+                ctype, _ = mimetypes.guess_type(f.name)
+                if ctype:
+                    return ctype
+        except Exception:  # noqa: BLE001
+            pass
+        return "application/octet-stream"
