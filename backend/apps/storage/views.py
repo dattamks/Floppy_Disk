@@ -64,7 +64,7 @@ class FileListView(APIView):
     def get(self, request):
         folder = request.query_params.get("folder") or None
         qs = File.objects.filter(
-            owner=request.user, deleted_at__isnull=True, folder=folder
+            owner=request.user, deleted_at__isnull=True, is_quarantined=False, folder=folder
         ).order_by("-created_at")
         return Response(FileSerializer(qs, many=True).data)
 
@@ -211,6 +211,27 @@ class UploadCompleteView(APIView):
         except FileNotFoundError:
             return Response({"detail": "No uploaded bytes found for this file."},
                             status=status.HTTP_409_CONFLICT)
+
+        # Malware scan before the file is allowed to go `ready` (PRD 5.7). On a
+        # hit the file is quarantined, the blob deleted, and its reservation
+        # released (never committed) so a rejected upload costs no quota.
+        if hasattr(storage, "read_bytes"):
+            from apps.moderation.services.base import get_scan_service
+            result = get_scan_service().scan(storage.read_bytes(region=region, object_key=object_key))
+            if not result.clean:
+                file.status = File.Status.FAILED
+                file.is_quarantined = True
+                file.save(update_fields=["status", "is_quarantined", "updated_at"])
+                storage.delete_object(region=region, object_key=object_key)
+                res = file.reservations.filter(status=StorageReservation.Status.ACTIVE).first()
+                if res:
+                    res.status = StorageReservation.Status.EXPIRED
+                    res.save(update_fields=["status", "updated_at"])
+                return Response(
+                    {"detail": "Upload blocked: failed the malware scan.",
+                     "code": "scan_failed", "status": "failed"},
+                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                )
 
         # Per-region dedup: reuse an existing blob or create a new one.
         obj, _created = StorageObject.objects.get_or_create(

@@ -94,4 +94,7 @@ export const api = {
   createChannel: (payload) => request('/channels/', { method: 'POST', body: payload }),
   subscribeChannel: (id) => request(`/channels/${id}/subscribe`, { method: 'POST' }),
   unsubscribeChannel: (id) => request(`/channels/${id}/subscribe`, { method: 'DELETE' }),
+
+  // Moderation
+  report: (payload) => request('/moderation/reports', { method: 'POST', body: payload }),
 };

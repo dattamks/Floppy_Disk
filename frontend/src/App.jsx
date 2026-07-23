@@ -359,7 +359,16 @@ export default class App extends React.Component {
       });
     }).catch(() => {});
   }
-  submitReport() { if (!this.state.reportReason) { this.toast('Select a reason'); return; } this.setState({ modal: null, reportPostId: null }); this.toast('Reported to moderators'); }
+  submitReport() {
+    if (!this.state.reportReason) { this.toast('Select a reason'); return; }
+    const id = this.state.reportPostId;
+    const isUuid = typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
+    if (isUuid) {
+      api.report({ kind: 'report', target_type: 'post', target_id: id, reason: 'inappropriate', detail: this.state.reportReason }).catch(() => {});
+    }
+    this.setState({ modal: null, reportPostId: null });
+    this.toast('Reported to moderators');
+  }
   flagPost() { this.toast('Post flagged for review'); }
 
   openChannelSettings(id) {

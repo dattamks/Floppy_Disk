@@ -87,6 +87,8 @@ class File(TimeStampedModel):
     kind = models.CharField(max_length=8, choices=Kind.choices, default=Kind.FILE)
     status = models.CharField(max_length=8, choices=Status.choices, default=Status.PENDING)
     deleted_at = models.DateTimeField(null=True, blank=True)
+    # Reversible isolation: set by a failed malware scan or a Report (PRD 5.7).
+    is_quarantined = models.BooleanField(default=False)
 
     class Meta:
         db_table = "storage_file"

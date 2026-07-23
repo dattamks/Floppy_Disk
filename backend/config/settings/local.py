@@ -14,3 +14,6 @@ INTERNAL_IPS = ["127.0.0.1"]
 # Storage: local disk-backed service in dev (R2 in production).
 STORAGE_SERVICE = "apps.storage.services.local.LocalStorageService"
 DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(BASE_DIR / ".devstorage"))
+
+# Scanning: fake scanner in dev (ClamAV in production).
+SCAN_SERVICE = "apps.moderation.services.fake.FakeScanService"

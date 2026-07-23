@@ -157,6 +157,7 @@ SEARCH_SERVICE = env("SEARCH_SERVICE", default="apps.search.services.postgres.Po
 # --- ClamAV (malware scanning) ----------------------------------------------
 CLAMAV_HOST = env("CLAMAV_HOST", default="localhost")
 CLAMAV_PORT = env.int("CLAMAV_PORT", default=3310)
+SCAN_SERVICE = env("SCAN_SERVICE", default="apps.moderation.services.clamav.ClamAVScanService")
 
 # --- i18n / tz --------------------------------------------------------------
 LANGUAGE_CODE = "en-us"
