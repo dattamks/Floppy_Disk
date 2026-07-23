@@ -11,10 +11,45 @@ General-purpose cloud storage / sharing / streaming application — upload, orga
 │   ├── src/               # App.jsx (demo UI, localStorage-backed), main.jsx, index.css
 │   ├── package.json
 │   └── vite.config.js
-├── backend/               # Django + DRF API + Celery workers   (to be scaffolded)
+├── backend/               # Django + DRF API + Celery workers
+│   └── apps/              # accounts, storage, sharing, channels, billing,
+│                          # moderation, notifications, search, analytics, common
 └── docs/
     ├── PRD-02-Backend-Platform.md   # Backend/platform spec (authoritative)
     └── design-reference/            # Design-tool export + PRD-01 (reference only, not built)
+```
+
+## Implemented so far (Phase 1)
+
+Each feature is built test-first (pytest) with the frontend wired and a Playwright
+end-to-end test. **75 backend unit tests + 11 E2E, all green.**
+
+| Area | Endpoints (under `/api/v1/`) | Highlights |
+|---|---|---|
+| **Auth** | `auth/{register,login,logout,me,csrf,verify-email,password-reset}` | email/password behind `AuthProvider`; age≥18; session + CSRF |
+| **Storage** | `storage/{folders,files,uploads,usage,trash}` | per-region dedup, **reserve-then-commit quota**, presigned upload |
+| **Trash** | `storage/files/{id}/{restore,purge}`, `storage/trash` | soft-delete, ref-count release, retention job |
+| **Sharing** | `storage/files/{id}/share`, `public/share/{token}` | public token links, expiry, paid password gate |
+| **Channels** | `channels/…/{subscribe,posts,promote}` | owner/admin/subscriber roles, role-gated posting |
+| **Moderation** | `moderation/reports` | malware scan on upload (quarantine), Flag/Report |
+| **Billing** | `billing/{plans,subscribe,cancel,webhook}` | tier+quota upgrades, idempotent webhooks |
+| **Notifications** | `notifications/…/{read,read-all}` | channel fan-out, unread counts |
+
+Service boundaries are abstracted for the AWS/vendor migration: `AuthProvider`
+(Cognito), `StorageService` (R2/S3), `PaymentGateway` (Razorpay/Stripe),
+`SearchService` (Postgres FTS/OpenSearch), `ScanService` (ClamAV). Dev/test use
+in-process fakes (`LocalStorageService`, `FakePaymentGateway`, `FakeScanService`)
+so the whole stack runs without external credentials.
+
+## Backend — run
+
+```bash
+cd backend
+cp .env.example .env
+docker compose up --build        # postgres + redis + clamav + web + worker + beat
+#   or locally:  python -m venv .venv && . .venv/bin/activate
+#                pip install -r requirements-dev.txt && python manage.py migrate && python manage.py runserver
+pytest                            # run the test suite
 ```
 
 ## Stack
@@ -35,4 +70,13 @@ npm install
 npm run dev      # http://localhost:5173
 ```
 
-The current `src/App.jsx` is the demo UI with mock data persisted to `localStorage`. It will be progressively wired to the backend API.
+`src/App.jsx` talks to the backend same-origin via the Vite dev proxy (`/api` →
+`:8000`), so run the backend too. Auth, files/folders, upload, trash, sharing,
+channels, upgrade, and notifications are wired to the real API; remaining demo
+areas still use mock data.
+
+## End-to-end tests
+
+```bash
+cd frontend && npx playwright test    # boots backend (SQLite) + Vite, drives Chromium
+```
