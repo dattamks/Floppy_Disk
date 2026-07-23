@@ -36,10 +36,12 @@ def subscribe(user, *, plan_code: str, annual: bool = False) -> Subscription:
         current_period_end=timezone.now() + period,
     )
 
-    # Apply entitlements: tier + quota.
+    # Apply entitlements: tier + quota, and thaw any files frozen while lapsed.
     user.tier = plan["tier"]
     user.quota_bytes = plan["quota_bytes"]
     user.save(update_fields=["tier", "quota_bytes", "updated_at"])
+    from .freeze import unfreeze_all
+    unfreeze_all(user)
     return sub
 
 

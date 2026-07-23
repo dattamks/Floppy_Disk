@@ -91,6 +91,9 @@ class File(TimeStampedModel):
     is_quarantined = models.BooleanField(default=False)
     # Cloudflare Stream id once a video is promoted for adaptive HLS (PRD 5.5).
     stream_uid = models.CharField(max_length=128, blank=True, default="")
+    # Frozen after a lapsed subscription: cannot view/share, can still download/
+    # delete; purged if the account stays lapsed long enough (PRD 5.3).
+    is_frozen = models.BooleanField(default=False)
 
     class Meta:
         db_table = "storage_file"

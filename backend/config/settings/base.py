@@ -132,6 +132,22 @@ CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
+# Scheduled jobs (daily). Times are UTC; the beat worker runs these.
+CELERY_BEAT_SCHEDULE = {
+    "purge-expired-trash": {
+        "task": "apps.storage.tasks.purge_expired_trash_task",
+        "schedule": 24 * 60 * 60,
+    },
+    "release-expired-reservations": {
+        "task": "apps.storage.tasks.release_expired_reservations_task",
+        "schedule": 60 * 60,
+    },
+    "subscription-freeze-lifecycle": {
+        "task": "apps.billing.tasks.run_freeze_lifecycle_task",
+        "schedule": 24 * 60 * 60,
+    },
+}
+
 # --- Cloudflare R2 / Stream (env-var driven, S3-compatible) -----------------
 R2_ACCOUNT_ID = env("R2_ACCOUNT_ID", default="")
 R2_ACCESS_KEY_ID = env("R2_ACCESS_KEY_ID", default="")

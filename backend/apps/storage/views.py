@@ -64,7 +64,8 @@ class FileListView(APIView):
     def get(self, request):
         folder = request.query_params.get("folder") or None
         qs = File.objects.filter(
-            owner=request.user, deleted_at__isnull=True, is_quarantined=False, folder=folder
+            owner=request.user, deleted_at__isnull=True, is_quarantined=False,
+            is_frozen=False, folder=folder,
         ).order_by("-created_at")
         return Response(FileSerializer(qs, many=True).data)
 
