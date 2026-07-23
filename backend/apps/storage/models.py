@@ -89,6 +89,8 @@ class File(TimeStampedModel):
     deleted_at = models.DateTimeField(null=True, blank=True)
     # Reversible isolation: set by a failed malware scan or a Report (PRD 5.7).
     is_quarantined = models.BooleanField(default=False)
+    # Cloudflare Stream id once a video is promoted for adaptive HLS (PRD 5.5).
+    stream_uid = models.CharField(max_length=128, blank=True, default="")
 
     class Meta:
         db_table = "storage_file"

@@ -104,6 +104,10 @@ export const api = {
   subscription: () => request('/billing/subscription'),
   cancelSubscription: () => request('/billing/cancel', { method: 'POST' }),
 
+  // Video
+  play: (fileId) => request(`/storage/files/${fileId}/play`, { method: 'POST' }),
+  promoteVideo: (fileId) => request(`/storage/files/${fileId}/promote`, { method: 'POST' }),
+
   // Notifications
   notifications: () => request('/notifications/'),
   markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: 'POST' }),

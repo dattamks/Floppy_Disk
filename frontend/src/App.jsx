@@ -397,7 +397,15 @@ export default class App extends React.Component {
   closeModal() { if (this._videoEl) { try { this._videoEl.pause(); } catch (e) {} } this._activeMediaObj = null; this.setState({ modal: null, activeFileId: null, videoPlaying: false, videoProgress: 0, videoCurrent: 0, videoDuration: 0, videoUpgradeHint: false, videoFullscreen: false, shareCopied: false }); }
   openFile(file) {
     if (file.kind === 'folder') { this.setState({ currentFolderId: file.id, filterKey: 'all', searchQuery: '' }); return; }
-    if (file.kind === 'video') { this._videoEl = null; this._activeVideoSrc = file.videoSrc; this._activePoster = file.poster; this.setState({ modal: 'video', activeFileId: file.id, videoPlaying: false, videoProgress: 0, videoCurrent: 0, videoDuration: 0, videoFullscreen: false }); return; }
+    if (file.kind === 'video') {
+      this._videoEl = null; this._activeVideoSrc = file.videoSrc; this._activePoster = file.poster;
+      this.setState({ modal: 'video', activeFileId: file.id, videoPlaying: false, videoProgress: 0, videoCurrent: 0, videoDuration: 0, videoFullscreen: false });
+      if (file.real) {
+        // Fetch a real playback URL (private -> R2 signed; promoted -> HLS).
+        api.play(file.id).then((d) => { this._activeVideoSrc = d.url; this.forceUpdate(); }).catch(() => {});
+      }
+      return;
+    }
     this._activeAudioSrc = file.audioSrc || '';
     this.setState({ modal: 'preview', activeFileId: file.id });
   }

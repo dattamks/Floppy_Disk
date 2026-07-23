@@ -1,0 +1,34 @@
+import { test, expect } from '@playwright/test';
+import { blockExternal, registerNewUser } from './helpers.js';
+
+test.beforeEach(async ({ page }) => { await blockExternal(page); });
+
+test('an uploaded video yields a real playback descriptor', async ({ page }) => {
+  await registerNewUser(page);
+
+  // Upload a small "video" file (kind is derived from the mime type).
+  await page.getByRole('button', { name: 'Upload' }).click();
+  const [complete] = await Promise.all([
+    page.waitForResponse((r) => r.url().includes('/complete')),
+    page.locator('input[type="file"]').setInputFiles({
+      name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.from('fake mp4 bytes'),
+    }),
+  ]);
+  const file = (await complete.json());
+  expect(file.kind).toBe('video');
+
+  // Ask the backend for a playback descriptor via the app's own session.
+  const desc = await page.evaluate(async (id) => {
+    const r = await fetch(`/api/v1/storage/files/${id}/play`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' },
+      credentials: 'same-origin',
+    });
+    return { status: r.status, body: await r.json() };
+  }, file.id);
+
+  expect(desc.status).toBe(200);
+  expect(desc.body.mode).toBe('r2');          // private video streams from R2
+  expect(desc.body.max_resolution).toBe('sd'); // free tier is SD-capped
+  expect(desc.body.url).toBeTruthy();
+});

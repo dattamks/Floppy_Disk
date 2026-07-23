@@ -20,3 +20,6 @@ SCAN_SERVICE = "apps.moderation.services.fake.FakeScanService"
 
 # Payments: fake gateway (instant activation) in dev/tests.
 PAYMENT_GATEWAY = "apps.billing.gateways.fake.FakePaymentGateway"
+
+# Video: fake Stream service in dev/tests.
+VIDEO_SERVICE = "apps.storage.services.video.FakeVideoService"
