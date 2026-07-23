@@ -66,6 +66,7 @@ export const api = {
   usage: () => request('/storage/usage'),
   trash: () => request('/storage/trash'),
   deleteFile: (id) => request(`/storage/files/${id}`, { method: 'DELETE' }),
+  fileDownload: (id) => request(`/storage/files/${id}/download`),
   restoreFile: (id) => request(`/storage/files/${id}/restore`, { method: 'POST' }),
   purgeFile: (id) => request(`/storage/files/${id}/purge`, { method: 'POST' }),
 
