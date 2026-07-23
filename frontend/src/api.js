@@ -108,6 +108,11 @@ export const api = {
   play: (fileId) => request(`/storage/files/${fileId}/play`, { method: 'POST' }),
   promoteVideo: (fileId) => request(`/storage/files/${fileId}/promote`, { method: 'POST' }),
 
+  // Account / compliance (DPDPA)
+  deleteAccount: () => request('/auth/account/delete', { method: 'POST' }),
+  exportData: () => request('/auth/account/export', { method: 'POST' }),
+  logConsent: (policy, version) => request('/auth/account/consent', { method: 'POST', body: { policy, version } }),
+
   // Notifications
   notifications: () => request('/notifications/'),
   markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: 'POST' }),

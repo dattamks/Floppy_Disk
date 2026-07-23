@@ -22,7 +22,7 @@ General-purpose cloud storage / sharing / streaming application — upload, orga
 ## Implemented so far (Phase 1)
 
 Each feature is built test-first (pytest) with the frontend wired and a Playwright
-end-to-end test. **89 backend unit tests + 12 E2E, all green.**
+end-to-end test. **110 backend unit tests + 13 E2E, all green.**
 
 | Area | Endpoints (under `/api/v1/`) | Highlights |
 |---|---|---|
@@ -34,10 +34,13 @@ end-to-end test. **89 backend unit tests + 12 E2E, all green.**
 | **Moderation** | `moderation/reports` | malware scan on upload (quarantine), Flag/Report |
 | **Billing** | `billing/{plans,subscribe,cancel,webhook}` | tier+quota upgrades, idempotent webhooks, expiry-anchored freeze lifecycle |
 | **Video** | `storage/files/{id}/{play,promote}`, `storage/stream/webhook` | private→R2 signed, promoted→HLS, free-tier SD cap |
+| **Referrals** | `billing/referral{,/apply}` | 50GB/referral, 1TB cap, 180d expiry, effective quota |
 | **Notifications** | `notifications/…/{read,read-all}` | channel fan-out, unread counts |
+| **Compliance** | `auth/account/{delete,export,consent}` | DPDPA soft→hard delete (legal hold), data export, consent log |
 
-Scheduled (Celery beat): trash purge, expired-reservation release, and the
-subscription freeze lifecycle.
+Rate limits (DRF scoped throttles) on login/register/password-reset/report/share-unlock.
+Scheduled (Celery beat): trash purge, expired-reservation release, subscription
+freeze lifecycle, and 30-day account hard-delete.
 
 Service boundaries are abstracted for the AWS/vendor migration: `AuthProvider`
 (Cognito), `StorageService` (R2/S3), `PaymentGateway` (Razorpay/Stripe),

@@ -17,3 +17,17 @@ class UserDeviceAdmin(admin.ModelAdmin):
     list_display = ("user", "device_type", "device_id", "last_seen")
     list_filter = ("device_type",)
     search_fields = ("user__email", "device_id")
+
+from .models import ConsentLog, DataExport  # noqa: E402
+
+
+@admin.register(ConsentLog)
+class ConsentLogAdmin(admin.ModelAdmin):
+    list_display = ("user", "policy", "version", "created_at")
+    search_fields = ("user__email", "version")
+
+
+@admin.register(DataExport)
+class DataExportAdmin(admin.ModelAdmin):
+    list_display = ("user", "size_bytes", "expires_at", "created_at")
+    search_fields = ("user__email",)

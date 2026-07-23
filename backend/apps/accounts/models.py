@@ -120,6 +120,32 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
         self.save(update_fields=["status", "is_active", "deleted_at", "updated_at"])
 
 
+class ConsentLog(TimeStampedModel):
+    """Tracks ToS / Privacy Policy version acceptance (DPDPA, PRD 5.11)."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="consents")
+    policy = models.CharField(max_length=20, default="tos")  # tos | privacy
+    version = models.CharField(max_length=40)
+
+    class Meta:
+        db_table = "accounts_consent_log"
+        indexes = [models.Index(fields=["user", "policy"])]
+
+
+class DataExport(TimeStampedModel):
+    """A generated DPDPA data-export archive with an expiring download link."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="exports")
+    object_key = models.CharField(max_length=512)
+    size_bytes = models.BigIntegerField(default=0)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        db_table = "accounts_data_export"
+
+
 class UserDevice(TimeStampedModel):
     """Device/session visibility and fraud signals (NOT rate-limiting — PRD 5.1)."""
 

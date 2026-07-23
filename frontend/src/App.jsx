@@ -235,7 +235,11 @@ export default class App extends React.Component {
   setProfileBio(e) { this.setState({ profileBio: e.target.value }); }
   saveProfile() { this.toast('Profile saved'); }
   toastPhoto() { this.toast('Photo picker opened'); }
-  toastDelete() { this.toast('Account deletion requires email confirmation'); }
+  toastDelete() {
+    api.deleteAccount()
+      .then(() => { this.toast('Account deleted'); this.logout(); })
+      .catch((err) => this.toast(firstError(err, 'Could not delete account')));
+  }
   toastSessions() { this.toast('Signed out of all other sessions'); }
   toggle2fa() { this.setState(s => ({ twofa: !s.twofa })); }
   setPwCurrent(e) { this.setState({ pwCurrent: e.target.value }); }

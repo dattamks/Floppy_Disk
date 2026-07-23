@@ -149,6 +149,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.billing.tasks.run_freeze_lifecycle_task",
         "schedule": 24 * 60 * 60,
     },
+    "hard-delete-expired-accounts": {
+        "task": "apps.accounts.tasks.hard_delete_expired_accounts_task",
+        "schedule": 24 * 60 * 60,
+    },
 }
 
 # --- Cloudflare R2 / Stream (env-var driven, S3-compatible) -----------------

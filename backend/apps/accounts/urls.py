@@ -1,7 +1,7 @@
 """Auth API routes (mounted at /api/v1/auth/)."""
 from django.urls import path
 
-from . import views
+from . import compliance_views, views
 
 app_name = "accounts"
 
@@ -14,4 +14,7 @@ urlpatterns = [
     path("password-reset", views.PasswordResetRequestView.as_view(), name="password_reset"),
     path("password-reset/confirm", views.PasswordResetConfirmView.as_view(), name="password_reset_confirm"),
     path("verify-email", views.VerifyEmailView.as_view(), name="verify_email"),
+    path("account/delete", compliance_views.AccountDeleteView.as_view(), name="account_delete"),
+    path("account/export", compliance_views.DataExportView.as_view(), name="account_export"),
+    path("account/consent", compliance_views.ConsentView.as_view(), name="account_consent"),
 ]
