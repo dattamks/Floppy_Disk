@@ -6,6 +6,8 @@
 **POC Infra:** Railway (Django + Postgres + Redis + React/Vite frontend), Cloudflare (R2 + Stream + CDN), AWS via `boto3` (Cognito) — see Section 10 for the infra/migration plan.
 
 > **Revision note:** This version consolidates the resolutions from the PRD-02 gap review. Design decisions that were previously abstract or contradictory have been replaced with the resolved architecture (reserve-then-commit quota, video-to-R2-first scanning, universal CSAM scanning with containment decoupled from account punishment, expiry-anchored subscription freeze lifecycle, per-region deduplication, and the full rate-limiting spec). Items still genuinely undecided are consolidated in Section 6 (Open Questions & Decisions).
+>
+> **Auth phasing (build decision):** Phase 1 (POC) ships **email/password only** behind an `AuthProvider` abstraction. AWS Cognito, phone+OTP, Google/Apple social login, and phone re-verification are **Phase 2** (see 5.1 and the P1 list) — this keeps DLT/SMS registration and Cognito off the POC critical path.
 
 ---
 
@@ -70,30 +72,39 @@ Users need a general-purpose cloud storage product — upload, organize, share, 
 
 ## 5. Requirements
 
-### 5.1 Auth, Identity & Account Security (P0)
+### 5.1 Auth, Identity & Account Security
 
-- [ ] **AWS Cognito integration (via `boto3`)** supporting email/password, phone+OTP, Google/Apple social login.
-- [ ] **Minimum account age: 18.** Raised from an earlier 13 specifically to avoid DPDPA's verifiable-parental-consent requirement for minors rather than build a parental-consent flow. DOB is collected at signup but is **not load-bearing for content safety** (mature content policy no longer depends on age-gating — see 5.5).
-- [ ] **Recovery email** (verified via link) for account recovery.
-- [ ] **Phone re-verification every 90 days**, rolling from the last-verified date — mitigates phone-number recycling (reassigned Indian telecom numbers could otherwise let a new holder OTP into the previous owner's account).
-- [ ] **Email re-verification** triggered only when the user actively changes their email (OTP-based change flow), not on a recurring schedule.
-- [ ] **Dormant accounts:** no login for 6 months moves an account to a distinct "dormant" status; exiting dormant requires a separate restore process beyond logging in (exact mechanics open — see Section 6).
+**Auth is phased.** Phase 1 (POC) ships **email/password only** — no Cognito, no phone/OTP, no social login, which removes the DLT/SMS registration and Cognito wiring from the POC critical path. All auth is written behind an **`AuthProvider` abstraction** (mirroring the `PaymentGateway` pattern) so the Phase-2 identity stack drops in without touching callers.
+
+**Phase 1 (POC) — P0:**
+- [ ] **Email/password auth via Django's built-in auth framework** (session or JWT via DRF), behind the `AuthProvider` interface.
+- [ ] **Email verification via link** at signup; **password reset** via emailed link. Email is the primary account identifier in Phase 1.
+- [ ] **Minimum account age: 18.** Set specifically to avoid DPDPA's verifiable-parental-consent requirement for minors rather than build a parental-consent flow. DOB is collected at signup (self-attested) but is **not load-bearing for content safety** (mature content policy no longer depends on age-gating — see 5.5).
+- [ ] **Dormant accounts:** no login for 6 months moves an account to a distinct "dormant" status; exiting dormant requires a separate restore process beyond logging in — **email re-verification in Phase 1** (exact mechanics open — see Section 6).
 - [ ] **`UserDevice` tracking** (device_id, type, last_seen, push_token) for security/session visibility and fraud signals — explicitly **not** used for rate-limiting (rate limiting is per-account/per-IP, see 5.2).
 - [ ] **`X-Client-Platform` header** (`ios`/`android`/`web`) read on every request for client-type awareness (no longer used to gate mature content — see 5.5).
 
+**Phase 2 — federated identity + phone (deferred):**
+- [ ] **AWS Cognito integration (via `boto3`)**, dropped in behind the `AuthProvider` interface.
+- [ ] **Phone + OTP** signup/login — requires a **DLT-registered SMS pipeline** for India (TRAI-mandated sender-ID/template registration; real procurement lead time).
+- [ ] **Google/Apple social login.** *(Independently addable in Phase 1 via `django-allauth` without Cognito if desired — pending confirmation.)*
+- [ ] **Recovery email** as the phone-loss recovery path (only meaningful once phone is the primary identifier).
+- [ ] **Phone re-verification every 90 days**, rolling from last-verified date — mitigates phone-number recycling; applies only once phone auth exists.
+
 ### 5.2 Rate Limiting (P0)
 
-IP address is logged on every attempt. Security-relevant actions notify the account owner via email + SMS when a hard limit is hit; scraping/browsing/reporting limits are internal-only.
+IP address is logged on every attempt. Security-relevant actions notify the account owner via **email** when a hard limit is hit (SMS alerts arrive with phone auth in Phase 2); scraping/browsing/reporting limits are internal-only.
 
 | Action | Soft limit | Hard limit → consequence | Notification |
 |---|---|---|---|
-| OTP request | 3 / 10 min | 10/day → 4hr lockout | Email + SMS alert |
-| Login attempt | 5 / 15 min | 10/day → 4hr lockout | Email + SMS alert |
+| Login attempt | 5 / 15 min | 10/day → 4hr lockout | Email alert |
+| Password reset request | 3 / 10 min | 10/day → 4hr lockout | Email alert |
 | Share-link password attempt | — | 10 attempts → 24hr lockout | Notify link owner |
 | Discoverable content browsing/search | ~100 req/min | Throttle | Internal log only |
 | Public share-link sequential guessing | ~20/min per IP | Flag/throttle | Internal only |
 | Report/flag submission | ~10/hour/account | Sustained spam flags account for review | Internal only |
 | Upload rate | Tiered by account (free stricter, paid relaxed) | — | — |
+| **OTP request (Phase 2)** | 3 / 10 min | 10/day → 4hr lockout | Email + SMS alert |
 
 ### 5.3 Storage, Quota & Billing (P0)
 
@@ -151,7 +162,7 @@ IP address is logged on every attempt. Security-relevant actions notify the acco
 - [ ] **No cold-storage holding tier:** deduped/shared files cost little to keep regardless; the real cost burden is unique files of a lapsed non-paying user, and ~90+ days of free warnings/grace before any deletion is already generous.
 
 **Referral program**
-- [ ] **50GB per successful (OTP-verified) referral, capped at 1TB total,** each 50GB grant expires 180 days from grant date. Tracked as individual `ReferralBonus` records (not a flat cumulative field), so continuous referring keeps storage topped up.
+- [ ] **50GB per successful referral, capped at 1TB total,** each 50GB grant expires 180 days from grant date. Tracked as individual `ReferralBonus` records (not a flat cumulative field), so continuous referring keeps storage topped up. **Success criterion is phased:** Phase 1 = referee completes **email verification** + first upload; Phase 2 tightens this to **OTP-verified** once phone auth exists.
 - [ ] **Referral self-fraud: risk explicitly accepted** — only the referrer gains storage (referee gets nothing, so no viral multiplication), the 1TB cap bounds damage, cost is usage-based not account-based, and farmed accounts still generate some ad revenue. Note for future fraud work: shared-device households are a false-positive risk to design around.
 - [ ] **Referral-bonus expiry pushing a user over quota** is unified with the subscription freeze/deletion flow above — one mechanism handles both causes of going over quota.
 
@@ -225,7 +236,7 @@ IP address is logged on every attempt. Security-relevant actions notify the acco
 
 ### 5.11 Compliance (P0)
 
-- [ ] **DPDPA:** account deletion soft-deletes immediately; hard-deletes (cascading across File/Folder/`StorageObject` ref_count/Cognito/Stream/subscription) after 30 days. Async data-export job (zip to R2, expiring download link). `ConsentLog` tracks ToS/policy-version acceptance.
+- [ ] **DPDPA:** account deletion soft-deletes immediately; hard-deletes (cascading across File/Folder/`StorageObject` ref_count/identity provider [Django auth in Phase 1, Cognito in Phase 2]/Stream/subscription) after 30 days. Async data-export job (zip to R2, expiring download link). `ConsentLog` tracks ToS/policy-version acceptance.
 - [ ] **Legal hold vs. deletion:** the 30-day hard-delete job checks for an active legal hold (e.g. an open `CSAMIncident`) before purging any account or content; if a hold is active, hard-deletion of that content is skipped (the account can still be marked deleted/inaccessible to the user) until the hold is explicitly lifted through the admin/compliance flow.
 - [ ] **Shared content on account deletion:** view-only `ShareLink` access is revoked immediately when the owner's account is deleted; content a recipient explicitly "added to their storage" (copy-on-share) persists independently in their own account, unaffected — mirroring how saving media in a messaging app works.
 - [ ] **Data residency:** user-selectable storage region at signup/settings; region-pinned R2 buckets (see 5.3 dedup interaction); single-region Django/Postgres app layer with no full DB isolation — confirmed acceptable for B2C.
@@ -238,6 +249,7 @@ IP address is logged on every attempt. Security-relevant actions notify the acco
 - [ ] **Product analytics:** custom `AnalyticsEvent` model (Postgres, JSONB properties, monthly partitioning) — no third-party vendor; connects into Grafana in Phase 2 for funnel/cohort/retention via direct SQL.
 
 ### P1 — Nice-to-Have (fast-follow post-POC)
+- [ ] **Phase-2 auth stack:** AWS Cognito (via `boto3`) behind the `AuthProvider` interface + phone/OTP (DLT-registered SMS pipeline) + Google/Apple social login + 90-day phone re-verification.
 - [ ] Grafana unifying dashboard (CloudWatch/Sentry/Postgres).
 - [ ] Regional language support (Hindi + others).
 - [ ] Multi-environment setup (dev/staging/prod).
