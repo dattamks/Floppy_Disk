@@ -14,4 +14,5 @@ urlpatterns = [
     path("api/v1/public/", include((sharing_public, "sharing_public"))),
     path("api/v1/channels/", include("apps.channels.urls")),
     path("api/v1/moderation/", include("apps.moderation.urls")),
+    path("api/v1/billing/", include("apps.billing.urls")),
 ]

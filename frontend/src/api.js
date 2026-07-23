@@ -97,4 +97,10 @@ export const api = {
 
   // Moderation
   report: (payload) => request('/moderation/reports', { method: 'POST', body: payload }),
+
+  // Billing
+  plans: () => request('/billing/plans'),
+  subscribe: (plan, annual = false) => request('/billing/subscribe', { method: 'POST', body: { plan, annual } }),
+  subscription: () => request('/billing/subscription'),
+  cancelSubscription: () => request('/billing/cancel', { method: 'POST' }),
 };

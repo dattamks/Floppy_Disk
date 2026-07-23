@@ -20,3 +20,6 @@ DEV_STORAGE_DIR = "/tmp/claude-0/-home-user-Floppy-Disk/5c03de2b-195c-53d0-b890-
 
 # Scanning: fake scanner (detects EICAR) for tests.
 SCAN_SERVICE = "apps.moderation.services.fake.FakeScanService"
+
+# Payments: fake gateway (instant activation) in dev/tests.
+PAYMENT_GATEWAY = "apps.billing.gateways.fake.FakePaymentGateway"
