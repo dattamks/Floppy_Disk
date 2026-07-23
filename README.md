@@ -22,7 +22,7 @@ General-purpose cloud storage / sharing / streaming application — upload, orga
 ## Implemented so far (Phase 1)
 
 Each feature is built test-first (pytest) with the frontend wired and a Playwright
-end-to-end test. **110 backend unit tests + 13 E2E, all green.**
+end-to-end test. **125 backend unit tests + 14 E2E, all green.**
 
 | Area | Endpoints (under `/api/v1/`) | Highlights |
 |---|---|---|
@@ -36,7 +36,10 @@ end-to-end test. **110 backend unit tests + 13 E2E, all green.**
 | **Video** | `storage/files/{id}/{play,promote}`, `storage/stream/webhook` | private→R2 signed, promoted→HLS, free-tier SD cap |
 | **Referrals** | `billing/referral{,/apply}` | 50GB/referral, 1TB cap, 180d expiry, effective quota |
 | **Notifications** | `notifications/…/{read,read-all}` | channel fan-out, unread counts |
-| **Compliance** | `auth/account/{delete,export,consent}` | DPDPA soft→hard delete (legal hold), data export, consent log |
+| **Search** | `storage/search`, `storage/files/{id}/discoverable` | own + discoverable non-mature; Postgres FTS (prod), portable (dev) |
+| **Compliance** | `auth/account/{delete,export,consent,settings}` | DPDPA soft→hard delete (legal hold), export, consent, backup settings |
+| **Device backup** | `storage/camera-backup` | Camera Backup folder, quota-pause notify |
+| **Analytics** | — | AnalyticsEvent + `track()` on signup/upload/share/subscribe |
 
 Rate limits (DRF scoped throttles) on login/register/password-reset/report/share-unlock.
 Scheduled (Celery beat): trash purge, expired-reservation release, subscription

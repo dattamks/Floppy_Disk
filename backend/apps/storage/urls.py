@@ -10,6 +10,7 @@ urlpatterns = [
     path("folders", views.FolderListCreateView.as_view(), name="folder_list"),
     path("folders/<uuid:folder_id>", views.FolderDetailView.as_view(), name="folder_detail"),
     path("search", views.SearchView.as_view(), name="search"),
+    path("camera-backup", views.CameraBackupFolderView.as_view(), name="camera_backup"),
     path("files", views.FileListView.as_view(), name="file_list"),
     path("files/<uuid:file_id>", views.FileDetailView.as_view(), name="file_detail"),
     path("files/<uuid:file_id>/discoverable", views.FileDiscoverableView.as_view(), name="file_discoverable"),

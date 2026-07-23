@@ -58,6 +58,21 @@ class FolderDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+CAMERA_BACKUP_NAME = "Camera Backup"
+
+
+class CameraBackupFolderView(APIView):
+    """Return (creating if needed) the user's dedicated device-backup folder (PRD 5.10)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        folder, _ = Folder.objects.get_or_create(
+            owner=request.user, name=CAMERA_BACKUP_NAME, parent=None, deleted_at__isnull=True,
+        )
+        return Response(FolderSerializer(folder).data)
+
+
 class SearchView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -201,6 +216,11 @@ class UploadInitiateView(APIView):
             return Response({"detail": str(exc), "code": "file_too_large"}, status=status.HTTP_400_BAD_REQUEST)
         except QuotaExceeded as exc:
             file.delete()
+            # Device backup pauses on quota — notify the user, don't fail silently (PRD 5.10).
+            if request.data.get("is_backup"):
+                from apps.notifications.dispatch import notify
+                notify(request.user, type="quota", title="Backup paused — storage full",
+                       body="Free up space or upgrade to resume Camera Backup.")
             return Response({"detail": str(exc), "code": "quota_exceeded"}, status=status.HTTP_400_BAD_REQUEST)
 
         object_key = _object_key(request.user.id, file.id)

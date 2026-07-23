@@ -17,4 +17,5 @@ urlpatterns = [
     path("account/delete", compliance_views.AccountDeleteView.as_view(), name="account_delete"),
     path("account/export", compliance_views.DataExportView.as_view(), name="account_export"),
     path("account/consent", compliance_views.ConsentView.as_view(), name="account_consent"),
+    path("account/settings", compliance_views.AccountSettingsView.as_view(), name="account_settings"),
 ]

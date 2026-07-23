@@ -44,3 +44,24 @@ class ConsentView(APIView):
             user=request.user, policy=request.data.get("policy", "tos"), version=version,
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AccountSettingsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    FIELDS = ("auto_backup_enabled", "backup_wifi_only")
+
+    def get(self, request):
+        u = request.user
+        return Response({f: getattr(u, f) for f in self.FIELDS})
+
+    def patch(self, request):
+        u = request.user
+        changed = []
+        for f in self.FIELDS:
+            if f in request.data:
+                setattr(u, f, bool(request.data[f]))
+                changed.append(f)
+        if changed:
+            u.save(update_fields=[*changed, "updated_at"])
+        return Response({f: getattr(u, f) for f in self.FIELDS})

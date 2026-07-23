@@ -89,6 +89,10 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
         PAID_2TB = "paid_2tb", "Paid 2TB"
         PAID_5TB = "paid_5tb", "Paid 5TB"
 
+    # Device backup settings (PRD 5.10).
+    auto_backup_enabled = models.BooleanField(default=False)
+    backup_wifi_only = models.BooleanField(default=True)
+
     tier = models.CharField(max_length=10, choices=Tier.choices, default=Tier.FREE)
     # Denormalized quota counters (PRD 5.3). quota_bytes is the effective limit
     # (base tier + referral bonuses later); storage_used_bytes is committed usage.
