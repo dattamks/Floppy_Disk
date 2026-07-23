@@ -88,4 +88,10 @@ export const api = {
       throw err;
     }
   },
+
+  // Channels
+  listChannels: (mine) => request(`/channels/${mine ? '?mine=1' : ''}`),
+  createChannel: (payload) => request('/channels/', { method: 'POST', body: payload }),
+  subscribeChannel: (id) => request(`/channels/${id}/subscribe`, { method: 'POST' }),
+  unsubscribeChannel: (id) => request(`/channels/${id}/subscribe`, { method: 'DELETE' }),
 };

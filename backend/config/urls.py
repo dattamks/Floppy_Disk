@@ -12,4 +12,5 @@ urlpatterns = [
     path("api/v1/storage/", include("apps.storage.urls")),
     path("api/v1/storage/", include((sharing_owner, "sharing_owner"))),
     path("api/v1/public/", include((sharing_public, "sharing_public"))),
+    path("api/v1/channels/", include("apps.channels.urls")),
 ]

@@ -148,6 +148,7 @@ export default class App extends React.Component {
       profileName: user.display_name || this.state.profileName,
     });
     this.loadStorage();
+    this.loadChannels();
   }
 
   authPrimary() {
@@ -199,7 +200,16 @@ export default class App extends React.Component {
   clearDiscoverQuery() { this.setState({ discoverQuery: '' }); }
   setDiscoverCategory(cat) { this.setState({ discoverCategory: cat }); }
   setTrendingSort(sort) { this.setState({ trendingSort: sort }); }
-  toggleSubscribe(id) { this.setState(s => ({ channels: s.channels.map(c => c.id === id ? { ...c, subscribed: !c.subscribed } : c) })); const c = this.state.channels.find(x => x.id === id); this.toast(c && c.subscribed ? 'Unsubscribed' : 'Subscribed'); }
+  toggleSubscribe(id) {
+    const c = this.state.channels.find(x => x.id === id);
+    const willSubscribe = !(c && c.subscribed);
+    if (c && c.real) {
+      const call = willSubscribe ? api.subscribeChannel(id) : api.unsubscribeChannel(id);
+      call.catch((err) => this.toast(firstError(err, 'Could not update subscription')));
+    }
+    this.setState(s => ({ channels: s.channels.map(x => x.id === id ? { ...x, subscribed: willSubscribe, subsNum: Math.max(0, (x.subsNum || 0) + (willSubscribe ? 1 : -1)) } : x) }));
+    this.toast(willSubscribe ? 'Subscribed' : 'Unsubscribed');
+  }
 
   setSearch(e) { this.setState({ searchQuery: e.target.value }); }
   clearSearch() { this.setState({ searchQuery: '' }); }
@@ -257,14 +267,43 @@ export default class App extends React.Component {
   setNewChName(e) { this.setState({ newChName: e.target.value }); }
   setNewChHandle(e) { this.setState({ newChHandle: e.target.value }); }
   setNewChCategory(cat) { this.setState({ newChCategory: cat }); }
+  _mapChannel(c) {
+    const palette = ['#5145E5', '#0EA5A0', '#E5484D', '#D97706', '#8B5CF6'];
+    const initials = (c.name || '?').trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+    let hash = 0; for (const ch of c.handle || '') hash = (hash + ch.charCodeAt(0)) % palette.length;
+    return {
+      id: c.id, name: c.name, handle: c.handle.startsWith('@') ? c.handle : '@' + c.handle,
+      color: palette[hash], initials, subs: String(c.subscriber_count ?? 1), subsNum: c.subscriber_count ?? 1,
+      live: false, subscribed: !!c.role, isAdmin: c.role === 'owner' || c.role === 'admin',
+      category: 'General', isNew: false, real: true,
+    };
+  }
+
   createChannel() {
     const s = this.state; const name = s.newChName.trim();
     if (!name) { this.toast('Enter a channel name'); return; }
-    const palette = ['#5145E5', '#0EA5A0', '#E5484D', '#D97706', '#8B5CF6'];
-    const initials = name.trim().split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase();
-    const ch = { id: 'ch-' + Date.now(), name, handle: s.newChHandle.trim() || '@' + name.toLowerCase().replace(/\s+/g, ''), color: palette[Math.floor(Math.random() * palette.length)], initials, subs: '1', subsNum: 1, live: false, subscribed: true, isAdmin: true, category: s.newChCategory, isNew: true };
-    this.setState(st => ({ channels: [ch, ...st.channels], modal: null }));
-    this.toast('Channel created');
+    const handle = (s.newChHandle.trim() || name.toLowerCase().replace(/\s+/g, '')).replace(/^@/, '');
+    api.createChannel({ name, handle, is_public: true })
+      .then((c) => {
+        this.setState(st => ({ channels: [this._mapChannel(c), ...st.channels], modal: null, newChName: '', newChHandle: '' }));
+        this.toast('Channel created');
+      })
+      .catch((err) => this.toast(firstError(err, 'Could not create channel')));
+  }
+
+  // Load discoverable + subscribed channels from the backend, merged by id.
+  loadChannels() {
+    Promise.all([api.listChannels(false).catch(() => []), api.listChannels(true).catch(() => [])])
+      .then(([pub, mine]) => {
+        const byId = new Map();
+        [...(pub || []), ...(mine || [])].forEach(c => byId.set(c.id, this._mapChannel(c)));
+        if (!byId.size) return;
+        this.setState(st => {
+          const existing = new Set(st.channels.map(c => c.id));
+          const fresh = [...byId.values()].filter(c => !existing.has(c.id));
+          return fresh.length ? { channels: [...fresh, ...st.channels] } : null;
+        });
+      });
   }
 
   openReport(id) { this.setState({ modal: 'report', reportPostId: id, reportReason: '' }); }
