@@ -41,9 +41,15 @@ def _live_reserved_bytes(user) -> int:
     return agg["total"] or 0
 
 
+def _quota_limit(user) -> int:
+    """Effective quota = base tier quota + active referral bonuses (PRD 5.3)."""
+    from apps.billing.referrals import effective_quota
+    return effective_quota(user)
+
+
 def available_bytes(user) -> int:
     """Remaining quota after committed usage AND live reservations."""
-    return user.quota_bytes - user.storage_used_bytes - _live_reserved_bytes(user)
+    return _quota_limit(user) - user.storage_used_bytes - _live_reserved_bytes(user)
 
 
 @transaction.atomic
@@ -65,7 +71,7 @@ def reserve(user, *, size_bytes: int, file: File | None = None) -> StorageReserv
     locked = user.__class__.objects.select_for_update().get(pk=user.pk)
     used = locked.storage_used_bytes
     reserved = _live_reserved_bytes(locked)
-    if used + reserved + size_bytes > locked.quota_bytes:
+    if used + reserved + size_bytes > _quota_limit(locked):
         raise QuotaExceeded("Not enough storage quota remaining.")
 
     return StorageReservation.objects.create(

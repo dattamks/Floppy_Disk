@@ -75,8 +75,10 @@ class UsageView(APIView):
 
     def get(self, request):
         u = request.user
+        from apps.billing.referrals import effective_quota
         return Response({
-            "quota_bytes": u.quota_bytes,
+            "quota_bytes": effective_quota(u),   # includes active referral bonuses
+            "base_quota_bytes": u.quota_bytes,
             "used_bytes": u.storage_used_bytes,
             "available_bytes": available_bytes(u),
             "tier": u.tier,

@@ -74,3 +74,29 @@ class WebhookView(APIView):
         except BillingError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response({"processed": newly})
+
+
+class ReferralView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .referrals import CAP_BYTES, active_bonus_bytes
+        u = request.user
+        return Response({
+            "code": u.referral_code,
+            "referrals_count": u.referred_users.count(),
+            "bonus_bytes_active": active_bonus_bytes(u),
+            "bonus_bytes_cap": CAP_BYTES,
+        })
+
+
+class ReferralApplyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from .referrals import ReferralError, apply_referral
+        try:
+            bonus = apply_referral(referee=request.user, code=request.data.get("code", ""))
+        except ReferralError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"granted_bytes": bonus.bytes}, status=status.HTTP_201_CREATED)

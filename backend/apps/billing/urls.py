@@ -11,4 +11,6 @@ urlpatterns = [
     path("subscription", views.SubscriptionView.as_view(), name="subscription"),
     path("cancel", views.CancelView.as_view(), name="cancel"),
     path("webhook", views.WebhookView.as_view(), name="webhook"),
+    path("referral", views.ReferralView.as_view(), name="referral"),
+    path("referral/apply", views.ReferralApplyView.as_view(), name="referral_apply"),
 ]

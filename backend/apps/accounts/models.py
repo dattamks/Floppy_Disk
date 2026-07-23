@@ -23,10 +23,20 @@ class UserManager(BaseUserManager):
         if not email:
             raise ValueError("Users must have an email address")
         email = self.normalize_email(email).lower()
+        extra_fields.setdefault("referral_code", self._new_referral_code())
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
+
+    def _new_referral_code(self):
+        import secrets
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no ambiguous chars
+        for _ in range(10):
+            code = "".join(secrets.choice(alphabet) for _ in range(8))
+            if not self.model.objects.filter(referral_code=code).exists():
+                return code
+        return None
 
     def create_user(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", False)
@@ -56,6 +66,9 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
 
     email = models.EmailField(unique=True, db_index=True)
     email_verified = models.BooleanField(default=False)
+
+    referral_code = models.CharField(max_length=12, unique=True, blank=True, null=True, db_index=True)
+    referred_by = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="referred_users")
 
     # Phase 2 (inert in Phase 1)
     phone = models.CharField(max_length=20, blank=True, default="")
