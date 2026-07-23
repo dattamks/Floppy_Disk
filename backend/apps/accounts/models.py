@@ -71,6 +71,17 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     )
     storage_region = models.CharField(max_length=16, default="ap-south")  # data residency
 
+    class Tier(models.TextChoices):
+        FREE = "free", "Free"
+        PAID_2TB = "paid_2tb", "Paid 2TB"
+        PAID_5TB = "paid_5tb", "Paid 5TB"
+
+    tier = models.CharField(max_length=10, choices=Tier.choices, default=Tier.FREE)
+    # Denormalized quota counters (PRD 5.3). quota_bytes is the effective limit
+    # (base tier + referral bonuses later); storage_used_bytes is committed usage.
+    quota_bytes = models.BigIntegerField(default=500 * 1024**3)      # Free: 500 GB
+    storage_used_bytes = models.BigIntegerField(default=0)
+
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 

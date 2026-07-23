@@ -143,6 +143,7 @@ CLOUDFLARE_STREAM_ACCOUNT_ID = env("CLOUDFLARE_STREAM_ACCOUNT_ID", default="")
 CLOUDFLARE_STREAM_API_TOKEN = env("CLOUDFLARE_STREAM_API_TOKEN", default="")
 
 STORAGE_SERVICE = env("STORAGE_SERVICE", default="apps.storage.services.r2.R2StorageService")
+DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(BASE_DIR / ".devstorage"))
 
 # --- Payments (Razorpay behind PaymentGateway abstraction) ------------------
 PAYMENT_GATEWAY = env("PAYMENT_GATEWAY", default="apps.billing.gateways.razorpay.RazorpayGateway")

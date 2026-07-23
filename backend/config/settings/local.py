@@ -10,3 +10,7 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # Relax throttling noise in dev; real limits are exercised in prod/tests.
 INTERNAL_IPS = ["127.0.0.1"]
+
+# Storage: local disk-backed service in dev (R2 in production).
+STORAGE_SERVICE = "apps.storage.services.local.LocalStorageService"
+DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(BASE_DIR / ".devstorage"))
