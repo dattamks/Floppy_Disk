@@ -57,4 +57,11 @@ export const api = {
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
   logout: () => request('/auth/logout', { method: 'POST' }),
   passwordReset: (email) => request('/auth/password-reset', { method: 'POST', body: { email } }),
+
+  // Storage
+  listFolders: (parent) => request(`/storage/folders${parent ? `?parent=${parent}` : ''}`),
+  createFolder: (name, parent) =>
+    request('/storage/folders', { method: 'POST', body: parent ? { name, parent } : { name } }),
+  listFiles: (folder) => request(`/storage/files${folder ? `?folder=${folder}` : ''}`),
+  usage: () => request('/storage/usage'),
 };

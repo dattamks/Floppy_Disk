@@ -144,6 +144,7 @@ export default class App extends React.Component {
       emailVerified: !!user.email_verified,
       profileName: user.display_name || this.state.profileName,
     });
+    this.loadStorage();
   }
 
   authPrimary() {
@@ -267,7 +268,32 @@ export default class App extends React.Component {
   setReportReason(r) { this.setState({ reportReason: r }); }
   openNewFolder() { this.setState({ modal: 'newFolder', newFolderName: '' }); }
   setNewFolderName(e) { this.setState({ newFolderName: e.target.value }); }
-  createFolder() { const name = this.state.newFolderName.trim(); if (!name) { this.toast('Enter a folder name'); return; } const folder = { id: 'f-' + Date.now(), name, kind: 'folder', parentId: this.state.currentFolderId, trashed: false }; this.setState(s => ({ files: [folder, ...s.files], modal: null })); this.toast('Folder created'); }
+  createFolder() {
+    const name = this.state.newFolderName.trim();
+    if (!name) { this.toast('Enter a folder name'); return; }
+    const cur = this.state.currentFolderId;
+    const isUuid = typeof cur === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(cur);
+    api.createFolder(name, isUuid ? cur : null)
+      .then((folder) => {
+        const item = { id: folder.id, name: folder.name, kind: 'folder', parentId: folder.parent || null, trashed: false, real: true };
+        this.setState(s => ({ files: [item, ...s.files], modal: null, newFolderName: '' }));
+        this.toast('Folder created');
+      })
+      .catch((err) => this.toast(firstError(err, 'Could not create folder')));
+  }
+
+  // Pull the user's real folders from the backend and merge them in (dedupe by id).
+  loadStorage() {
+    api.listFolders().then((folders) => {
+      this.setState((s) => {
+        const existing = new Set(s.files.map(f => f.id));
+        const mapped = (folders || [])
+          .filter(f => !existing.has(f.id))
+          .map(f => ({ id: f.id, name: f.name, kind: 'folder', parentId: f.parent || null, trashed: false, real: true }));
+        return mapped.length ? { files: [...mapped, ...s.files] } : null;
+      });
+    }).catch(() => {});
+  }
   submitReport() { if (!this.state.reportReason) { this.toast('Select a reason'); return; } this.setState({ modal: null, reportPostId: null }); this.toast('Reported to moderators'); }
   flagPost() { this.toast('Post flagged for review'); }
 
