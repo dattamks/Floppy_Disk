@@ -49,6 +49,8 @@ class RegisterView(APIView):
         apply_signup_entitlements(user)
         user.refresh_from_db()
         django_login(request, user, backend=MODEL_BACKEND)
+        from apps.analytics.track import track
+        track("signup", user=user, tier=user.tier)
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 

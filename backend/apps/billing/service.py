@@ -63,6 +63,8 @@ def subscribe(user, *, plan_code: str, annual: bool = False) -> Subscription:
     user.save(update_fields=["tier", "quota_bytes", "updated_at"])
     from .freeze import unfreeze_all
     unfreeze_all(user)
+    from apps.analytics.track import track
+    track("subscribe", user=user, plan=plan_code, annual=annual)
     return sub
 
 

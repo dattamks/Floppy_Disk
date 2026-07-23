@@ -281,6 +281,8 @@ class UploadCompleteView(APIView):
         if res:
             commit(res)
 
+        from apps.analytics.track import track
+        track("upload_complete", user=request.user, kind=file.kind, size_bytes=file.size_bytes)
         return Response(FileSerializer(file).data, status=status.HTTP_200_OK)
 
 

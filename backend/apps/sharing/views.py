@@ -41,6 +41,8 @@ class FileShareView(APIView):
             password_hash=make_password(password) if password else "",
             expires_at=request.data.get("expires_at") or None,
         )
+        from apps.analytics.track import track
+        track("share_created", user=request.user, has_password=bool(password))
         return Response(ShareLinkSerializer(link).data, status=status.HTTP_201_CREATED)
 
 
