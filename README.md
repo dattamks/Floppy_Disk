@@ -22,7 +22,7 @@ General-purpose cloud storage / sharing / streaming application — upload, orga
 ## Implemented so far (Phase 1)
 
 Each feature is built test-first (pytest) with the frontend wired and a Playwright
-end-to-end test. **75 backend unit tests + 11 E2E, all green.**
+end-to-end test. **89 backend unit tests + 12 E2E, all green.**
 
 | Area | Endpoints (under `/api/v1/`) | Highlights |
 |---|---|---|
@@ -32,14 +32,19 @@ end-to-end test. **75 backend unit tests + 11 E2E, all green.**
 | **Sharing** | `storage/files/{id}/share`, `public/share/{token}` | public token links, expiry, paid password gate |
 | **Channels** | `channels/…/{subscribe,posts,promote}` | owner/admin/subscriber roles, role-gated posting |
 | **Moderation** | `moderation/reports` | malware scan on upload (quarantine), Flag/Report |
-| **Billing** | `billing/{plans,subscribe,cancel,webhook}` | tier+quota upgrades, idempotent webhooks |
+| **Billing** | `billing/{plans,subscribe,cancel,webhook}` | tier+quota upgrades, idempotent webhooks, expiry-anchored freeze lifecycle |
+| **Video** | `storage/files/{id}/{play,promote}`, `storage/stream/webhook` | private→R2 signed, promoted→HLS, free-tier SD cap |
 | **Notifications** | `notifications/…/{read,read-all}` | channel fan-out, unread counts |
+
+Scheduled (Celery beat): trash purge, expired-reservation release, and the
+subscription freeze lifecycle.
 
 Service boundaries are abstracted for the AWS/vendor migration: `AuthProvider`
 (Cognito), `StorageService` (R2/S3), `PaymentGateway` (Razorpay/Stripe),
-`SearchService` (Postgres FTS/OpenSearch), `ScanService` (ClamAV). Dev/test use
-in-process fakes (`LocalStorageService`, `FakePaymentGateway`, `FakeScanService`)
-so the whole stack runs without external credentials.
+`VideoService` (Cloudflare Stream), `SearchService` (Postgres FTS/OpenSearch),
+`ScanService` (ClamAV). Dev/test use in-process fakes (`LocalStorageService`,
+`FakePaymentGateway`, `FakeScanService`, `FakeVideoService`) so the whole stack
+runs without external credentials.
 
 ## Backend — run
 
