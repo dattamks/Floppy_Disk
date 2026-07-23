@@ -94,6 +94,10 @@ class File(TimeStampedModel):
     # Frozen after a lapsed subscription: cannot view/share, can still download/
     # delete; purged if the account stays lapsed long enough (PRD 5.3).
     is_frozen = models.BooleanField(default=False)
+    # Discovery (PRD 5.4): discoverable content is searchable/browsable by others;
+    # mature-tagged content is never surfaced in discovery (PRD 5.5).
+    is_discoverable = models.BooleanField(default=False, db_index=True)
+    is_mature_content = models.BooleanField(default=False)
 
     class Meta:
         db_table = "storage_file"

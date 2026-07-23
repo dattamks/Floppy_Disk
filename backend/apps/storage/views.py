@@ -58,6 +58,34 @@ class FolderDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class SearchView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.search.services.base import get_search_service
+        results = get_search_service().search(
+            query=request.query_params.get("q", ""), user_id=request.user.id,
+        )
+        return Response({"results": results})
+
+
+class FileDiscoverableView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, file_id):
+        try:
+            file = File.objects.get(pk=file_id, owner=request.user, deleted_at__isnull=True)
+        except File.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if "is_discoverable" in request.data:
+            file.is_discoverable = bool(request.data["is_discoverable"])
+        if "is_mature_content" in request.data:
+            file.is_mature_content = bool(request.data["is_mature_content"])
+        file.save(update_fields=["is_discoverable", "is_mature_content", "updated_at"])
+        return Response({"is_discoverable": file.is_discoverable,
+                         "is_mature_content": file.is_mature_content})
+
+
 class FileListView(APIView):
     permission_classes = [IsAuthenticated]
 

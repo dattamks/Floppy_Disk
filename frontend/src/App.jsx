@@ -48,7 +48,7 @@ export default class App extends React.Component {
     csNameInput: '', csDesc: 'Team broadcast channel.', csWhoCanPost: 'admins', csNotif: true,
     uploadQueue: [],
     shareAccess: 'restricted', sharePermission: 'view', shareEmails: [], shareEmailInput: '', shareCopied: false, shareLinkUrl: '',
-    videoPlaying: false, videoProgress: 0, videoCurrent: 0, videoDuration: 0, videoMuted: false, videoCC: true, videoUpgradeHint: false, videoFullscreen: false, unreadCount: 0, billingEnabled: false,
+    videoPlaying: false, videoProgress: 0, videoCurrent: 0, videoDuration: 0, videoMuted: false, videoCC: true, videoUpgradeHint: false, videoFullscreen: false, unreadCount: 0, billingEnabled: false, discoverResults: [],
     toastMsg: ''
   };
 
@@ -219,8 +219,26 @@ export default class App extends React.Component {
     this.toast(willSubscribe ? 'Subscribed' : 'Unsubscribed');
   }
 
-  setSearch(e) { this.setState({ searchQuery: e.target.value }); }
-  clearSearch() { this.setState({ searchQuery: '' }); }
+  setSearch(e) {
+    const v = e.target.value;
+    this.setState({ searchQuery: v });
+    clearTimeout(this._searchT);
+    if (v.trim().length >= 2) {
+      this._searchT = setTimeout(() => {
+        api.search(v.trim()).then((r) => {
+          const mapped = (r.results || []).map((x) => ({
+            id: x.id, name: x.name, kind: x.kind, size: humanSize(x.size_bytes),
+            parentId: null, trashed: false, shared: false, channel: false, starred: false,
+            discovered: !x.is_own, real: true,
+          }));
+          this.setState({ discoverResults: mapped });
+        }).catch(() => {});
+      }, 250);
+    } else {
+      this.setState({ discoverResults: [] });
+    }
+  }
+  clearSearch() { clearTimeout(this._searchT); this.setState({ searchQuery: '', discoverResults: [] }); }
   toggleMobileSearch() { this.setState(s => ({ mobileSearchOpen: !s.mobileSearchOpen })); }
   openDrawer() { this.setState({ drawerOpen: true }); }
   closeDrawer() { this.setState({ drawerOpen: false }); }
@@ -555,7 +573,7 @@ export default class App extends React.Component {
 
   renderVals() {
     const st = this.state;
-    const { files, channels, posts, authView, deviceMode, currentFolderId, filterKey, channelsTab, discoverQuery, discoverCategory, discoverView, openChannelId, searchQuery, mobileSearchOpen, drawerOpen, modal, activeFileId, settingsTab, verifyType, verifyCode, emailVerified, phoneVerified, twofa, uploadQueue, shareAccess, sharePermission, shareEmails, shareEmailInput, shareCopied, shareLinkUrl, videoPlaying, videoProgress, videoCurrent, videoDuration, videoMuted, videoCC, videoUpgradeHint, videoFullscreen, csWhoCanPost, csNotif, composerAttach, toastMsg } = st;
+    const { files, channels, posts, authView, deviceMode, currentFolderId, filterKey, channelsTab, discoverQuery, discoverCategory, discoverView, openChannelId, searchQuery, mobileSearchOpen, drawerOpen, modal, activeFileId, settingsTab, verifyType, verifyCode, emailVerified, phoneVerified, twofa, uploadQueue, shareAccess, sharePermission, shareEmails, shareEmailInput, shareCopied, shareLinkUrl, videoPlaying, videoProgress, videoCurrent, videoDuration, videoMuted, videoCC, videoUpgradeHint, videoFullscreen, csWhoCanPost, csNotif, composerAttach, toastMsg, discoverResults } = st;
     const isMobile = (st.vw || 1200) < 820;
     const isApp = authView === 'app';
     const q = searchQuery.trim().toLowerCase();
@@ -571,7 +589,7 @@ export default class App extends React.Component {
     };
 
     let rawList, sectionTitle, currentFolderName = null, showBreadcrumb = false, isChannelsView = false;
-    if (searchActive) { rawList = nonTrashed.filter(f => f.name.toLowerCase().includes(q)); sectionTitle = 'Results for "' + searchQuery.trim() + '"'; }
+    if (searchActive) { const local = nonTrashed.filter(f => f.name.toLowerCase().includes(q)); const localIds = new Set(local.map(f => f.id)); const extra = (discoverResults || []).filter(r => !localIds.has(r.id)); rawList = [...local, ...extra]; sectionTitle = 'Results for "' + searchQuery.trim() + '"'; }
     else if (filterKey === 'all') { rawList = nonTrashed.filter(f => f.parentId === currentFolderId); const cf = currentFolderId ? files.find(f => f.id === currentFolderId) : null; currentFolderName = cf ? cf.name : null; sectionTitle = currentFolderName || 'My Files'; showBreadcrumb = true; rawList.sort((a, b) => (a.kind === 'folder' ? 0 : 1) - (b.kind === 'folder' ? 0 : 1) || a.name.localeCompare(b.name)); }
     else if (filterKey === 'shared') { rawList = nonTrashed.filter(f => f.shared); sectionTitle = 'Shared with me'; }
     else if (filterKey === 'channels') { rawList = []; sectionTitle = 'Channels'; isChannelsView = true; }
