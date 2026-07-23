@@ -64,6 +64,10 @@ export const api = {
     request('/storage/folders', { method: 'POST', body: parent ? { name, parent } : { name } }),
   listFiles: (folder) => request(`/storage/files${folder ? `?folder=${folder}` : ''}`),
   usage: () => request('/storage/usage'),
+  trash: () => request('/storage/trash'),
+  deleteFile: (id) => request(`/storage/files/${id}`, { method: 'DELETE' }),
+  restoreFile: (id) => request(`/storage/files/${id}/restore`, { method: 'POST' }),
+  purgeFile: (id) => request(`/storage/files/${id}/purge`, { method: 'POST' }),
 
   // Upload: initiate (reserve quota) -> PUT bytes -> complete (commit + dedup)
   initiateUpload: (payload) => request('/storage/uploads', { method: 'POST', body: payload }),

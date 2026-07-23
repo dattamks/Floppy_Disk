@@ -14,6 +14,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .lifecycle import purge_file
 from .models import File, Folder, StorageObject, StorageReservation
 from .quota import FileTooLarge, QuotaExceeded, available_bytes, commit, reserve
 from .serializers import (
@@ -78,6 +79,71 @@ class UsageView(APIView):
             "used_bytes": u.storage_used_bytes,
             "available_bytes": available_bytes(u),
             "tier": u.tier,
+        })
+
+
+class FileDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, file_id):
+        """Soft-delete (move to trash). Still counts toward quota until purged."""
+        try:
+            file = File.objects.get(pk=file_id, owner=request.user, deleted_at__isnull=True)
+        except File.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        file.deleted_at = timezone.now()
+        file.save(update_fields=["deleted_at", "updated_at"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FileRestoreView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, file_id):
+        try:
+            file = File.objects.get(pk=file_id, owner=request.user, deleted_at__isnull=False)
+        except File.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        file.deleted_at = None
+        file.save(update_fields=["deleted_at", "updated_at"])
+        return Response(FileSerializer(file).data)
+
+
+class FilePurgeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, file_id):
+        """Permanently delete a trashed file (releases quota, decrements ref_count)."""
+        try:
+            file = File.objects.get(pk=file_id, owner=request.user, deleted_at__isnull=False)
+        except File.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        purge_file(file)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FolderRestoreView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, folder_id):
+        try:
+            folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=False)
+        except Folder.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        folder.deleted_at = None
+        folder.save(update_fields=["deleted_at", "updated_at"])
+        return Response(FolderSerializer(folder).data)
+
+
+class TrashView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        folders = Folder.objects.filter(owner=request.user, deleted_at__isnull=False).order_by("-deleted_at")
+        files = File.objects.filter(owner=request.user, deleted_at__isnull=False).order_by("-deleted_at")
+        return Response({
+            "folders": FolderSerializer(folders, many=True).data,
+            "files": FileSerializer(files, many=True).data,
         })
 
 
