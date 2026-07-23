@@ -124,6 +124,40 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
         self.save(update_fields=["status", "is_active", "deleted_at", "updated_at"])
 
 
+class ApiKey(TimeStampedModel):
+    """
+    Programmatic access token (PRD: MCP / integrations).
+
+    The full key is shown once at creation; only its SHA-256 hash is stored.
+    Bearer-authenticated requests bypass CSRF (they carry no session cookie).
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="api_keys")
+    name = models.CharField(max_length=80, blank=True, default="")
+    prefix = models.CharField(max_length=12, db_index=True)  # first chars, for display
+    key_hash = models.CharField(max_length=64, unique=True)  # sha256 hex
+    revoked = models.BooleanField(default=False)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "accounts_api_key"
+
+    @staticmethod
+    def hash_token(token: str) -> str:
+        import hashlib
+        return hashlib.sha256(token.encode()).hexdigest()
+
+    @classmethod
+    def create_for(cls, user, name=""):
+        """Mint a key. Returns (ApiKey, full_token) — the token is not stored."""
+        import secrets
+        token = "fd_" + secrets.token_urlsafe(32)
+        key = cls.objects.create(
+            user=user, name=name, prefix=token[:12], key_hash=cls.hash_token(token)
+        )
+        return key, token
+
+
 class ConsentLog(TimeStampedModel):
     """Tracks ToS / Privacy Policy version acceptance (DPDPA, PRD 5.11)."""
 

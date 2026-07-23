@@ -127,6 +127,26 @@ class FileDiscoverableView(APIView):
                          "is_mature_content": file.is_mature_content})
 
 
+class FileDownloadView(APIView):
+    """Return a URL to fetch the file's bytes (owner). Presigned in R2, direct in local."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, file_id):
+        try:
+            file = File.objects.select_related("storage_object").get(
+                pk=file_id, owner=request.user, deleted_at__isnull=True,
+                is_quarantined=False, is_frozen=False,
+            )
+        except File.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if not file.storage_object_id or file.status != File.Status.READY:
+            return Response({"detail": "File is not ready."}, status=status.HTTP_409_CONFLICT)
+        obj = file.storage_object
+        url = get_storage_service().presign_download(region=obj.region, object_key=obj.object_key)
+        return Response({"download_url": url, "name": file.name, "size_bytes": file.size_bytes})
+
+
 class FileListView(APIView):
     permission_classes = [IsAuthenticated]
 

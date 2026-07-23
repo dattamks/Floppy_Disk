@@ -65,3 +65,34 @@ class AccountSettingsView(APIView):
         if changed:
             u.save(update_fields=[*changed, "updated_at"])
         return Response({f: getattr(u, f) for f in self.FIELDS})
+
+
+class ApiKeyListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .models import ApiKey
+        keys = ApiKey.objects.filter(user=request.user, revoked=False).order_by("-created_at")
+        return Response([
+            {"id": str(k.id), "name": k.name, "prefix": k.prefix,
+             "last_used_at": k.last_used_at, "created_at": k.created_at}
+            for k in keys
+        ])
+
+    def post(self, request):
+        from .models import ApiKey
+        key, token = ApiKey.create_for(request.user, name=request.data.get("name", ""))
+        # The full token is returned exactly once.
+        return Response({"id": str(key.id), "name": key.name, "prefix": key.prefix, "key": token},
+                        status=status.HTTP_201_CREATED)
+
+
+class ApiKeyRevokeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, key_id):
+        from .models import ApiKey
+        updated = ApiKey.objects.filter(pk=key_id, user=request.user, revoked=False).update(revoked=True)
+        if not updated:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)

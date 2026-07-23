@@ -108,6 +108,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # --- DRF --------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        "apps.accounts.authentication.ApiKeyAuthentication",  # Bearer (MCP/integrations)
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [

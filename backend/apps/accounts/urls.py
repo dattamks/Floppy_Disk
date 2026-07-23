@@ -18,4 +18,6 @@ urlpatterns = [
     path("account/export", compliance_views.DataExportView.as_view(), name="account_export"),
     path("account/consent", compliance_views.ConsentView.as_view(), name="account_consent"),
     path("account/settings", compliance_views.AccountSettingsView.as_view(), name="account_settings"),
+    path("api-keys", compliance_views.ApiKeyListCreateView.as_view(), name="api_keys"),
+    path("api-keys/<uuid:key_id>", compliance_views.ApiKeyRevokeView.as_view(), name="api_key_revoke"),
 ]
