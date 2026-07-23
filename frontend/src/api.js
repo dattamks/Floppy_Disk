@@ -69,6 +69,11 @@ export const api = {
   restoreFile: (id) => request(`/storage/files/${id}/restore`, { method: 'POST' }),
   purgeFile: (id) => request(`/storage/files/${id}/purge`, { method: 'POST' }),
 
+  // Sharing
+  createShare: (fileId, opts = {}) => request(`/storage/files/${fileId}/share`, { method: 'POST', body: opts }),
+  listShares: () => request('/storage/shares'),
+  revokeShare: (id) => request(`/storage/shares/${id}`, { method: 'DELETE' }),
+
   // Upload: initiate (reserve quota) -> PUT bytes -> complete (commit + dedup)
   initiateUpload: (payload) => request('/storage/uploads', { method: 'POST', body: payload }),
   completeUpload: (fileId) => request(`/storage/uploads/${fileId}/complete`, { method: 'POST' }),
