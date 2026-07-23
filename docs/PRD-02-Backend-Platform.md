@@ -8,6 +8,8 @@
 > **Revision note:** This version consolidates the resolutions from the PRD-02 gap review. Design decisions that were previously abstract or contradictory have been replaced with the resolved architecture (reserve-then-commit quota, video-to-R2-first scanning, universal CSAM scanning with containment decoupled from account punishment, expiry-anchored subscription freeze lifecycle, per-region deduplication, and the full rate-limiting spec). Items still genuinely undecided are consolidated in Section 6 (Open Questions & Decisions).
 >
 > **Auth phasing (build decision):** Phase 1 (POC) ships **email/password only** behind an `AuthProvider` abstraction. AWS Cognito, phone+OTP, Google/Apple social login, and phone re-verification are **Phase 2** (see 5.1 and the P1 list) — this keeps DLT/SMS registration and Cognito off the POC critical path.
+>
+> **CSAM phasing (build decision):** Malware scanning is universal in Phase 1. CSAM is split — **reactive handling** (report → containment → manual NCMEC report + registration) stays **Phase 1**; **proactive automated detection** (vetted hash-matching scanner) is **Phase 2** (see 5.7). Deferring proactive scanning is a documented risk tradeoff requiring counsel sign-off before public launch.
 
 ---
 
@@ -198,16 +200,20 @@ IP address is logged on every attempt. Security-relevant actions notify the acco
 
 ### 5.7 Trust & Safety / Content Moderation (P0)
 
-**Universal scanning**
-- [ ] **Virus/malware scan: every upload, every file type, always** — before `File.status = ready`.
-- [ ] **CSAM scan is universal** — every upload, every file type, in the same pass as the malware scan. Because all files (including video, per 5.5) flow through R2 and are scanned once at upload regardless of destination, extending that pass to always include CSAM detection closes both the earlier legal-exposure question (discoverable-only scope) and the retroactive-scanning gap (content later made discoverable).
+**Scanning — malware always; CSAM detection is phased**
+
+CSAM is split into two capabilities. **Reactive handling stays Phase 1** (you cannot host user content and defer the *ability* to contain/report CSAM once aware of it); **proactive automated detection is Phase 2** (it is the procurement-heavy, NCMEC/vendor-vetted piece with real lead time — see Section 6 and the P1 list).
+
+- [ ] **Virus/malware scan: every upload, every file type, always** — before `File.status = ready`. (Phase 1; ClamAV, no procurement.)
+- [ ] **CSAM — Phase 1 posture is reactive-only:** no proactive scanning at upload; detection relies on the Flag/Report → containment → manual-report pipeline below. This is a **conscious, documented risk tradeoff requiring counsel sign-off before any public launch** (Section 6), and is most defensible while POC discoverable/public-channel exposure is limited.
+- [ ] **CSAM — proactive automated detection (Phase 2):** universal hash-matching scan (images + video) in the same pass as the malware scan, at upload, regardless of destination — closing the discoverable-only-scope and retroactive-scanning gaps. Requires a vetted provider (PhotoDNA / Cloudflare CSAM tool / Thorn Safer) + NCMEC ESP registration; verify R2-object coverage. When live, this enables **Case A** below.
 - [ ] **Adult-content classifier:** flags for audit trail via `ContentFlag`; runs on discoverable/public content. (See Section 6 — reconcile "flags only, never blocks" with excluding mature content from discovery.)
 
 **CSAM handling — containment decoupled from account punishment**
-- [ ] **Case A (caught at upload, before content goes live):** upload silently rejected, never accessible; user sees a **generic, non-specific** message (specific detail would teach evasion); event logged (user, content hash, timestamp) for pattern detection. **No automatic account action** on a single occurrence (could be false positive / accidental upload).
-- [ ] **Case B (already-live content, later reported or matched):** **immediate automatic containment** on confirmation — a new `StorageObject` status, `quarantined_legal_hold`, cuts off access for *every* `File` row referencing that content at once (bypassing normal ref-count deletion). Bytes are physically moved to a separate locked-down "legal hold" bucket (belt-and-suspenders alongside the status flag); the owner cannot touch, delete, or modify it. A `CSAMIncident` record tracks detection, confirmation, and reporting status. **Account suspension is not automatic** — it goes to a human moderation review queue tied to the repeat-offender policy, decoupled from containment.
-- [ ] **Reporting to authorities** (NCMEC-equivalent) is a **manual, admin-initiated step for v1** — automated reporting APIs require legal registration the client sets up separately.
-- [ ] **Admin audit logging** (who triggered a purge, when, why) is a hard dependency of this mechanism, not optional.
+- [ ] **Case A — caught proactively at upload (Phase 2, depends on the automated scanner):** upload silently rejected, never accessible; user sees a **generic, non-specific** message (specific detail would teach evasion); event logged (user, content hash, timestamp) for pattern detection. **No automatic account action** on a single occurrence (could be false positive / accidental upload).
+- [ ] **Case B — already-live content, reported (Phase 1) or later matched (Phase 2):** **immediate automatic containment** on confirmation — a new `StorageObject` status, `quarantined_legal_hold`, cuts off access for *every* `File` row referencing that content at once (bypassing normal ref-count deletion). Bytes are physically moved to a separate locked-down "legal hold" bucket (belt-and-suspenders alongside the status flag); the owner cannot touch, delete, or modify it. A `CSAMIncident` record tracks detection, confirmation, and reporting status. **Account suspension is not automatic** — it goes to a human moderation review queue tied to the repeat-offender policy, decoupled from containment. **(Phase 1.)**
+- [ ] **Reporting to authorities** (NCMEC-equivalent) is a **manual, admin-initiated step** — automated reporting APIs require legal registration the client sets up separately. The manual path and NCMEC registration are **Phase 1** (needed the moment content is hosted, independent of proactive scanning).
+- [ ] **Admin audit logging** (who triggered a purge, when, why) is a hard dependency of this mechanism, not optional. **(Phase 1.)**
 
 **Content reporting — two-step Flag / Report**
 - [ ] **Flag** (lightweight, no action, surfaces content for admin visibility) vs. **Report** (deliberate action with consequences).
@@ -250,6 +256,7 @@ IP address is logged on every attempt. Security-relevant actions notify the acco
 
 ### P1 — Nice-to-Have (fast-follow post-POC)
 - [ ] **Phase-2 auth stack:** AWS Cognito (via `boto3`) behind the `AuthProvider` interface + phone/OTP (DLT-registered SMS pipeline) + Google/Apple social login + 90-day phone re-verification.
+- [ ] **Phase-2 proactive CSAM detection:** vetted provider (PhotoDNA / Cloudflare CSAM tool / Thorn Safer) + NCMEC ESP registration, universal hash-matching (images + video) at upload. *(Start the vendor/NCMEC application during POC — weeks of external lead time; enables Case A in 5.7.)*
 - [ ] Grafana unifying dashboard (CloudWatch/Sentry/Postgres).
 - [ ] Regional language support (Hindi + others).
 - [ ] Multi-environment setup (dev/staging/prod).
