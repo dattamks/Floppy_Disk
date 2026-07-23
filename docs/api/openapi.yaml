@@ -45,6 +45,7 @@ tags:
 security:
   - sessionAuth: []
     csrfToken: []
+  - apiKey: []          # programmatic clients (MCP / integrations) — bypasses CSRF
 
 components:
   securitySchemes:
@@ -143,6 +144,14 @@ components:
       properties:
         auto_backup_enabled: { type: boolean }
         backup_wifi_only: { type: boolean }
+    ApiKey:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        prefix: { type: string, description: First chars of the key, for display. }
+        last_used_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
   parameters:
     FileId:
       name: file_id
@@ -274,6 +283,31 @@ paths:
       summary: Update device-backup settings
       requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/BackupSettings" } } } }
       responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/BackupSettings" } } } } }
+  /auth/api-keys:
+    get:
+      tags: [Account]
+      summary: List API keys (secrets never returned)
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ApiKey" } } } } } }
+    post:
+      tags: [Account]
+      summary: Create an API key (Bearer token) — the full key is returned exactly once
+      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string } } } } } }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiKey"
+                  - type: object
+                    properties: { key: { type: string, description: The full secret token. Shown only here. } }
+  /auth/api-keys/{key_id}:
+    delete:
+      tags: [Account]
+      summary: Revoke an API key
+      parameters: [{ name: key_id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "204": { $ref: "#/components/responses/NoContent" }, "404": { $ref: "#/components/responses/NotFound" } }
 
   # ---------------------------------------------------------------- Storage
   /storage/usage:
@@ -333,6 +367,25 @@ paths:
       summary: Soft-delete a file (to trash; still counts to quota)
       parameters: [{ $ref: "#/components/parameters/FileId" }]
       responses: { "204": { $ref: "#/components/responses/NoContent" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /storage/files/{file_id}/download:
+    get:
+      tags: [Storage]
+      summary: Get a URL to fetch the file's bytes (owner)
+      description: Presigned URL in R2 mode; a direct URL in local mode. Only for a ready, owned file.
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  download_url: { type: string }
+                  name: { type: string }
+                  size_bytes: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: File is not ready., content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
   /storage/files/{file_id}/restore:
     post:
       tags: [Storage]

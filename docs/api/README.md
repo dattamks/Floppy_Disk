@@ -1,7 +1,7 @@
 # Floppy Disk — API Reference
 
 The authoritative, machine-readable contract is **[`openapi.yaml`](./openapi.yaml)**
-(OpenAPI 3.1 — 55 operations). This page is the human-readable companion: the
+(OpenAPI 3.1 — 59 operations). This page is the human-readable companion: the
 model, conventions, and a per-area endpoint index. For exact field-level request
 /response schemas, see the spec (render it with Swagger UI / Redoc, or paste into
 [editor.swagger.io](https://editor.swagger.io)).
@@ -70,6 +70,8 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | POST | `/export` | DPDPA data export (expiring link) |
 | POST | `/consent` | Record ToS/policy acceptance |
 | GET / PATCH | `/settings` | Device-backup settings |
+| GET / POST | `/api-keys` | List / create Bearer API keys (secret shown once) |
+| DELETE | `/api-keys/{id}` | Revoke a key |
 
 ### Storage — `/api/v1/storage`
 | Method | Path | Summary |
@@ -80,6 +82,7 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | POST | `/folders/{id}/restore` | Restore folder |
 | GET | `/camera-backup` | Get/create the Camera Backup folder |
 | GET | `/files` | List files (by `?folder=`) |
+| GET | `/files/{id}/download` | URL to fetch the bytes (presigned R2 / direct local) |
 | DELETE | `/files/{id}` | Soft-delete file |
 | POST | `/files/{id}/restore` | Restore file |
 | POST | `/files/{id}/purge` | Permanently delete |
