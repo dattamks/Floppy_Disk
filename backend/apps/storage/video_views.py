@@ -33,8 +33,9 @@ class VideoPlayView(APIView):
         if file.status != File.Status.READY:
             return Response({"detail": "Video is still processing."}, status=status.HTTP_409_CONFLICT)
 
+        from django.conf import settings
         payload = {"max_resolution": _max_resolution(request.user)}
-        if file.stream_uid:
+        if file.stream_uid and settings.CLOUDFLARE_STREAM_ENABLED:
             # Promoted -> adaptive HLS from Stream.
             payload.update({"mode": "hls", "stream_uid": file.stream_uid,
                             "url": get_video_service().hls_url(stream_uid=file.stream_uid)})
@@ -52,6 +53,14 @@ class VideoPromoteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, file_id):
+        from django.conf import settings
+        if not settings.CLOUDFLARE_STREAM_ENABLED:
+            # No Stream configured -> HD/adaptive unavailable; play falls back to
+            # direct-from-storage (the media folder / R2 signed URL).
+            return Response(
+                {"detail": "HD streaming is not available.", "code": "stream_unavailable"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
         file = _owned_video(request, file_id)
         if file is None:
             return Response(status=status.HTTP_404_NOT_FOUND)

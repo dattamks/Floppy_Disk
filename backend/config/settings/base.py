@@ -165,9 +165,24 @@ R2_REGION_BUCKETS = env.json("R2_REGION_BUCKETS", default={})
 CLOUDFLARE_STREAM_ACCOUNT_ID = env("CLOUDFLARE_STREAM_ACCOUNT_ID", default="")
 CLOUDFLARE_STREAM_API_TOKEN = env("CLOUDFLARE_STREAM_API_TOKEN", default="")
 
-STORAGE_SERVICE = env("STORAGE_SERVICE", default="apps.storage.services.r2.R2StorageService")
-VIDEO_SERVICE = env("VIDEO_SERVICE", default="apps.storage.services.video.CloudflareStreamService")
-DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(BASE_DIR / ".devstorage"))
+# Automatic fallback: when the Cloudflare env vars are missing, serve media from
+# a local media folder and deliver video directly (no Stream/HD). An explicit
+# STORAGE_SERVICE / VIDEO_SERVICE env var still overrides these defaults.
+R2_CONFIGURED = bool(R2_ENDPOINT_URL and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_REGION_BUCKETS)
+CLOUDFLARE_STREAM_ENABLED = bool(CLOUDFLARE_STREAM_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN)
+
+STORAGE_SERVICE = env(
+    "STORAGE_SERVICE",
+    default="apps.storage.services.r2.R2StorageService" if R2_CONFIGURED
+    else "apps.storage.services.local.LocalStorageService",
+)
+VIDEO_SERVICE = env(
+    "VIDEO_SERVICE",
+    default="apps.storage.services.video.CloudflareStreamService" if CLOUDFLARE_STREAM_ENABLED
+    else "apps.storage.services.video.FakeVideoService",
+)
+# Local media folder used by LocalStorageService when R2 isn't configured.
+DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(BASE_DIR / "media"))
 
 # --- Payments (Razorpay behind PaymentGateway abstraction) ------------------
 # Master switch: when disabled, billing is deferred — new signups are granted the

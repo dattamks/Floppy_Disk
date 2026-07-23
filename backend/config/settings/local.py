@@ -24,6 +24,7 @@ PAYMENT_GATEWAY = "apps.billing.gateways.fake.FakePaymentGateway"
 
 # Video: fake Stream service in dev/tests.
 VIDEO_SERVICE = "apps.storage.services.video.FakeVideoService"
+CLOUDFLARE_STREAM_ENABLED = True  # exercise the promote/HLS path with the fake service
 
 # Search: portable substring search in dev/tests (Postgres FTS in production).
 SEARCH_SERVICE = "apps.search.services.basic.BasicSearchService"

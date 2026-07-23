@@ -91,3 +91,47 @@ def test_stream_webhook_is_idempotent(db):
     assert first.status_code == 200 and first.json()["processed"] is True
     second = anon.post("/api/v1/storage/stream/webhook", data=payload, content_type="application/json")
     assert second.json()["processed"] is False
+
+
+# --- fallback when Cloudflare Stream is not configured -----------------------
+
+from django.test import override_settings  # noqa: E402
+
+
+@override_settings(CLOUDFLARE_STREAM_ENABLED=False)
+def test_promote_unavailable_when_stream_not_configured(client, user):
+    f = _video(user)
+    resp = client.post(f"/api/v1/storage/files/{f.id}/promote")
+    assert resp.status_code == 503
+    assert resp.json()["code"] == "stream_unavailable"
+
+
+@override_settings(CLOUDFLARE_STREAM_ENABLED=False)
+def test_play_falls_back_to_direct_when_stream_disabled(client, user):
+    f = _video(user)
+    # even if a stale stream_uid exists, playback stays direct-from-storage
+    f.stream_uid = "stale-uid"
+    f.save(update_fields=["stream_uid"])
+    body = client.post(f"/api/v1/storage/files/{f.id}/play").json()
+    assert body["mode"] == "r2"
+    assert body["url"]
+
+
+def test_storage_service_default_falls_back_without_r2(monkeypatch):
+    """The env-aware default selects the local media folder when R2 is unconfigured."""
+    import importlib
+
+    import config.settings.base as base
+    for var in ("R2_ENDPOINT_URL", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+                "CLOUDFLARE_STREAM_ACCOUNT_ID", "CLOUDFLARE_STREAM_API_TOKEN"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.delenv("STORAGE_SERVICE", raising=False)
+    monkeypatch.delenv("VIDEO_SERVICE", raising=False)
+    reloaded = importlib.reload(base)
+    try:
+        assert reloaded.R2_CONFIGURED is False
+        assert reloaded.STORAGE_SERVICE.endswith("LocalStorageService")
+        assert reloaded.CLOUDFLARE_STREAM_ENABLED is False
+        assert reloaded.VIDEO_SERVICE.endswith("FakeVideoService")
+    finally:
+        importlib.reload(base)  # restore
