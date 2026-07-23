@@ -6,9 +6,16 @@ General-purpose cloud storage / sharing / streaming application — upload, orga
 
 ```
 .
-├── frontend/              # React + Vite web app (the UI we build on)
+├── frontend/              # React + Vite web app (implements PRD-01 / the design export)
 │   ├── index.html
-│   ├── src/               # App.jsx (demo UI, localStorage-backed), main.jsx, index.css
+│   ├── src/
+│   │   ├── App.jsx        # container: state, handlers, API wiring, renderVals()
+│   │   ├── view/AppView.jsx   # composition root
+│   │   ├── components/   # AuthScreen, AppShell, ChannelsScreen, TrashScreen,
+│   │   │                 # and the modals (Upload, Settings, Video, Share, …)
+│   │   ├── lib/ui.js     # shared helpers
+│   │   ├── api.js, main.jsx, index.css
+│   ├── e2e/              # Playwright end-to-end specs
 │   ├── package.json
 │   └── vite.config.js
 ├── backend/               # Django + DRF API + Celery workers
@@ -16,7 +23,8 @@ General-purpose cloud storage / sharing / streaming application — upload, orga
 │                          # moderation, notifications, search, analytics, common
 └── docs/
     ├── PRD-02-Backend-Platform.md   # Backend/platform spec (authoritative)
-    └── design-reference/            # Design-tool export + PRD-01 (reference only, not built)
+    ├── design-reference/            # Design-code export + PRD-01 (visual source of truth)
+    └── ui-ux-audit.md               # UI/UX audit + fixes
 ```
 
 ## Implemented so far (Phase 1)
