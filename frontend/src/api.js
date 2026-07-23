@@ -103,4 +103,9 @@ export const api = {
   subscribe: (plan, annual = false) => request('/billing/subscribe', { method: 'POST', body: { plan, annual } }),
   subscription: () => request('/billing/subscription'),
   cancelSubscription: () => request('/billing/cancel', { method: 'POST' }),
+
+  // Notifications
+  notifications: () => request('/notifications/'),
+  markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: 'POST' }),
+  markAllNotificationsRead: () => request('/notifications/read-all', { method: 'POST' }),
 };

@@ -48,7 +48,7 @@ export default class App extends React.Component {
     csNameInput: '', csDesc: 'Team broadcast channel.', csWhoCanPost: 'admins', csNotif: true,
     uploadQueue: [],
     shareAccess: 'restricted', sharePermission: 'view', shareEmails: [], shareEmailInput: '', shareCopied: false, shareLinkUrl: '',
-    videoPlaying: false, videoProgress: 0, videoCurrent: 0, videoDuration: 0, videoMuted: false, videoCC: true, videoUpgradeHint: false, videoFullscreen: false,
+    videoPlaying: false, videoProgress: 0, videoCurrent: 0, videoDuration: 0, videoMuted: false, videoCC: true, videoUpgradeHint: false, videoFullscreen: false, unreadCount: 0,
     toastMsg: ''
   };
 
@@ -149,6 +149,13 @@ export default class App extends React.Component {
     });
     this.loadStorage();
     this.loadChannels();
+    this.loadNotifications();
+  }
+
+  loadNotifications() {
+    api.notifications()
+      .then((r) => this.setState({ unreadCount: r.unread_count || 0 }))
+      .catch(() => {});
   }
 
   authPrimary() {

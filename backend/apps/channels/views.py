@@ -4,11 +4,12 @@ Channels API: create/discover/subscribe + role-gated posting.
 Only owner/admin can post. The owner can promote a subscriber to admin
 ("grant posting rights"). Public channels are discoverable; private are not.
 """
-from django.db.models import Q
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from apps.notifications.dispatch import notify, notify_many
 
 from .models import Channel, ChannelMembership, ChannelPost
 from .serializers import ChannelCreateSerializer, ChannelPostSerializer, ChannelSerializer
@@ -36,6 +37,12 @@ class ChannelListCreateView(APIView):
         channel = serializer.save(owner=request.user)
         ChannelMembership.objects.create(
             channel=channel, user=request.user, role=ChannelMembership.Role.OWNER
+        )
+        notify(
+            request.user, type="channel_created",
+            title=f"Channel {channel.name} created",
+            body=f"@{channel.handle} is live. Start posting to broadcast to subscribers.",
+            data={"channel_id": str(channel.id)},
         )
         return Response(
             ChannelSerializer(channel, context={"request": request}).data,
@@ -117,5 +124,18 @@ class ChannelPostsView(APIView):
             channel=channel, author=request.user,
             caption=serializer.validated_data.get("caption", ""),
             file=serializer.validated_data.get("file"),
+        )
+        # Fan-out to subscribers (everyone but the author). Batched/async later.
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        recipient_ids = (
+            channel.memberships.exclude(user=request.user).values_list("user_id", flat=True)
+        )
+        notify_many(
+            User.objects.filter(id__in=list(recipient_ids)),
+            type="channel_post",
+            title=f"New post in {channel.name}",
+            body=(post.caption or "")[:140],
+            data={"channel_id": str(channel.id), "post_id": str(post.id)},
         )
         return Response(ChannelPostSerializer(post).data, status=status.HTTP_201_CREATED)
