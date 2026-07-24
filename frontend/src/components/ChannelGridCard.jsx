@@ -3,6 +3,106 @@ import { hov } from '../lib/ui';
 
 export default function ChannelGridCard({ V, ch }) {
   return (
-    <React.Fragment>{' '}<div style={{"background":"#FFFFFF","border":"1px solid #E5E7EC","borderRadius":"14px","padding":"14px","display":"flex","flexDirection":"column","alignItems":"center","gap":"8px","boxShadow":"0 1px 2px rgba(16,24,40,0.03)"}}>{' '}<div onClick={ch.onView} style={{"width":"48px","height":"48px","borderRadius":"50%","background":ch.color,"display":"flex","alignItems":"center","justifyContent":"center","color":"#fff","fontFamily":"'Space Grotesk',sans-serif","fontWeight":"700","fontSize":"15px","position":"relative","cursor":"pointer"}}>{ch.initials}{(ch.live) ? (<React.Fragment><span style={{"position":"absolute","bottom":"-3px","background":"#E5484D","color":"#fff","fontSize":"7px","fontWeight":"700","borderRadius":"4px","padding":"1px 4px","border":"2px solid #FFF"}}>LIVE</span></React.Fragment>) : null}</div>{' '}<div onClick={ch.onView} style={{"display":"flex","flexDirection":"column","alignItems":"center","gap":"2px","cursor":"pointer","maxWidth":"100%"}}>{' '}<span style={{"fontSize":"12.5px","fontWeight":"600","textAlign":"center","overflow":"hidden","textOverflow":"ellipsis","whiteSpace":"nowrap","maxWidth":"100%"}}>{ch.name}</span>{' '}<span style={{"fontSize":"10px","color":"#9AA1AC"}}>{ch.subs} subs</span>{' '}</div>{' '}<button onClick={ch.onToggle} style={{"width":"100%","border":`1px solid ${ch.subBorder}`,"background":ch.subBg,"color":ch.subColor,"borderRadius":"8px","padding":"6px","fontSize":"11.5px","fontWeight":"600","cursor":"pointer","fontFamily":"'IBM Plex Sans',sans-serif"}}>{ch.subLabel}</button>{' '}</div>{' '}</React.Fragment>
+    <React.Fragment>
+      {' '}
+      <div
+        style={{
+          background: '#FFFFFF',
+          border: '1px solid #E5E7EC',
+          borderRadius: '14px',
+          padding: '14px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '8px',
+          boxShadow: '0 1px 2px rgba(16,24,40,0.03)',
+        }}
+      >
+        {' '}
+        <div
+          onClick={ch.onView}
+          style={{
+            width: '48px',
+            height: '48px',
+            borderRadius: '50%',
+            background: ch.color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontFamily: "'Space Grotesk',sans-serif",
+            fontWeight: '700',
+            fontSize: '15px',
+            position: 'relative',
+            cursor: 'pointer',
+          }}
+        >
+          {ch.initials}
+          {ch.live ? (
+            <React.Fragment>
+              <span
+                style={{
+                  position: 'absolute',
+                  bottom: '-3px',
+                  background: '#E5484D',
+                  color: '#fff',
+                  fontSize: '7px',
+                  fontWeight: '700',
+                  borderRadius: '4px',
+                  padding: '1px 4px',
+                  border: '2px solid #FFF',
+                }}
+              >
+                LIVE
+              </span>
+            </React.Fragment>
+          ) : null}
+        </div>{' '}
+        <div
+          onClick={ch.onView}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '2px',
+            cursor: 'pointer',
+            maxWidth: '100%',
+          }}
+        >
+          {' '}
+          <span
+            style={{
+              fontSize: '12.5px',
+              fontWeight: '600',
+              textAlign: 'center',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              maxWidth: '100%',
+            }}
+          >
+            {ch.name}
+          </span>{' '}
+          <span style={{ fontSize: '10px', color: '#9AA1AC' }}>{ch.subs} subs</span>{' '}
+        </div>{' '}
+        <button
+          onClick={ch.onToggle}
+          style={{
+            width: '100%',
+            border: `1px solid ${ch.subBorder}`,
+            background: ch.subBg,
+            color: ch.subColor,
+            borderRadius: '8px',
+            padding: '6px',
+            fontSize: '11.5px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            fontFamily: "'IBM Plex Sans',sans-serif",
+          }}
+        >
+          {ch.subLabel}
+        </button>{' '}
+      </div>{' '}
+    </React.Fragment>
   );
 }

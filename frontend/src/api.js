@@ -25,7 +25,11 @@ async function request(path, { method = 'GET', body } = {}) {
   let data = null;
   const text = await res.text();
   if (text) {
-    try { data = JSON.parse(text); } catch { data = text; }
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
   }
   if (!res.ok) {
     const err = new Error('Request failed');
@@ -71,7 +75,8 @@ export const api = {
   purgeFile: (id) => request(`/storage/files/${id}/purge`, { method: 'POST' }),
 
   // Sharing
-  createShare: (fileId, opts = {}) => request(`/storage/files/${fileId}/share`, { method: 'POST', body: opts }),
+  createShare: (fileId, opts = {}) =>
+    request(`/storage/files/${fileId}/share`, { method: 'POST', body: opts }),
   listShares: () => request('/storage/shares'),
   revokeShare: (id) => request(`/storage/shares/${id}`, { method: 'DELETE' }),
 
@@ -82,7 +87,12 @@ export const api = {
     const headers = { 'Content-Type': 'application/octet-stream' };
     const token = getCookie('csrftoken');
     if (token) headers['X-CSRFToken'] = token;
-    const res = await fetch(url, { method: 'PUT', headers, credentials: 'same-origin', body: file });
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers,
+      credentials: 'same-origin',
+      body: file,
+    });
     if (!res.ok) {
       const err = new Error('Upload failed');
       err.status = res.status;
@@ -101,7 +111,8 @@ export const api = {
 
   // Billing
   plans: () => request('/billing/plans'),
-  subscribe: (plan, annual = false) => request('/billing/subscribe', { method: 'POST', body: { plan, annual } }),
+  subscribe: (plan, annual = false) =>
+    request('/billing/subscribe', { method: 'POST', body: { plan, annual } }),
   subscription: () => request('/billing/subscription'),
   cancelSubscription: () => request('/billing/cancel', { method: 'POST' }),
 
@@ -112,7 +123,8 @@ export const api = {
   // Account / compliance (DPDPA)
   deleteAccount: () => request('/auth/account/delete', { method: 'POST' }),
   exportData: () => request('/auth/account/export', { method: 'POST' }),
-  logConsent: (policy, version) => request('/auth/account/consent', { method: 'POST', body: { policy, version } }),
+  logConsent: (policy, version) =>
+    request('/auth/account/consent', { method: 'POST', body: { policy, version } }),
 
   // Notifications
   notifications: () => request('/notifications/'),

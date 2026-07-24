@@ -6,7 +6,10 @@ export const humanSize = (b) =>
 // Compact storage label from a GB value: sub-GB -> MB, >=1024 GB -> TB, else GB.
 export const fmtStorage = (gb) => {
   if (gb == null || isNaN(gb)) return '0 GB';
-  if (gb >= 1024) { const tb = gb / 1024; return (tb >= 10 || tb % 1 === 0 ? Math.round(tb) : tb.toFixed(1)) + ' TB'; }
+  if (gb >= 1024) {
+    const tb = gb / 1024;
+    return (tb >= 10 || tb % 1 === 0 ? Math.round(tb) : tb.toFixed(1)) + ' TB';
+  }
   if (gb < 1 && gb > 0) return Math.max(1, Math.round(gb * 1024)) + ' MB';
   return (gb >= 100 || gb % 1 === 0 ? Math.round(gb) : gb.toFixed(1)) + ' GB';
 };
@@ -14,10 +17,28 @@ export const fmtStorage = (gb) => {
 export const TIER_LABELS = { free: 'Free', paid_2tb: '2 TB', paid_5tb: '5 TB' };
 
 export const kindOf = (mime) =>
-  mime.startsWith('video') ? 'video' : mime.startsWith('image') ? 'image' : mime.startsWith('audio') ? 'audio' : 'doc';
+  mime.startsWith('video')
+    ? 'video'
+    : mime.startsWith('image')
+      ? 'image'
+      : mime.startsWith('audio')
+        ? 'audio'
+        : 'doc';
 
 // Inline hover styling helper: swaps style props on enter, restores on leave.
 export const hov = (styles) => ({
-  onMouseEnter: (e) => { const el = e.currentTarget; el.__h = el.__h || {}; for (const k in styles) { el.__h[k] = el.style[k]; el.style[k] = styles[k]; } },
-  onMouseLeave: (e) => { const el = e.currentTarget; if (el.__h) { for (const k in styles) el.style[k] = el.__h[k] || ''; } },
+  onMouseEnter: (e) => {
+    const el = e.currentTarget;
+    el.__h = el.__h || {};
+    for (const k in styles) {
+      el.__h[k] = el.style[k];
+      el.style[k] = styles[k];
+    }
+  },
+  onMouseLeave: (e) => {
+    const el = e.currentTarget;
+    if (el.__h) {
+      for (const k in styles) el.style[k] = el.__h[k] || '';
+    }
+  },
 });
