@@ -120,12 +120,58 @@ class PublicShareView(APIView):
     def _payload(self, link):
         data = {"name": self._name(link), "locked": False}
         if link.file_id and link.file.storage_object_id:
-            obj = link.file.storage_object
+            # Point at the public, token-authorized download route. It streams the
+            # bytes in local mode and redirects to a presigned URL in R2 mode, so
+            # a recipient can download without an account in either deployment.
             data.update({
                 "kind": link.file.kind,
                 "size_bytes": link.file.size_bytes,
-                "download_url": get_storage_service().presign_download(
-                    region=obj.region, object_key=obj.object_key
-                ),
+                "download_url": f"/api/v1/public/share/{link.token}/download",
             })
         return data
+
+
+class PublicShareDownloadView(APIView):
+    """GET /public/share/<token>/download — stream a shared file's bytes (no account).
+
+    Works in local mode (streams from disk, Range-aware) and R2 mode (redirects
+    to a presigned URL). Password-protected links require the password as a
+    ``?password=`` query param (or ``X-Share-Password`` header) — the token alone
+    must not bypass the gate.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request, token):
+        link = ShareLink.objects.filter(token=token).select_related("file").first()
+        if link is None or not link.is_active:
+            exists = ShareLink.objects.filter(token=token).exists()
+            return Response(
+                {"detail": "This link has expired or been revoked." if exists else "Not found."},
+                status=status.HTTP_410_GONE if exists else status.HTTP_404_NOT_FOUND,
+            )
+        if not (link.file_id and link.file.storage_object_id):
+            return Response({"detail": "Nothing to download."}, status=status.HTTP_404_NOT_FOUND)
+        if link.has_password:
+            supplied = request.query_params.get("password") or request.headers.get("X-Share-Password", "")
+            if not check_password(supplied, link.password_hash):
+                return Response({"detail": "Incorrect password."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        obj = link.file.storage_object
+        storage = get_storage_service()
+        # Local mode: stream from disk (Range-aware) so no auth is needed.
+        if hasattr(storage, "local_path"):
+            import mimetypes
+
+            path = storage.local_path(region=obj.region, object_key=obj.object_key)
+            if not path.exists():
+                return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+            from apps.storage.views import _ranged_file_response
+
+            ctype = mimetypes.guess_type(link.file.name)[0] or "application/octet-stream"
+            return _ranged_file_response(request, path, ctype)
+        # R2 mode: the presigned URL is itself anonymously fetchable.
+        from django.shortcuts import redirect
+
+        return redirect(storage.presign_download(region=obj.region, object_key=obj.object_key))

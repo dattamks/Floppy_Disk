@@ -159,12 +159,13 @@ def test_password_reset_request_is_always_204(client, user):
 # --- verify email -----------------------------------------------------------
 
 def test_verify_email_with_valid_token(client, user):
-    from django.contrib.auth.tokens import default_token_generator
     from django.utils.encoding import force_bytes
     from django.utils.http import urlsafe_base64_encode
 
+    from apps.accounts.providers.django_auth import email_verify_token
+
     uid = urlsafe_base64_encode(force_bytes(user.pk))
-    token = f"{uid}:{default_token_generator.make_token(user)}"
+    token = f"{uid}:{email_verify_token.make_token(user)}"
     resp = client.post("/api/v1/auth/verify-email", {"token": token}, format="json")
     assert resp.status_code == 200
     user.refresh_from_db()

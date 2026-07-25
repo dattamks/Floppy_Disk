@@ -15,4 +15,5 @@ owner_urlpatterns = [
 # Public endpoint (mounted at /api/v1/public/)
 public_urlpatterns = [
     path("share/<str:token>", views.PublicShareView.as_view(), name="public_share"),
+    path("share/<str:token>/download", views.PublicShareDownloadView.as_view(), name="public_share_download"),
 ]

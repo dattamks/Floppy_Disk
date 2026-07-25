@@ -11,6 +11,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("email")
         parser.add_argument("--name", default="cli")
+        parser.add_argument("--read-only", action="store_true",
+                            help="Mint a read-only key (fetch but not mutate).")
 
     def handle(self, *args, **opts):
         User = get_user_model()
@@ -18,5 +20,6 @@ class Command(BaseCommand):
             user = User.objects.get(email=opts["email"].lower())
         except User.DoesNotExist:
             raise CommandError(f"No user with email {opts['email']}")
-        _key, token = ApiKey.create_for(user, name=opts["name"])
+        scopes = "read" if opts["read_only"] else "read,write"
+        _key, token = ApiKey.create_for(user, name=opts["name"], scopes=scopes)
         self.stdout.write(self.style.SUCCESS(token))

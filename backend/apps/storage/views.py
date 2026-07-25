@@ -6,6 +6,7 @@ Upload flow (presigned direct-to-storage):
   2. PUT  <presigned url>   -> client uploads bytes (dev: LocalStorageService blob)
   3. POST uploads/<id>/complete -> dedup StorageObject, commit reservation, File ready
 """
+from django.conf import settings
 from django.db.models import F
 from django.http import HttpResponse
 from django.utils import timezone
@@ -314,8 +315,29 @@ class UploadCompleteView(APIView):
         # released (never committed) so a rejected upload costs no quota.
         if hasattr(storage, "read_bytes"):
             from apps.moderation.services.base import get_scan_service
-            result = get_scan_service().scan(storage.read_bytes(region=region, object_key=object_key))
-            if not result.clean:
+            try:
+                result = get_scan_service().scan(storage.read_bytes(region=region, object_key=object_key))
+            except Exception:  # noqa: BLE001 — scanner unreachable/errored
+                # Apply the configured downtime policy (PRD 5.7 open question).
+                mode = getattr(settings, "SCAN_FAILURE_MODE", "closed")
+                if mode == "open":
+                    result = None  # proceed unscanned (opt-in, risky)
+                else:
+                    # Fail closed: block + quarantine, release the reservation.
+                    file.status = File.Status.FAILED
+                    file.is_quarantined = True
+                    file.save(update_fields=["status", "is_quarantined", "updated_at"])
+                    storage.delete_object(region=region, object_key=object_key)
+                    res = file.reservations.filter(status=StorageReservation.Status.ACTIVE).first()
+                    if res:
+                        res.status = StorageReservation.Status.EXPIRED
+                        res.save(update_fields=["status", "updated_at"])
+                    return Response(
+                        {"detail": "Upload could not be scanned right now. Please try again shortly.",
+                         "code": "scan_unavailable", "status": "failed"},
+                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    )
+            if result is not None and not result.clean:
                 file.status = File.Status.FAILED
                 file.is_quarantined = True
                 file.save(update_fields=["status", "is_quarantined", "updated_at"])

@@ -202,6 +202,9 @@ SEARCH_SERVICE = env("SEARCH_SERVICE", default="apps.search.services.postgres.Po
 CLAMAV_HOST = env("CLAMAV_HOST", default="localhost")
 CLAMAV_PORT = env.int("CLAMAV_PORT", default=3310)
 SCAN_SERVICE = env("SCAN_SERVICE", default="apps.moderation.services.clamav.ClamAVScanService")
+# What to do when the scanner is unreachable: "closed" (safe: block/quarantine
+# the upload) or "open" (risky: let it through unscanned). Defaults to closed.
+SCAN_FAILURE_MODE = env("SCAN_FAILURE_MODE", default="closed")
 
 # --- i18n / tz --------------------------------------------------------------
 LANGUAGE_CODE = "en-us"
@@ -227,6 +230,12 @@ CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS",
     default=["http://localhost:5173", "http://127.0.0.1:5173"],
 )
+
+# --- Email -------------------------------------------------------------------
+# Delivery goes through EMAIL_BACKEND (console in dev, SES/SMTP in prod).
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Floppy Disk <no-reply@floppy.disk>")
+# Base URL of the web app, used to build verification / reset links in emails.
+FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173")
 
 # --- Sentry (optional) ------------------------------------------------------
 SENTRY_DSN = env("SENTRY_DSN", default="")

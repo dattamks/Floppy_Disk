@@ -70,7 +70,7 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | POST | `/export` | DPDPA data export (expiring link) |
 | POST | `/consent` | Record ToS/policy acceptance |
 | GET / PATCH | `/settings` | Device-backup settings |
-| GET / POST | `/api-keys` | List / create Bearer API keys (secret shown once) |
+| GET / POST | `/api-keys` | List / create Bearer API keys (secret shown once; `read_only` for least-privilege) |
 | DELETE | `/api-keys/{id}` | Revoke a key |
 
 ### Storage — `/api/v1/storage`
@@ -107,6 +107,7 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | DELETE | `/storage/shares/{id}` | Revoke |
 | GET | `/public/share/{token}` | Resolve (no auth); 410 if expired/revoked |
 | POST | `/public/share/{token}` | Unlock a password-protected link |
+| GET | `/public/share/{token}/download` | Download the bytes (no account; `?password=` for locked links) |
 
 ### Channels — `/api/v1/channels`
 | Method | Path | Summary |

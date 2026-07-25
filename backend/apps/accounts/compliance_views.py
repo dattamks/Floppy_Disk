@@ -74,16 +74,23 @@ class ApiKeyListCreateView(APIView):
         from .models import ApiKey
         keys = ApiKey.objects.filter(user=request.user, revoked=False).order_by("-created_at")
         return Response([
-            {"id": str(k.id), "name": k.name, "prefix": k.prefix,
+            {"id": str(k.id), "name": k.name, "prefix": k.prefix, "scopes": k.scopes,
              "last_used_at": k.last_used_at, "created_at": k.created_at}
             for k in keys
         ])
 
     def post(self, request):
         from .models import ApiKey
-        key, token = ApiKey.create_for(request.user, name=request.data.get("name", ""))
+        # Least-privilege: `read_only: true` (or `scopes: "read"`) mints a key that
+        # can fetch but not mutate. Defaults to full read+write.
+        if request.data.get("read_only"):
+            scopes = "read"
+        else:
+            scopes = request.data.get("scopes") or "read,write"
+        key, token = ApiKey.create_for(request.user, name=request.data.get("name", ""), scopes=scopes)
         # The full token is returned exactly once.
-        return Response({"id": str(key.id), "name": key.name, "prefix": key.prefix, "key": token},
+        return Response({"id": str(key.id), "name": key.name, "prefix": key.prefix,
+                         "scopes": key.scopes, "key": token},
                         status=status.HTTP_201_CREATED)
 
 

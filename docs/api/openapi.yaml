@@ -150,6 +150,7 @@ components:
         id: { type: string, format: uuid }
         name: { type: string }
         prefix: { type: string, description: First chars of the key, for display. }
+        scopes: { type: string, description: 'Comma-separated: "read,write" (default) or "read" (read-only).', example: read,write }
         last_used_at: { type: string, format: date-time, nullable: true }
         created_at: { type: string, format: date-time }
   parameters:
@@ -291,7 +292,7 @@ paths:
     post:
       tags: [Account]
       summary: Create an API key (Bearer token) — the full key is returned exactly once
-      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string }, read_only: { type: boolean, description: Mint a read-only key (fetch but not mutate). }, scopes: { type: string } } } } } }
       responses:
         "201":
           description: Created
@@ -585,6 +586,25 @@ paths:
       responses:
         "200": { description: Unlocked (payload with download_url). }
         "401": { description: Incorrect password. }
+        "410": { description: Expired or revoked. }
+  /public/share/{token}/download:
+    get:
+      tags: [Sharing]
+      summary: Download a shared file's bytes (no account)
+      description: >-
+        Streams the bytes in local mode (Range-aware) and redirects to a
+        presigned URL in R2 mode. For password-protected links, pass the
+        password as `?password=` (or the `X-Share-Password` header) — the token
+        alone does not bypass the gate.
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+        - { name: password, in: query, required: false, schema: { type: string } }
+      responses:
+        "200": { description: File bytes (200 or 206 for a Range request). }
+        "302": { description: Redirect to a presigned URL (R2 mode). }
+        "401": { description: Incorrect/missing password. }
+        "404": { description: Unknown token / nothing to download. }
         "410": { description: Expired or revoked. }
 
   # ---------------------------------------------------------------- Channels

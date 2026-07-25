@@ -156,3 +156,27 @@ def test_download_is_owner_scoped(user, other):
     file_id = _upload_ready_file(_session(user))
     resp = _session(other).get(f"/api/v1/storage/files/{file_id}/download")
     assert resp.status_code == 404
+
+
+# --- scoped (least-privilege) keys ------------------------------------------
+
+def test_read_only_key_allows_reads_blocks_writes(user):
+    _, token = ApiKey.create_for(user, name="ro", scopes="read")
+    c = _bearer(token)
+    assert c.get("/api/v1/auth/me").status_code == 200  # read OK
+    resp = c.post("/api/v1/storage/folders", {"name": "Nope"}, format="json")
+    assert resp.status_code == 403  # write blocked
+
+
+def test_read_write_key_allows_writes(user):
+    _, token = ApiKey.create_for(user, name="rw")  # default read,write
+    c = _bearer(token)
+    assert c.post("/api/v1/storage/folders", {"name": "Yes"}, format="json").status_code == 201
+
+
+def test_create_read_only_key_via_endpoint(user):
+    c = _session(user)
+    body = c.post("/api/v1/auth/api-keys", {"name": "n8n", "read_only": True}, format="json").json()
+    assert body["scopes"] == "read"
+    listing = c.get("/api/v1/auth/api-keys").json()
+    assert listing[0]["scopes"] == "read"

@@ -98,3 +98,35 @@ def test_copyright_report_requires_detail(client, user):
 
 def test_report_requires_auth():
     assert APIClient().post("/api/v1/moderation/reports", {}, format="json").status_code == 403
+
+
+# --- scanner-downtime policy (fail-closed by default) -----------------------
+
+class _BoomScanner:
+    def scan(self, data):
+        raise ConnectionRefusedError("clamd is unreachable")
+
+
+def test_scanner_unavailable_fails_closed(client, user, monkeypatch, settings):
+    """Default policy: an unreachable scanner blocks + quarantines the upload."""
+    settings.SCAN_FAILURE_MODE = "closed"
+    from apps.moderation.services import base as scanbase
+    monkeypatch.setattr(scanbase, "get_scan_service", lambda: _BoomScanner())
+
+    fid, resp = _upload(client, "doc.txt", CLEAN)
+    assert resp.status_code == 503
+    assert resp.json()["code"] == "scan_unavailable"
+    assert File.objects.get(pk=fid).is_quarantined is True
+
+
+def test_scanner_unavailable_fail_open_lets_through(client, user, monkeypatch, settings):
+    """Opt-in policy: an unreachable scanner lets the upload through unscanned."""
+    settings.SCAN_FAILURE_MODE = "open"
+    from apps.moderation.services import base as scanbase
+    monkeypatch.setattr(scanbase, "get_scan_service", lambda: _BoomScanner())
+
+    fid, resp = _upload(client, "doc.txt", CLEAN)
+    assert resp.status_code == 200
+    f = File.objects.get(pk=fid)
+    assert f.status == File.Status.READY
+    assert f.is_quarantined is False

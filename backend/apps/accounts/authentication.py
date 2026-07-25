@@ -1,6 +1,7 @@
 """Bearer API-key authentication for programmatic clients (MCP / integrations)."""
 from django.utils import timezone
 from rest_framework import authentication, exceptions
+from rest_framework.permissions import SAFE_METHODS
 
 from .models import ApiKey
 
@@ -23,5 +24,10 @@ class ApiKeyAuthentication(authentication.BaseAuthentication):
             raise exceptions.AuthenticationFailed("Invalid API key.")
         if not key.user.is_active:
             raise exceptions.AuthenticationFailed("Account is inactive.")
+        # Least-privilege: a read-only key may not use unsafe methods. Enforced
+        # here (not a permission) so it holds even for views that override
+        # permission_classes. 403, since the caller IS authenticated.
+        if request.method not in SAFE_METHODS and not key.has_scope("write"):
+            raise exceptions.PermissionDenied("This API key is read-only.")
         ApiKey.objects.filter(pk=key.pk).update(last_used_at=timezone.now())
         return (key.user, key)  # DRF sets request.user; no CSRF for Bearer auth

@@ -136,11 +136,18 @@ class ApiKey(TimeStampedModel):
     name = models.CharField(max_length=80, blank=True, default="")
     prefix = models.CharField(max_length=12, db_index=True)  # first chars, for display
     key_hash = models.CharField(max_length=64, unique=True)  # sha256 hex
+    # Comma-separated scopes granted to this key. "read" allows safe methods;
+    # "write" is required for POST/PUT/PATCH/DELETE. Least-privilege: mint a
+    # read-only key ("read") for integrations that only need to fetch.
+    scopes = models.CharField(max_length=64, default="read,write")
     revoked = models.BooleanField(default=False)
     last_used_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "accounts_api_key"
+
+    def has_scope(self, scope: str) -> bool:
+        return scope in [s.strip() for s in (self.scopes or "").split(",") if s.strip()]
 
     @staticmethod
     def hash_token(token: str) -> str:
@@ -148,12 +155,13 @@ class ApiKey(TimeStampedModel):
         return hashlib.sha256(token.encode()).hexdigest()
 
     @classmethod
-    def create_for(cls, user, name=""):
+    def create_for(cls, user, name="", scopes="read,write"):
         """Mint a key. Returns (ApiKey, full_token) — the token is not stored."""
         import secrets
         token = "fd_" + secrets.token_urlsafe(32)
         key = cls.objects.create(
-            user=user, name=name, prefix=token[:12], key_hash=cls.hash_token(token)
+            user=user, name=name, prefix=token[:12], key_hash=cls.hash_token(token),
+            scopes=scopes,
         )
         return key, token
 
