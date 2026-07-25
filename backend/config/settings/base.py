@@ -237,5 +237,14 @@ DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Floppy Disk <no-reply@fl
 # Base URL of the web app, used to build verification / reset links in emails.
 FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173")
 
+# --- Legal / compliance ------------------------------------------------------
+# Grievance Officer contact (India IT Rules 2021). Set real values in prod.
+GRIEVANCE_OFFICER_NAME = env("GRIEVANCE_OFFICER_NAME", default="")
+GRIEVANCE_OFFICER_EMAIL = env("GRIEVANCE_OFFICER_EMAIL", default="grievance@floppy.disk")
+GRIEVANCE_OFFICER_ADDRESS = env("GRIEVANCE_OFFICER_ADDRESS", default="")
+# Current policy versions surfaced to clients + recorded on consent.
+TOS_VERSION = env("TOS_VERSION", default="2026-01-01")
+PRIVACY_VERSION = env("PRIVACY_VERSION", default="2026-01-01")
+
 # --- Sentry (optional) ------------------------------------------------------
 SENTRY_DSN = env("SENTRY_DSN", default="")

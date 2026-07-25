@@ -750,6 +750,49 @@ paths:
       summary: Mark all read
       responses: { "204": { $ref: "#/components/responses/NoContent" } }
 
+  # ---------------------------------------------------------------- Legal
+  /legal/:
+    get:
+      tags: [Ops]
+      summary: Policy versions + grievance officer contact (public)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  policies:
+                    type: object
+                    properties:
+                      tos: { type: object, properties: { version: { type: string } } }
+                      privacy: { type: object, properties: { version: { type: string } } }
+                  grievance_officer:
+                    type: object
+                    properties: { name: { type: string }, email: { type: string }, address: { type: string } }
+                  note: { type: string }
+  /legal/grievance:
+    post:
+      tags: [Ops]
+      summary: File a grievance (IT Rules 2021 redressal)
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [subject, body], properties: { subject: { type: string }, body: { type: string }, email: { type: string } } } } } }
+      responses:
+        "201":
+          description: Received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket: { type: string, format: uuid }
+                  status: { type: string }
+                  acknowledgement: { type: string }
+                  grievance_officer_email: { type: string }
+        "400": { $ref: "#/components/responses/ValidationError" }
+
   # ---------------------------------------------------------------- Ops
   /health/:
     get:
