@@ -1,0 +1,761 @@
+openapi: 3.1.0
+info:
+  title: Floppy Disk API
+  version: "1.0.0"
+  description: |
+    REST API for the Floppy Disk cloud storage / sharing / streaming product.
+
+    ## Base URL
+    All application endpoints are under `/api/v1/`. In dev the SPA reaches the
+    backend same-origin via the Vite proxy.
+
+    ## Authentication
+    Phase 1 uses **session auth**: sign in via `POST /api/v1/auth/login`, which
+    sets a `sessionid` cookie. Unsafe methods (POST/PUT/PATCH/DELETE) on
+    authenticated endpoints also require the CSRF token: call
+    `GET /api/v1/auth/csrf` once to obtain the `csrftoken` cookie and echo its
+    value in the `X-CSRFToken` header.
+
+    Programmatic clients (e.g. the MCP server) authenticate with an **API key**
+    via `Authorization: Bearer <key>` (see the `apiKey` security scheme) — this
+    bypasses CSRF.
+
+    ## Conventions
+    - IDs are UUIDs unless noted (channel handles and share tokens are strings).
+    - Sizes are bytes. Money is paise (₹1 = 100).
+    - List endpoints return arrays; a few wrap results in an object (noted per path).
+    - Errors use `{ "detail": "...", "code": "..." }` (code is present on typed errors).
+servers:
+  - url: /api/v1
+    description: Application API (relative to host)
+
+tags:
+  - name: Auth
+  - name: Account
+  - name: Storage
+  - name: Upload
+  - name: Video
+  - name: Sharing
+  - name: Channels
+  - name: Moderation
+  - name: Billing
+  - name: Notifications
+  - name: Ops
+
+security:
+  - sessionAuth: []
+    csrfToken: []
+  - apiKey: []          # programmatic clients (MCP / integrations) — bypasses CSRF
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+    csrfToken:
+      type: apiKey
+      in: header
+      name: X-CSRFToken
+    apiKey:
+      type: http
+      scheme: bearer
+      description: "Programmatic access (MCP / integrations). Send `Authorization: Bearer <key>`."
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        detail:
+          oneOf: [{ type: string }, { type: array, items: { type: string } }]
+        code: { type: string }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        email_verified: { type: boolean }
+        display_name: { type: string }
+        storage_region: { type: string, example: ap-south }
+        status: { type: string, enum: [active, dormant, suspended, deleted] }
+        tier: { type: string, enum: [free, paid_2tb, paid_5tb] }
+        quota_bytes: { type: integer }
+        billing_enabled: { type: boolean, description: Whether Razorpay billing is active. }
+    Folder:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        parent: { type: [string, "null"], format: uuid }
+        item_count: { type: integer }
+        created_at: { type: string, format: date-time }
+    File:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        folder: { type: [string, "null"], format: uuid }
+        kind: { type: string, enum: [file, image, video, audio, doc] }
+        size_bytes: { type: integer }
+        status: { type: string, enum: [pending, scanning, ready, failed] }
+        created_at: { type: string, format: date-time }
+    ShareLink:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        token: { type: string }
+        url: { type: string, example: /s/AbC123 }
+        has_password: { type: boolean }
+        expires_at: { type: [string, "null"], format: date-time }
+        revoked: { type: boolean }
+        target_name: { type: string }
+        created_at: { type: string, format: date-time }
+    Channel:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        handle: { type: string }
+        description: { type: string }
+        is_public: { type: boolean }
+        subscriber_count: { type: integer }
+        role: { type: [string, "null"], enum: [owner, admin, subscriber, null] }
+        created_at: { type: string, format: date-time }
+    ChannelPost:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        channel: { type: string, format: uuid }
+        caption: { type: string }
+        file: { type: [string, "null"], format: uuid }
+        created_at: { type: string, format: date-time }
+    Notification:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [system, channel_created, channel_post, quota, security] }
+        title: { type: string }
+        body: { type: string }
+        data: { type: object }
+        is_read: { type: boolean }
+        created_at: { type: string, format: date-time }
+    BackupSettings:
+      type: object
+      properties:
+        auto_backup_enabled: { type: boolean }
+        backup_wifi_only: { type: boolean }
+    ApiKey:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        prefix: { type: string, description: First chars of the key, for display. }
+        scopes: { type: string, description: 'Comma-separated: "read,write" (default) or "read" (read-only).', example: read,write }
+        last_used_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+  parameters:
+    FileId:
+      name: file_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    FolderId:
+      name: folder_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ChannelId:
+      name: channel_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    NoContent: { description: "Success (no body)." }
+    Unauthorized:
+      description: Not authenticated.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Not found.
+    ValidationError:
+      description: Invalid input.
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+paths:
+  # ---------------------------------------------------------------- Auth
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register (email/password)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, date_of_birth]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                display_name: { type: string }
+                date_of_birth: { type: string, format: date, description: Must be 18+. }
+      responses:
+        "201": { description: Created + logged in., content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "429": { description: Rate limited (20/day). }
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [email, password], properties: { email: { type: string }, password: { type: string } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "400": { description: Incorrect email or password. }
+        "429": { description: Rate limited (10/day). }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Log out
+      responses: { "204": { $ref: "#/components/responses/NoContent" } }
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Current user
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "403": { $ref: "#/components/responses/Unauthorized" }
+  /auth/csrf:
+    get:
+      tags: [Auth]
+      summary: Prime the CSRF cookie
+      security: []
+      responses: { "204": { description: Sets the csrftoken cookie. } }
+  /auth/password-reset:
+    post:
+      tags: [Auth]
+      summary: Request a password reset (never reveals account existence)
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [email], properties: { email: { type: string } } } } } }
+      responses: { "204": { description: Always succeeds. } }
+  /auth/password-reset/confirm:
+    post:
+      tags: [Auth]
+      summary: Confirm a password reset
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [token, new_password], properties: { token: { type: string }, new_password: { type: string } } } } } }
+      responses: { "200": { description: Reset. }, "400": { description: Invalid/expired token. } }
+  /auth/verify-email:
+    post:
+      tags: [Auth]
+      summary: Verify email with a token
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [token], properties: { token: { type: string } } } } } }
+      responses: { "200": { description: Verified. }, "400": { description: Invalid/expired token. } }
+
+  # ---------------------------------------------------------------- Account
+  /auth/account/delete:
+    post:
+      tags: [Account]
+      summary: Delete account (soft; hard-deletes after 30 days)
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { status: { type: string }, hard_delete_after_days: { type: integer } } } } } } }
+  /auth/account/export:
+    post:
+      tags: [Account]
+      summary: Generate a DPDPA data export (expiring link)
+      responses: { "201": { description: Created, content: { application/json: { schema: { type: object, properties: { download_url: { type: string }, size_bytes: { type: integer }, expires_at: { type: string, format: date-time } } } } } } }
+  /auth/account/consent:
+    post:
+      tags: [Account]
+      summary: Record ToS/policy acceptance
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [version], properties: { policy: { type: string, default: tos }, version: { type: string } } } } } }
+      responses: { "204": { $ref: "#/components/responses/NoContent" }, "400": { $ref: "#/components/responses/ValidationError" } }
+  /auth/account/settings:
+    get:
+      tags: [Account]
+      summary: Get device-backup settings
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/BackupSettings" } } } } }
+    patch:
+      tags: [Account]
+      summary: Update device-backup settings
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/BackupSettings" } } } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/BackupSettings" } } } } }
+  /auth/api-keys:
+    get:
+      tags: [Account]
+      summary: List API keys (secrets never returned)
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ApiKey" } } } } } }
+    post:
+      tags: [Account]
+      summary: Create an API key (Bearer token) — the full key is returned exactly once
+      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string }, read_only: { type: boolean, description: Mint a read-only key (fetch but not mutate). }, scopes: { type: string } } } } } }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiKey"
+                  - type: object
+                    properties: { key: { type: string, description: The full secret token. Shown only here. } }
+  /auth/api-keys/{key_id}:
+    delete:
+      tags: [Account]
+      summary: Revoke an API key
+      parameters: [{ name: key_id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "204": { $ref: "#/components/responses/NoContent" }, "404": { $ref: "#/components/responses/NotFound" } }
+
+  # ---------------------------------------------------------------- Storage
+  /storage/usage:
+    get:
+      tags: [Storage]
+      summary: Storage usage + effective quota
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quota_bytes: { type: integer, description: Effective (base + active referral bonuses). }
+                  base_quota_bytes: { type: integer }
+                  used_bytes: { type: integer }
+                  available_bytes: { type: integer }
+                  tier: { type: string }
+  /storage/folders:
+    get:
+      tags: [Storage]
+      summary: List folders (by parent)
+      parameters: [{ name: parent, in: query, schema: { type: string, format: uuid }, description: Omit for root. }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Folder" } } } } } }
+    post:
+      tags: [Storage]
+      summary: Create a folder
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string }, parent: { type: string, format: uuid } } } } } }
+      responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Folder" } } } }, "400": { $ref: "#/components/responses/ValidationError" } }
+  /storage/folders/{folder_id}:
+    delete:
+      tags: [Storage]
+      summary: Soft-delete a folder (to trash)
+      parameters: [{ $ref: "#/components/parameters/FolderId" }]
+      responses: { "204": { $ref: "#/components/responses/NoContent" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /storage/folders/{folder_id}/restore:
+    post:
+      tags: [Storage]
+      summary: Restore a folder from trash
+      parameters: [{ $ref: "#/components/parameters/FolderId" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Folder" } } } }, "404": { $ref: "#/components/responses/NotFound" } }
+  /storage/camera-backup:
+    get:
+      tags: [Storage]
+      summary: Get/create the "Camera Backup" folder
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Folder" } } } } }
+  /storage/files:
+    get:
+      tags: [Storage]
+      summary: List files (by folder; excludes trashed/quarantined/frozen)
+      parameters: [{ name: folder, in: query, schema: { type: string, format: uuid } }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/File" } } } } } }
+  /storage/files/{file_id}:
+    delete:
+      tags: [Storage]
+      summary: Soft-delete a file (to trash; still counts to quota)
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses: { "204": { $ref: "#/components/responses/NoContent" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /storage/files/{file_id}/download:
+    get:
+      tags: [Storage]
+      summary: Get a URL to fetch the file's bytes (owner)
+      description: Presigned URL in R2 mode; a direct URL in local mode. Only for a ready, owned file.
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  download_url: { type: string }
+                  name: { type: string }
+                  size_bytes: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: File is not ready., content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /storage/files/{file_id}/restore:
+    post:
+      tags: [Storage]
+      summary: Restore a file from trash
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/File" } } } }, "404": { $ref: "#/components/responses/NotFound" } }
+  /storage/files/{file_id}/purge:
+    post:
+      tags: [Storage]
+      summary: Permanently delete a trashed file (releases quota + ref_count)
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses: { "204": { $ref: "#/components/responses/NoContent" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /storage/files/{file_id}/discoverable:
+    post:
+      tags: [Storage]
+      summary: Toggle discoverability / mature flag (owner only)
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { is_discoverable: { type: boolean }, is_mature_content: { type: boolean } } } } } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { is_discoverable: { type: boolean }, is_mature_content: { type: boolean } } } } } }, "404": { $ref: "#/components/responses/NotFound" } }
+  /storage/trash:
+    get:
+      tags: [Storage]
+      summary: List trashed folders + files
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  folders: { type: array, items: { $ref: "#/components/schemas/Folder" } }
+                  files: { type: array, items: { $ref: "#/components/schemas/File" } }
+  /storage/search:
+    get:
+      tags: [Storage]
+      summary: Search own + discoverable (non-mature) files
+      parameters: [{ name: q, in: query, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string, format: uuid }
+                        name: { type: string }
+                        kind: { type: string }
+                        size_bytes: { type: integer }
+                        is_own: { type: boolean }
+                        is_discoverable: { type: boolean }
+
+  # ---------------------------------------------------------------- Upload
+  /storage/uploads:
+    post:
+      tags: [Upload]
+      summary: Initiate an upload (reserve quota + presigned target)
+      description: |
+        Step 1 of 3. Reserves quota, creates a pending File, and returns a
+        presigned upload target. PUT the bytes to `upload.url`, then call
+        `/storage/uploads/{file_id}/complete`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, size_bytes]
+              properties:
+                name: { type: string }
+                size_bytes: { type: integer, minimum: 1 }
+                folder: { type: string, format: uuid }
+                kind: { type: string, enum: [file, image, video, audio, doc], default: file }
+                is_backup: { type: boolean, description: Marks a device-backup upload (quota-hit pauses + notifies). }
+      responses:
+        "201":
+          description: Reserved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  file: { $ref: "#/components/schemas/File" }
+                  reservation_id: { type: string, format: uuid }
+                  upload:
+                    type: object
+                    properties:
+                      url: { type: string, description: PUT the raw bytes here. }
+                      fields: { type: object }
+                      object_key: { type: string }
+        "400":
+          description: "Rejected: `file_too_large` or `quota_exceeded`."
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /storage/uploads/{file_id}/complete:
+    post:
+      tags: [Upload]
+      summary: Complete an upload (scan → dedup → commit)
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses:
+        "200": { description: Ready, content: { application/json: { schema: { $ref: "#/components/schemas/File" } } } }
+        "409": { description: No uploaded bytes found. }
+        "422": { description: "Blocked by malware scan (`scan_failed`)." , content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+
+  # ---------------------------------------------------------------- Video
+  /storage/files/{file_id}/play:
+    post:
+      tags: [Video]
+      summary: Get a playback descriptor
+      description: "Private video streams direct from storage (mode r2); promoted video plays HLS (mode hls). Free tier is SD-capped."
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mode: { type: string, enum: [r2, hls] }
+                  url: { type: string }
+                  max_resolution: { type: string, enum: [sd, hd] }
+                  stream_uid: { type: string }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: Still processing. }
+  /storage/files/{file_id}/promote:
+    post:
+      tags: [Video]
+      summary: Promote a video to Cloudflare Stream (HD/HLS)
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { stream_uid: { type: string }, hls_url: { type: string } } } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "503": { description: "Stream not configured (`stream_unavailable`) — playback stays direct.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /storage/stream/webhook:
+    post:
+      tags: [Video]
+      summary: Cloudflare Stream processing-complete callback (idempotent)
+      security: []
+      requestBody: { content: { application/json: { schema: { type: object, properties: { uid: { type: string }, status: { type: string } } } } } }
+      responses: { "200": { description: "{ processed: bool }" }, "400": { description: Bad payload. } }
+
+  # ---------------------------------------------------------------- Sharing
+  /storage/files/{file_id}/share:
+    post:
+      tags: [Sharing]
+      summary: Create a public share link
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { password: { type: string, description: Paid-tier only. }, expires_at: { type: string, format: date-time } } } } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/ShareLink" } } } }
+        "403": { description: "Password protection is paid-only (`paid_only`)." }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /storage/shares:
+    get:
+      tags: [Sharing]
+      summary: List my active share links
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ShareLink" } } } } } }
+  /storage/shares/{share_id}:
+    delete:
+      tags: [Sharing]
+      summary: Revoke a share link
+      parameters: [{ name: share_id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "204": { $ref: "#/components/responses/NoContent" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /public/share/{token}:
+    get:
+      tags: [Sharing]
+      summary: Resolve a public share (no auth)
+      security: []
+      parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: "Resolved. If `locked: true`, POST the password to unlock."
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  locked: { type: boolean }
+                  name: { type: string }
+                  kind: { type: string }
+                  size_bytes: { type: integer }
+                  download_url: { type: string }
+        "404": { description: Unknown token. }
+        "410": { description: Expired or revoked. }
+    post:
+      tags: [Sharing]
+      summary: Unlock a password-protected share
+      security: []
+      parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { password: { type: string } } } } } }
+      responses:
+        "200": { description: Unlocked (payload with download_url). }
+        "401": { description: Incorrect password. }
+        "410": { description: Expired or revoked. }
+  /public/share/{token}/download:
+    get:
+      tags: [Sharing]
+      summary: Download a shared file's bytes (no account)
+      description: >-
+        Streams the bytes in local mode (Range-aware) and redirects to a
+        presigned URL in R2 mode. For password-protected links, pass the
+        password as `?password=` (or the `X-Share-Password` header) — the token
+        alone does not bypass the gate.
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+        - { name: password, in: query, required: false, schema: { type: string } }
+      responses:
+        "200": { description: File bytes (200 or 206 for a Range request). }
+        "302": { description: Redirect to a presigned URL (R2 mode). }
+        "401": { description: Incorrect/missing password. }
+        "404": { description: Unknown token / nothing to download. }
+        "410": { description: Expired or revoked. }
+
+  # ---------------------------------------------------------------- Channels
+  /channels/:
+    get:
+      tags: [Channels]
+      summary: Discover public channels (or `?mine=1` for my memberships)
+      parameters: [{ name: mine, in: query, schema: { type: boolean } }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Channel" } } } } } }
+    post:
+      tags: [Channels]
+      summary: Create a channel (creator becomes owner)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, handle], properties: { name: { type: string }, handle: { type: string }, description: { type: string }, is_public: { type: boolean, default: true } } } } } }
+      responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Channel" } } } }, "400": { $ref: "#/components/responses/ValidationError" } }
+  /channels/{channel_id}/subscribe:
+    post:
+      tags: [Channels]
+      summary: Subscribe
+      parameters: [{ $ref: "#/components/parameters/ChannelId" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Channel" } } } }, "403": { description: Invite-only. }, "404": { $ref: "#/components/responses/NotFound" } }
+    delete:
+      tags: [Channels]
+      summary: Unsubscribe (owner cannot)
+      parameters: [{ $ref: "#/components/parameters/ChannelId" }]
+      responses: { "204": { $ref: "#/components/responses/NoContent" }, "400": { description: Owner cannot unsubscribe. }, "404": { $ref: "#/components/responses/NotFound" } }
+  /channels/{channel_id}/members/{user_id}/promote:
+    post:
+      tags: [Channels]
+      summary: Promote a subscriber to admin (owner only)
+      parameters:
+        - { $ref: "#/components/parameters/ChannelId" }
+        - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { "200": { description: "{ role: admin }" }, "403": { description: Owner only. }, "404": { $ref: "#/components/responses/NotFound" } }
+  /channels/{channel_id}/posts:
+    get:
+      tags: [Channels]
+      summary: List posts (public channel or member)
+      parameters: [{ $ref: "#/components/parameters/ChannelId" }]
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ChannelPost" } } } } }, "403": { description: Private. }, "404": { $ref: "#/components/responses/NotFound" } }
+    post:
+      tags: [Channels]
+      summary: Post (owner/admin only)
+      parameters: [{ $ref: "#/components/parameters/ChannelId" }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { caption: { type: string }, file: { type: string, format: uuid } } } } } }
+      responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/ChannelPost" } } } }, "403": { description: Owner/admin only. } }
+
+  # ---------------------------------------------------------------- Moderation
+  /moderation/reports:
+    post:
+      tags: [Moderation]
+      summary: Flag or Report content (a Report reversibly isolates a file)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kind, target_type, target_id]
+              properties:
+                kind: { type: string, enum: [flag, report] }
+                target_type: { type: string, enum: [file, channel, post] }
+                target_id: { type: string, format: uuid }
+                reason: { type: string, enum: [copyright, inappropriate, csam, other], default: other }
+                detail: { type: string, description: Required for copyright reports. }
+      responses: { "201": { description: Recorded. }, "400": { $ref: "#/components/responses/ValidationError" }, "429": { description: Rate limited (10/hour). } }
+
+  # ---------------------------------------------------------------- Billing
+  /billing/plans:
+    get:
+      tags: [Billing]
+      summary: List plans
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties: { code: { type: string }, name: { type: string }, price_paise: { type: integer }, quota_bytes: { type: integer } }
+  /billing/subscribe:
+    post:
+      tags: [Billing]
+      summary: Subscribe to a paid plan (upgrades tier + quota)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [plan], properties: { plan: { type: string, enum: [paid_2tb, paid_5tb] }, annual: { type: boolean } } } } } }
+      responses:
+        "201": { description: Subscribed, content: { application/json: { schema: { type: object, properties: { plan: { type: string }, status: { type: string }, tier: { type: string }, quota_bytes: { type: integer }, current_period_end: { type: string, format: date-time } } } } } }
+        "400": { description: Unknown/non-purchasable plan. }
+  /billing/subscription:
+    get:
+      tags: [Billing]
+      summary: Current subscription
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { plan: { type: string }, status: { type: [string, "null"] }, current_period_end: { type: [string, "null"], format: date-time } } } } } } }
+  /billing/cancel:
+    post:
+      tags: [Billing]
+      summary: Cancel (retains access to period end)
+      responses: { "200": { description: Cancelled. }, "400": { description: No active subscription. } }
+  /billing/webhook:
+    post:
+      tags: [Billing]
+      summary: Razorpay webhook (idempotent; HMAC-verified)
+      security: []
+      parameters: [{ name: X-Razorpay-Signature, in: header, schema: { type: string } }]
+      responses: { "200": { description: "{ processed: bool }" }, "400": { description: Invalid signature. } }
+  /billing/referral:
+    get:
+      tags: [Billing]
+      summary: My referral code + stats
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { code: { type: string }, referrals_count: { type: integer }, bonus_bytes_active: { type: integer }, bonus_bytes_cap: { type: integer } } } } } } }
+  /billing/referral/apply:
+    post:
+      tags: [Billing]
+      summary: Apply a referral code (grants the referrer 50GB)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string } } } } } }
+      responses: { "201": { description: "{ granted_bytes }" }, "400": { description: Invalid/self/duplicate/capped. } }
+
+  # ---------------------------------------------------------------- Notifications
+  /notifications/:
+    get:
+      tags: [Notifications]
+      summary: List notifications + unread count
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unread_count: { type: integer }
+                  results: { type: array, items: { $ref: "#/components/schemas/Notification" } }
+  /notifications/{notification_id}/read:
+    post:
+      tags: [Notifications]
+      summary: Mark one notification read
+      parameters: [{ name: notification_id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { "204": { $ref: "#/components/responses/NoContent" }, "404": { $ref: "#/components/responses/NotFound" } }
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      summary: Mark all read
+      responses: { "204": { $ref: "#/components/responses/NoContent" } }
+
+  # ---------------------------------------------------------------- Ops
+  /health/:
+    get:
+      tags: [Ops]
+      summary: Liveness/readiness (note - served at /health/, outside /api/v1)
+      security: []
+      responses:
+        "200": { description: "{ status: ok, database: true }" }
+        "503": { description: Degraded. }

@@ -1,0 +1,18 @@
+body{margin:0;background:#EEF0F4;}
+    *{box-sizing:border-box;}
+    ::-webkit-scrollbar{width:9px;height:9px;}
+    ::-webkit-scrollbar-thumb{background:#CBD0D8;border-radius:9px;}
+    ::-webkit-scrollbar-track{background:transparent;}
+    input::placeholder,textarea::placeholder{color:#9AA1AC;}
+    a{color:#5145E5;text-decoration:none;}
+    a:hover{color:#4238CC;}
+    .fd-carousel{scrollbar-width:thin;}
+    .fd-carousel::-webkit-scrollbar{height:6px;}
+    @keyframes fdspin{to{transform:rotate(360deg);}}
+    :focus-visible{outline:2px solid #5145E5;outline-offset:2px;border-radius:4px;}
+    button:focus:not(:focus-visible){outline:none;}
+    /* The video volume slider is the only range input; on narrow screens it
+       overflows the control bar (clipping HD/fullscreen). Hide it on mobile —
+       the adjacent mute button keeps volume control reachable. */
+    @media (max-width:480px){ input[type=range]{ display:none !important; } }
+html,body,#root{height:100%;}
