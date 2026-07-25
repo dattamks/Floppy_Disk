@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 export default function PostCard({ V, p }) {
@@ -7,8 +8,8 @@ export default function PostCard({ V, p }) {
       {' '}
       <div
         style={{
-          background: '#FFFFFF',
-          border: '1px solid #E5E7EC',
+          background: theme.white,
+          border: `1px solid ${theme.border}`,
           borderRadius: '16px',
           padding: '14px 15px',
           display: 'flex',
@@ -29,7 +30,7 @@ export default function PostCard({ V, p }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#fff',
+              color: theme.white,
               fontFamily: "'Space Grotesk',sans-serif",
               fontWeight: '700',
               fontSize: '13px',
@@ -42,11 +43,11 @@ export default function PostCard({ V, p }) {
             {' '}
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               <span style={{ fontWeight: '600', fontSize: '13.5px' }}>{p.channelName}</span>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="#5145E5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill={theme.brand}>
                 <path d="M12 2l2.4 1.8 3-.3 1 2.8 2.6 1.5-.9 2.9.9 2.9-2.6 1.5-1 2.8-3-.3L12 22l-2.4-1.8-3 .3-1-2.8L3 16.5l.9-2.9L3 10.6l2.6-1.5 1-2.8 3 .3L12 2Z" />
                 <path
                   d="M9 12l2 2 4-4"
-                  stroke="#fff"
+                  stroke={theme.white}
                   strokeWidth="1.6"
                   fill="none"
                   strokeLinecap="round"
@@ -54,14 +55,16 @@ export default function PostCard({ V, p }) {
                 />
               </svg>
             </div>{' '}
-            <span style={{ fontSize: '11px', color: '#9AA1AC' }}>
+            <span style={{ fontSize: '11px', color: theme.textFaint }}>
               {p.handle} · {p.time}
             </span>{' '}
           </div>{' '}
         </div>{' '}
         {p.hasText ? (
           <React.Fragment>
-            <div style={{ fontSize: '13.5px', lineHeight: '1.5', color: '#2A2D34' }}>{p.text}</div>
+            <div style={{ fontSize: '13.5px', lineHeight: '1.5', color: theme.textSoft }}>
+              {p.text}
+            </div>
           </React.Fragment>
         ) : null}{' '}
         {p.isImage ? (
@@ -76,7 +79,7 @@ export default function PostCard({ V, p }) {
                 objectFit: 'cover',
                 borderRadius: '12px',
                 cursor: 'pointer',
-                background: '#EDEFF3',
+                background: theme.surface4,
               }}
             />
           </React.Fragment>
@@ -91,7 +94,7 @@ export default function PostCard({ V, p }) {
                 borderRadius: '12px',
                 overflow: 'hidden',
                 cursor: 'pointer',
-                background: '#000',
+                background: theme.black,
               }}
             >
               {' '}
@@ -122,7 +125,7 @@ export default function PostCard({ V, p }) {
                     boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
                   }}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#15171C">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill={theme.text}>
                     <path d="M6 4l14 8-14 8V4Z" />
                   </svg>
                 </div>
@@ -136,7 +139,7 @@ export default function PostCard({ V, p }) {
                   borderRadius: '5px',
                   padding: '1px 7px',
                   fontSize: '10.5px',
-                  color: '#fff',
+                  color: theme.white,
                 }}
               >
                 {p.duration}
@@ -153,8 +156,8 @@ export default function PostCard({ V, p }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '11px',
-                background: '#F7F8FA',
-                border: '1px solid #E5E7EC',
+                background: theme.surface2,
+                border: `1px solid ${theme.border}`,
                 borderRadius: '11px',
                 padding: '11px 13px',
                 cursor: 'pointer',
@@ -165,7 +168,7 @@ export default function PostCard({ V, p }) {
                   width: '38px',
                   height: '38px',
                   borderRadius: '9px',
-                  background: '#FEF2F2',
+                  background: theme.dangerBgSoft,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -175,11 +178,11 @@ export default function PostCard({ V, p }) {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                   <path
                     d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-                    fill="#fff"
-                    stroke="#E5484D"
+                    fill={theme.white}
+                    stroke={theme.danger}
                     strokeWidth="1.4"
                   />
-                  <path d="M14 3v4h4" stroke="#E5484D" strokeWidth="1.4" />
+                  <path d="M14 3v4h4" stroke={theme.danger} strokeWidth="1.4" />
                 </svg>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', minWidth: '0', flex: '1' }}>
@@ -194,12 +197,12 @@ export default function PostCard({ V, p }) {
                 >
                   {p.fileName}
                 </span>
-                <span style={{ fontSize: '11px', color: '#9AA1AC' }}>{p.fileSize}</span>
+                <span style={{ fontSize: '11px', color: theme.textFaint }}>{p.fileSize}</span>
               </div>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"
-                  stroke="#656B76"
+                  stroke={theme.textMuted}
                   strokeWidth="1.7"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -214,7 +217,7 @@ export default function PostCard({ V, p }) {
             alignItems: 'center',
             gap: '14px',
             paddingTop: '3px',
-            borderTop: '1px solid #F1F2F5',
+            borderTop: `1px solid ${theme.surface}`,
             marginTop: '1px',
             paddingTop: '10px',
             flexWrap: 'wrap',
@@ -227,7 +230,7 @@ export default function PostCard({ V, p }) {
               alignItems: 'center',
               gap: '5px',
               fontSize: '11.5px',
-              color: '#9AA1AC',
+              color: theme.textFaint,
             }}
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
@@ -272,7 +275,7 @@ export default function PostCard({ V, p }) {
               alignItems: 'center',
               gap: '5px',
               fontSize: '11.5px',
-              color: '#656B76',
+              color: theme.textMuted,
               background: 'none',
               border: 'none',
               cursor: 'pointer',
@@ -297,7 +300,7 @@ export default function PostCard({ V, p }) {
               alignItems: 'center',
               gap: '5px',
               fontSize: '11.5px',
-              color: '#656B76',
+              color: theme.textMuted,
               background: 'none',
               border: 'none',
               cursor: 'pointer',
@@ -324,7 +327,7 @@ export default function PostCard({ V, p }) {
                   alignItems: 'center',
                   gap: '4px',
                   fontSize: '11.5px',
-                  color: '#E5484D',
+                  color: theme.danger,
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
@@ -350,7 +353,7 @@ export default function PostCard({ V, p }) {
               alignItems: 'center',
               gap: '4px',
               fontSize: '11.5px',
-              color: '#9AA1AC',
+              color: theme.textFaint,
               background: 'none',
               border: 'none',
               cursor: 'pointer',
@@ -375,7 +378,7 @@ export default function PostCard({ V, p }) {
               alignItems: 'center',
               gap: '4px',
               fontSize: '11.5px',
-              color: '#E5484D',
+              color: theme.danger,
               background: 'none',
               border: 'none',
               cursor: 'pointer',
@@ -402,7 +405,7 @@ export default function PostCard({ V, p }) {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '9px',
-                borderTop: '1px solid #F1F2F5',
+                borderTop: `1px solid ${theme.surface}`,
                 paddingTop: '11px',
               }}
             >
@@ -416,13 +419,13 @@ export default function PostCard({ V, p }) {
                         width: '26px',
                         height: '26px',
                         borderRadius: '50%',
-                        background: '#E5E7EC',
+                        background: theme.border,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: '11px',
                         fontWeight: '600',
-                        color: '#656B76',
+                        color: theme.textMuted,
                         flex: '0 0 auto',
                       }}
                     >
@@ -432,14 +435,14 @@ export default function PostCard({ V, p }) {
                       style={{
                         display: 'flex',
                         flexDirection: 'column',
-                        background: '#F1F2F5',
+                        background: theme.surface,
                         borderRadius: '10px',
                         padding: '7px 11px',
                         minWidth: '0',
                       }}
                     >
                       <span style={{ fontSize: '11.5px', fontWeight: '600' }}>{c.name}</span>
-                      <span style={{ fontSize: '12.5px', color: '#2A2D34' }}>{c.text}</span>
+                      <span style={{ fontSize: '12.5px', color: theme.textSoft }}>{c.text}</span>
                     </div>
                   </div>{' '}
                 </React.Fragment>
@@ -451,8 +454,8 @@ export default function PostCard({ V, p }) {
                   placeholder="Add a comment…"
                   style={{
                     flex: '1',
-                    background: '#F1F2F5',
-                    border: '1px solid #E5E7EC',
+                    background: theme.surface,
+                    border: `1px solid ${theme.border}`,
                     borderRadius: '9px',
                     padding: '8px 11px',
                     fontSize: '12.5px',
@@ -463,8 +466,8 @@ export default function PostCard({ V, p }) {
                 <button
                   onClick={p.onAddComment}
                   style={{
-                    background: '#5145E5',
-                    color: '#fff',
+                    background: theme.brand,
+                    color: theme.white,
                     border: 'none',
                     borderRadius: '9px',
                     padding: '0 14px',

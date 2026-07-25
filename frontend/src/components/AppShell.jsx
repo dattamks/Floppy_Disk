@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 import FileCard from './FileCard';
 import ContinueWatchingCard from './ContinueWatchingCard';
@@ -26,8 +27,8 @@ export default function AppShell(V) {
             alignItems: 'center',
             gap: '12px',
             padding: '0 18px',
-            borderBottom: '1px solid #E5E7EC',
-            background: '#FFFFFF',
+            borderBottom: `1px solid ${theme.border}`,
+            background: theme.white,
           }}
         >
           {' '}
@@ -57,18 +58,18 @@ export default function AppShell(V) {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '9px',
-                    background: '#FFFFFF',
-                    border: '1px solid #E5E7EC',
+                    background: theme.white,
+                    border: `1px solid ${theme.border}`,
                     borderRadius: '10px',
                     padding: '10px 13px',
                   }}
                 >
                   {' '}
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <circle cx="11" cy="11" r="7" stroke="#8A909B" strokeWidth="1.8" />
+                    <circle cx="11" cy="11" r="7" stroke={theme.textMuted2} strokeWidth="1.8" />
                     <path
                       d="M20 20l-4.3-4.3"
-                      stroke="#8A909B"
+                      stroke={theme.textMuted2}
                       strokeWidth="1.8"
                       strokeLinecap="round"
                     />
@@ -81,7 +82,7 @@ export default function AppShell(V) {
                       background: 'none',
                       border: 'none',
                       outline: 'none',
-                      color: '#15171C',
+                      color: theme.text,
                       fontSize: '13.5px',
                       fontFamily: "'IBM Plex Sans',sans-serif",
                       width: '100%',
@@ -95,7 +96,7 @@ export default function AppShell(V) {
                           background: 'none',
                           border: 'none',
                           cursor: 'pointer',
-                          color: '#9AA1AC',
+                          color: theme.textFaint,
                           display: 'flex',
                           padding: '0',
                         }}
@@ -140,8 +141,8 @@ export default function AppShell(V) {
                             <div
                               style={{
                                 width: '168px',
-                                background: '#FFFFFF',
-                                border: '1px solid #E5E7EC',
+                                background: theme.white,
+                                border: `1px solid ${theme.border}`,
                                 borderRadius: '14px',
                                 padding: '14px',
                                 display: 'flex',
@@ -160,7 +161,7 @@ export default function AppShell(V) {
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  color: '#fff',
+                                  color: theme.white,
                                   fontFamily: "'Space Grotesk',sans-serif",
                                   fontWeight: '700',
                                   fontSize: '15px',
@@ -181,7 +182,7 @@ export default function AppShell(V) {
                               >
                                 {ch.name}
                               </span>{' '}
-                              <span style={{ fontSize: '10.5px', color: '#9AA1AC' }}>
+                              <span style={{ fontSize: '10.5px', color: theme.textFaint }}>
                                 {ch.subs} subscribers
                               </span>{' '}
                               <button
@@ -223,7 +224,7 @@ export default function AppShell(V) {
                         >
                           Continue watching
                         </span>
-                        <span style={{ fontSize: '11px', color: '#9AA1AC' }}>
+                        <span style={{ fontSize: '11px', color: theme.textFaint }}>
                           — swipe to browse
                         </span>
                       </div>{' '}

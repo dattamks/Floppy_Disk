@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.isAuth is set.
@@ -32,14 +33,14 @@ export default function AuthScreen(V) {
           >
             {' '}
             <svg width="38" height="38" viewBox="0 0 24 24" fill="none">
-              <rect x="3" y="3" width="18" height="18" rx="4" fill="#5145E5" />
+              <rect x="3" y="3" width="18" height="18" rx="4" fill={theme.brand} />
               <path
                 d="M8 3v5h6.5M8.5 20v-6h7v6"
-                stroke="#fff"
+                stroke={theme.white}
                 strokeWidth="1.7"
                 strokeLinejoin="round"
               />
-              <rect x="10" y="4" width="3" height="3.5" rx="0.5" fill="#fff" />
+              <rect x="10" y="4" width="3" height="3.5" rx="0.5" fill={theme.white} />
             </svg>{' '}
             <span
               style={{
@@ -50,7 +51,7 @@ export default function AuthScreen(V) {
             >
               {V.authTitle}
             </span>{' '}
-            <span style={{ fontSize: '13px', color: '#656B76', textAlign: 'center' }}>
+            <span style={{ fontSize: '13px', color: theme.textMuted, textAlign: 'center' }}>
               {V.authSubtitle}
             </span>{' '}
           </div>{' '}
@@ -62,8 +63,8 @@ export default function AuthScreen(V) {
                 onInput={V.setAuthName}
                 placeholder="Full name"
                 style={{
-                  background: '#FFFFFF',
-                  border: '1px solid #E5E7EC',
+                  background: theme.white,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: '10px',
                   padding: '12px 14px',
                   fontSize: '14px',
@@ -78,13 +79,13 @@ export default function AuthScreen(V) {
                 aria-label="Date of birth"
                 title="Date of birth (must be 18+)"
                 style={{
-                  background: '#FFFFFF',
-                  border: '1px solid #E5E7EC',
+                  background: theme.white,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: '10px',
                   padding: '12px 14px',
                   fontSize: '14px',
                   outline: 'none',
-                  color: '#656B76',
+                  color: theme.textMuted,
                   fontFamily: "'IBM Plex Sans',sans-serif",
                 }}
               />{' '}
@@ -98,8 +99,8 @@ export default function AuthScreen(V) {
                 onInput={V.setAuthEmail}
                 placeholder="Email address"
                 style={{
-                  background: '#FFFFFF',
-                  border: '1px solid #E5E7EC',
+                  background: theme.white,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: '10px',
                   padding: '12px 14px',
                   fontSize: '14px',
@@ -118,8 +119,8 @@ export default function AuthScreen(V) {
                 type="password"
                 placeholder="Password"
                 style={{
-                  background: '#FFFFFF',
-                  border: '1px solid #E5E7EC',
+                  background: theme.white,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: '10px',
                   padding: '12px 14px',
                   fontSize: '14px',
@@ -137,8 +138,8 @@ export default function AuthScreen(V) {
                 onInput={V.setAuthCode}
                 placeholder="6-digit code"
                 style={{
-                  background: '#FFFFFF',
-                  border: '1px solid #E5E7EC',
+                  background: theme.white,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: '10px',
                   padding: '12px 14px',
                   fontSize: '16px',
@@ -158,8 +159,8 @@ export default function AuthScreen(V) {
                 onInput={V.setAuthPhone}
                 placeholder="Phone number"
                 style={{
-                  background: '#FFFFFF',
-                  border: '1px solid #E5E7EC',
+                  background: theme.white,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: '10px',
                   padding: '12px 14px',
                   fontSize: '14px',
@@ -172,8 +173,8 @@ export default function AuthScreen(V) {
                 onInput={V.setAuthCode}
                 placeholder="6-digit code"
                 style={{
-                  background: '#FFFFFF',
-                  border: '1px solid #E5E7EC',
+                  background: theme.white,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: '10px',
                   padding: '12px 14px',
                   fontSize: '16px',
@@ -189,9 +190,9 @@ export default function AuthScreen(V) {
             <React.Fragment>
               <div
                 style={{
-                  background: '#FEECEC',
-                  border: '1px solid #F5C2C2',
-                  color: '#C0362C',
+                  background: theme.dangerBg,
+                  border: `1px solid ${theme.dangerBorder3}`,
+                  color: theme.dangerDark,
                   borderRadius: '9px',
                   padding: '9px 12px',
                   fontSize: '12.5px',
@@ -204,8 +205,8 @@ export default function AuthScreen(V) {
           <button
             onClick={V.authPrimary}
             style={{
-              background: '#5145E5',
-              color: '#fff',
+              background: theme.brand,
+              color: theme.white,
               border: 'none',
               borderRadius: '10px',
               padding: '13px',
@@ -214,7 +215,7 @@ export default function AuthScreen(V) {
               cursor: 'pointer',
               fontFamily: "'IBM Plex Sans',sans-serif",
             }}
-            {...hov({ background: '#4238CC' })}
+            {...hov({ background: theme.brandDark })}
           >
             {V.authPrimaryLabel}
           </button>{' '}
@@ -224,17 +225,17 @@ export default function AuthScreen(V) {
               {V.showDemoCreds ? (
                 <div
                   style={{
-                    background: '#F1F2F5',
-                    border: '1px solid #E5E7EC',
+                    background: theme.surface,
+                    border: `1px solid ${theme.border}`,
                     borderRadius: '8px',
                     padding: '8px 11px',
                     fontSize: '11.5px',
-                    color: '#656B76',
+                    color: theme.textMuted,
                     textAlign: 'center',
                   }}
                 >
-                  Demo: <strong style={{ color: '#15171C' }}>aiden.rivera@floppy.disk</strong> /{' '}
-                  <strong style={{ color: '#15171C' }}>password</strong>
+                  Demo: <strong style={{ color: theme.text }}>aiden.rivera@floppy.disk</strong> /{' '}
+                  <strong style={{ color: theme.text }}>password</strong>
                 </div>
               ) : null}{' '}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
@@ -244,7 +245,7 @@ export default function AuthScreen(V) {
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#656B76',
+                    color: theme.textMuted,
                     cursor: 'pointer',
                     padding: '0',
                     fontSize: '13px',
@@ -257,7 +258,7 @@ export default function AuthScreen(V) {
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#5145E5',
+                    color: theme.brand,
                     cursor: 'pointer',
                     padding: '0',
                     fontSize: '13px',
@@ -272,14 +273,14 @@ export default function AuthScreen(V) {
           {V.authIsForgot ? (
             <React.Fragment>
               {' '}
-              <div style={{ textAlign: 'center', fontSize: '13px', color: '#656B76' }}>
+              <div style={{ textAlign: 'center', fontSize: '13px', color: theme.textMuted }}>
                 Remembered it?{' '}
                 <button
                   onClick={V.gotoLogin}
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#5145E5',
+                    color: theme.brand,
                     cursor: 'pointer',
                     padding: '0',
                     fontSize: '13px',
@@ -294,14 +295,14 @@ export default function AuthScreen(V) {
           {V.authIsRegister ? (
             <React.Fragment>
               {' '}
-              <div style={{ textAlign: 'center', fontSize: '13px', color: '#656B76' }}>
+              <div style={{ textAlign: 'center', fontSize: '13px', color: theme.textMuted }}>
                 Already have an account?{' '}
                 <button
                   onClick={V.gotoLogin}
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#5145E5',
+                    color: theme.brand,
                     cursor: 'pointer',
                     padding: '0',
                     fontSize: '13px',
@@ -323,7 +324,7 @@ export default function AuthScreen(V) {
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#656B76',
+                    color: theme.textMuted,
                     cursor: 'pointer',
                     padding: '0',
                     fontSize: '13px',
@@ -336,7 +337,7 @@ export default function AuthScreen(V) {
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#5145E5',
+                    color: theme.brand,
                     cursor: 'pointer',
                     padding: '0',
                     fontSize: '13px',

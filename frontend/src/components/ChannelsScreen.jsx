@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 import CategoryChip from './CategoryChip';
 import ChannelGridCard from './ChannelGridCard';
@@ -21,7 +22,7 @@ export default function ChannelsScreen(V) {
             <div
               style={{
                 display: 'inline-flex',
-                background: '#EAECF0',
+                background: theme.surface3,
                 borderRadius: '10px',
                 padding: '3px',
                 gap: '2px',
@@ -72,18 +73,18 @@ export default function ChannelsScreen(V) {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '9px',
-                    background: '#FFFFFF',
-                    border: '1px solid #E5E7EC',
+                    background: theme.white,
+                    border: `1px solid ${theme.border}`,
                     borderRadius: '10px',
                     padding: '9px 13px',
                   }}
                 >
                   {' '}
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <circle cx="11" cy="11" r="7" stroke="#8A909B" strokeWidth="1.8" />
+                    <circle cx="11" cy="11" r="7" stroke={theme.textMuted2} strokeWidth="1.8" />
                     <path
                       d="M20 20l-4.3-4.3"
-                      stroke="#8A909B"
+                      stroke={theme.textMuted2}
                       strokeWidth="1.8"
                       strokeLinecap="round"
                     />
@@ -96,7 +97,7 @@ export default function ChannelsScreen(V) {
                       background: 'none',
                       border: 'none',
                       outline: 'none',
-                      color: '#15171C',
+                      color: theme.text,
                       fontSize: '13.5px',
                       fontFamily: "'IBM Plex Sans',sans-serif",
                       width: '100%',
@@ -110,7 +111,7 @@ export default function ChannelsScreen(V) {
                           background: 'none',
                           border: 'none',
                           cursor: 'pointer',
-                          color: '#9AA1AC',
+                          color: theme.textFaint,
                           display: 'flex',
                           padding: '0',
                         }}
@@ -153,7 +154,7 @@ export default function ChannelsScreen(V) {
                     <div
                       style={{
                         display: 'inline-flex',
-                        background: '#EAECF0',
+                        background: theme.surface3,
                         borderRadius: '9px',
                         padding: '2px',
                         gap: '2px',
@@ -169,8 +170,8 @@ export default function ChannelsScreen(V) {
                           fontSize: '11.5px',
                           fontWeight: '600',
                           cursor: 'pointer',
-                          background: V.likesSortActive ? '#5145E5' : 'transparent',
-                          color: V.likesSortActive ? '#fff' : '#656B76',
+                          background: V.likesSortActive ? theme.brand : 'transparent',
+                          color: V.likesSortActive ? theme.white : theme.textMuted,
                           boxShadow: V.likesSortActive ? '0 1px 3px rgba(81,69,229,0.4)' : 'none',
                         }}
                       >
@@ -185,8 +186,8 @@ export default function ChannelsScreen(V) {
                           fontSize: '11.5px',
                           fontWeight: '600',
                           cursor: 'pointer',
-                          background: V.viewsSortActive ? '#5145E5' : 'transparent',
-                          color: V.viewsSortActive ? '#fff' : '#656B76',
+                          background: V.viewsSortActive ? theme.brand : 'transparent',
+                          color: V.viewsSortActive ? theme.white : theme.textMuted,
                           boxShadow: V.viewsSortActive ? '0 1px 3px rgba(81,69,229,0.4)' : 'none',
                         }}
                       >
@@ -201,8 +202,8 @@ export default function ChannelsScreen(V) {
                           fontSize: '11.5px',
                           fontWeight: '600',
                           cursor: 'pointer',
-                          background: V.sharesSortActive ? '#5145E5' : 'transparent',
-                          color: V.sharesSortActive ? '#fff' : '#656B76',
+                          background: V.sharesSortActive ? theme.brand : 'transparent',
+                          color: V.sharesSortActive ? theme.white : theme.textMuted,
                           boxShadow: V.sharesSortActive ? '0 1px 3px rgba(81,69,229,0.4)' : 'none',
                         }}
                       >
@@ -243,9 +244,9 @@ export default function ChannelsScreen(V) {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '5px',
-                      border: '1px solid #C7C3F5',
-                      background: '#F7F7FE',
-                      color: '#5145E5',
+                      border: `1px solid ${theme.brandBorder}`,
+                      background: theme.brandBgSoft,
+                      color: theme.brand,
                       borderRadius: '8px',
                       padding: '7px 11px',
                       fontSize: '12px',
@@ -257,7 +258,7 @@ export default function ChannelsScreen(V) {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                       <path
                         d="M12 5v14M5 12h14"
-                        stroke="#5145E5"
+                        stroke={theme.brand}
                         strokeWidth="2"
                         strokeLinecap="round"
                       />
@@ -358,7 +359,7 @@ export default function ChannelsScreen(V) {
                           <div
                             style={{
                               textAlign: 'center',
-                              color: '#B4B9C2',
+                              color: theme.textFainter,
                               fontSize: '13px',
                               padding: '28px 0',
                             }}
@@ -390,7 +391,7 @@ export default function ChannelsScreen(V) {
                             style={{
                               gridColumn: '1/-1',
                               textAlign: 'center',
-                              color: '#B4B9C2',
+                              color: theme.textFainter,
                               fontSize: '13px',
                               padding: '28px 0',
                             }}
@@ -436,22 +437,22 @@ export default function ChannelsScreen(V) {
                         alignItems: 'center',
                         justifyContent: 'center',
                         gap: '8px',
-                        background: '#FFFFFF',
-                        border: '1.5px dashed #C7C3F5',
+                        background: theme.white,
+                        border: `1.5px dashed ${theme.brandBorder}`,
                         borderRadius: '12px',
                         padding: '13px',
                         fontSize: '13.5px',
                         fontWeight: '600',
-                        color: '#5145E5',
+                        color: theme.brand,
                         cursor: 'pointer',
                         fontFamily: "'IBM Plex Sans',sans-serif",
                       }}
-                      {...hov({ background: '#F7F7FE' })}
+                      {...hov({ background: theme.brandBgSoft })}
                     >
                       <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
                         <path
                           d="M12 5v14M5 12h14"
-                          stroke="#5145E5"
+                          stroke={theme.brand}
                           strokeWidth="2"
                           strokeLinecap="round"
                         />
@@ -470,7 +471,7 @@ export default function ChannelsScreen(V) {
                       <div
                         style={{
                           textAlign: 'center',
-                          color: '#B4B9C2',
+                          color: theme.textFainter,
                           fontSize: '13.5px',
                           padding: '40px 0',
                         }}
@@ -498,7 +499,7 @@ export default function ChannelsScreen(V) {
                 gap: '6px',
                 background: 'none',
                 border: 'none',
-                color: '#656B76',
+                color: theme.textMuted,
                 fontSize: '13px',
                 fontWeight: '500',
                 cursor: 'pointer',
@@ -520,8 +521,8 @@ export default function ChannelsScreen(V) {
             </button>{' '}
             <div
               style={{
-                background: '#FFFFFF',
-                border: '1px solid #E5E7EC',
+                background: theme.white,
+                border: `1px solid ${theme.border}`,
                 borderRadius: '16px',
                 padding: '18px',
                 display: 'flex',
@@ -542,7 +543,7 @@ export default function ChannelsScreen(V) {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: '#fff',
+                    color: theme.white,
                     fontFamily: "'Space Grotesk',sans-serif",
                     fontWeight: '700',
                     fontSize: '22px',
@@ -557,13 +558,13 @@ export default function ChannelsScreen(V) {
                         style={{
                           position: 'absolute',
                           bottom: '-3px',
-                          background: '#E5484D',
-                          color: '#fff',
+                          background: theme.danger,
+                          color: theme.white,
                           fontSize: '8px',
                           fontWeight: '700',
                           borderRadius: '5px',
                           padding: '1px 5px',
-                          border: '2px solid #FFF',
+                          border: `2px solid ${theme.white}`,
                         }}
                       >
                         LIVE
@@ -591,11 +592,11 @@ export default function ChannelsScreen(V) {
                     >
                       {V.cdName}
                     </span>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="#5145E5">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill={theme.brand}>
                       <path d="M12 2l2.4 1.8 3-.3 1 2.8 2.6 1.5-.9 2.9.9 2.9-2.6 1.5-1 2.8-3-.3L12 22l-2.4-1.8-3 .3-1-2.8L3 16.5l.9-2.9L3 10.6l2.6-1.5 1-2.8 3 .3L12 2Z" />
                       <path
                         d="M9 12l2 2 4-4"
-                        stroke="#fff"
+                        stroke={theme.white}
                         strokeWidth="1.6"
                         fill="none"
                         strokeLinecap="round"
@@ -603,7 +604,7 @@ export default function ChannelsScreen(V) {
                       />
                     </svg>
                   </div>{' '}
-                  <span style={{ fontSize: '12.5px', color: '#9AA1AC' }}>
+                  <span style={{ fontSize: '12.5px', color: theme.textFaint }}>
                     {V.cdHandle} · {V.cdSubs} subscribers · {V.cdCategory}
                   </span>{' '}
                 </div>{' '}
@@ -633,9 +634,9 @@ export default function ChannelsScreen(V) {
                       onClick={V.cdOnCompose}
                       style={{
                         flex: '0 0 auto',
-                        border: '1px solid #C7C3F5',
-                        background: '#F7F7FE',
-                        color: '#5145E5',
+                        border: `1px solid ${theme.brandBorder}`,
+                        background: theme.brandBgSoft,
+                        color: theme.brand,
                         borderRadius: '9px',
                         padding: '9px 14px',
                         fontSize: '13px',
@@ -650,7 +651,7 @@ export default function ChannelsScreen(V) {
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
                         <path
                           d="M12 5v14M5 12h14"
-                          stroke="#5145E5"
+                          stroke={theme.brand}
                           strokeWidth="2"
                           strokeLinecap="round"
                         />
@@ -666,8 +667,8 @@ export default function ChannelsScreen(V) {
                       style={{
                         width: '38px',
                         flex: '0 0 auto',
-                        border: '1px solid #E5E7EC',
-                        background: '#F7F8FA',
+                        border: `1px solid ${theme.border}`,
+                        background: theme.surface2,
                         borderRadius: '9px',
                         display: 'flex',
                         alignItems: 'center',
@@ -676,10 +677,10 @@ export default function ChannelsScreen(V) {
                       }}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="3" stroke="#656B76" strokeWidth="1.7" />
+                        <circle cx="12" cy="12" r="3" stroke={theme.textMuted} strokeWidth="1.7" />
                         <path
                           d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.3-2.6h-4l-.3 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.3 2.6h4l.3-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5c.1-.3.1-.7.1-1Z"
-                          stroke="#656B76"
+                          stroke={theme.textMuted}
                           strokeWidth="1.3"
                         />
                       </svg>
@@ -707,7 +708,7 @@ export default function ChannelsScreen(V) {
                   <div
                     style={{
                       textAlign: 'center',
-                      color: '#B4B9C2',
+                      color: theme.textFainter,
                       fontSize: '13px',
                       padding: '32px 0',
                     }}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 export default function ChannelDetailPost({ V, p }) {
@@ -7,8 +8,8 @@ export default function ChannelDetailPost({ V, p }) {
       {' '}
       <div
         style={{
-          background: '#FFFFFF',
-          border: '1px solid #E5E7EC',
+          background: theme.white,
+          border: `1px solid ${theme.border}`,
           borderRadius: '16px',
           padding: '14px 15px',
           display: 'flex',
@@ -29,7 +30,7 @@ export default function ChannelDetailPost({ V, p }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#fff',
+              color: theme.white,
               fontFamily: "'Space Grotesk',sans-serif",
               fontWeight: '700',
               fontSize: '12px',
@@ -40,14 +41,16 @@ export default function ChannelDetailPost({ V, p }) {
           </div>{' '}
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: '0', flex: '1' }}>
             <span style={{ fontWeight: '600', fontSize: '13px' }}>{p.channelName}</span>
-            <span style={{ fontSize: '10.5px', color: '#9AA1AC' }}>
+            <span style={{ fontSize: '10.5px', color: theme.textFaint }}>
               {p.handle} · {p.time}
             </span>
           </div>{' '}
         </div>{' '}
         {p.hasText ? (
           <React.Fragment>
-            <div style={{ fontSize: '13.5px', lineHeight: '1.5', color: '#2A2D34' }}>{p.text}</div>
+            <div style={{ fontSize: '13.5px', lineHeight: '1.5', color: theme.textSoft }}>
+              {p.text}
+            </div>
           </React.Fragment>
         ) : null}{' '}
         {p.isImage ? (
@@ -62,7 +65,7 @@ export default function ChannelDetailPost({ V, p }) {
                 objectFit: 'cover',
                 borderRadius: '12px',
                 cursor: 'pointer',
-                background: '#EDEFF3',
+                background: theme.surface4,
               }}
             />
           </React.Fragment>
@@ -76,7 +79,7 @@ export default function ChannelDetailPost({ V, p }) {
                 borderRadius: '12px',
                 overflow: 'hidden',
                 cursor: 'pointer',
-                background: '#000',
+                background: theme.black,
               }}
             >
               <img
@@ -105,7 +108,7 @@ export default function ChannelDetailPost({ V, p }) {
                     justifyContent: 'center',
                   }}
                 >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="#15171C">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill={theme.text}>
                     <path d="M6 4l14 8-14 8V4Z" />
                   </svg>
                 </div>
@@ -119,7 +122,7 @@ export default function ChannelDetailPost({ V, p }) {
                   borderRadius: '5px',
                   padding: '1px 7px',
                   fontSize: '10.5px',
-                  color: '#fff',
+                  color: theme.white,
                 }}
               >
                 {p.duration}
@@ -135,8 +138,8 @@ export default function ChannelDetailPost({ V, p }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '11px',
-                background: '#F7F8FA',
-                border: '1px solid #E5E7EC',
+                background: theme.surface2,
+                border: `1px solid ${theme.border}`,
                 borderRadius: '11px',
                 padding: '11px 13px',
                 cursor: 'pointer',
@@ -147,7 +150,7 @@ export default function ChannelDetailPost({ V, p }) {
                   width: '36px',
                   height: '36px',
                   borderRadius: '9px',
-                  background: '#FEF2F2',
+                  background: theme.dangerBgSoft,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -157,11 +160,11 @@ export default function ChannelDetailPost({ V, p }) {
                 <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
                   <path
                     d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-                    fill="#fff"
-                    stroke="#E5484D"
+                    fill={theme.white}
+                    stroke={theme.danger}
                     strokeWidth="1.4"
                   />
-                  <path d="M14 3v4h4" stroke="#E5484D" strokeWidth="1.4" />
+                  <path d="M14 3v4h4" stroke={theme.danger} strokeWidth="1.4" />
                 </svg>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', minWidth: '0', flex: '1' }}>
@@ -176,7 +179,7 @@ export default function ChannelDetailPost({ V, p }) {
                 >
                   {p.fileName}
                 </span>
-                <span style={{ fontSize: '11px', color: '#9AA1AC' }}>{p.fileSize}</span>
+                <span style={{ fontSize: '11px', color: theme.textFaint }}>{p.fileSize}</span>
               </div>
             </div>
           </React.Fragment>
@@ -187,7 +190,7 @@ export default function ChannelDetailPost({ V, p }) {
             alignItems: 'center',
             gap: '6px',
             paddingTop: '10px',
-            borderTop: '1px solid #F1F2F5',
+            borderTop: `1px solid ${theme.surface}`,
             flexWrap: 'wrap',
           }}
         >
@@ -198,7 +201,7 @@ export default function ChannelDetailPost({ V, p }) {
               alignItems: 'center',
               gap: '5px',
               fontSize: '11.5px',
-              color: '#9AA1AC',
+              color: theme.textFaint,
               padding: '5px 8px',
             }}
           >
@@ -244,7 +247,7 @@ export default function ChannelDetailPost({ V, p }) {
               alignItems: 'center',
               gap: '5px',
               fontSize: '11.5px',
-              color: '#656B76',
+              color: theme.textMuted,
               background: 'none',
               border: 'none',
               cursor: 'pointer',
@@ -270,7 +273,7 @@ export default function ChannelDetailPost({ V, p }) {
               alignItems: 'center',
               gap: '4px',
               fontSize: '11.5px',
-              color: '#9AA1AC',
+              color: theme.textFaint,
               background: 'none',
               border: 'none',
               cursor: 'pointer',
@@ -295,7 +298,7 @@ export default function ChannelDetailPost({ V, p }) {
               alignItems: 'center',
               gap: '4px',
               fontSize: '11.5px',
-              color: '#E5484D',
+              color: theme.danger,
               background: 'none',
               border: 'none',
               cursor: 'pointer',

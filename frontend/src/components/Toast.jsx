@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.toastVisible is set.
@@ -12,8 +13,8 @@ export default function Toast(V) {
           bottom: `${V.toastBottom}px`,
           left: '50%',
           transform: 'translateX(-50%)',
-          background: '#15171C',
-          color: '#fff',
+          background: theme.text,
+          color: theme.white,
           fontSize: '13px',
           padding: '11px 18px',
           borderRadius: '10px',

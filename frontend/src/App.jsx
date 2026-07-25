@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from './lib/theme';
 import { api, firstError } from './api';
 import { humanSize, fmtStorage, TIER_LABELS, kindOf } from './lib/ui';
 import AppView from './view/AppView';
@@ -305,7 +306,7 @@ export default class App extends React.Component {
         id: 'ch-design',
         name: 'Design Team',
         handle: '@designteam',
-        color: '#5145E5',
+        color: theme.brand,
         initials: 'DT',
         subs: '1.2K',
         subsNum: 1200,
@@ -319,7 +320,7 @@ export default class App extends React.Component {
         id: 'ch-eng',
         name: 'Engineering',
         handle: '@engineering',
-        color: '#0EA5A0',
+        color: theme.teal,
         initials: 'EN',
         subs: '860',
         subsNum: 860,
@@ -333,7 +334,7 @@ export default class App extends React.Component {
         id: 'ch-mktg',
         name: 'Marketing Drops',
         handle: '@mktgdrops',
-        color: '#E5484D',
+        color: theme.danger,
         initials: 'MK',
         subs: '3.4K',
         subsNum: 3400,
@@ -347,7 +348,7 @@ export default class App extends React.Component {
         id: 'ch-allhands',
         name: 'All Hands',
         handle: '@allhands',
-        color: '#D97706',
+        color: theme.warn,
         initials: 'AH',
         subs: '5.1K',
         subsNum: 5100,
@@ -361,7 +362,7 @@ export default class App extends React.Component {
         id: 'ch-product',
         name: 'Product Updates',
         handle: '@productupdates',
-        color: '#8B5CF6',
+        color: theme.violet,
         initials: 'PR',
         subs: '410',
         subsNum: 410,
@@ -1047,7 +1048,7 @@ export default class App extends React.Component {
     this.setState({ newChCategory: cat });
   }
   _mapChannel(c) {
-    const palette = ['#5145E5', '#0EA5A0', '#E5484D', '#D97706', '#8B5CF6'];
+    const palette = [theme.brand, theme.teal, theme.danger, theme.warn, theme.violet];
     const initials = (c.name || '?')
       .trim()
       .split(/\s+/)
@@ -1891,8 +1892,12 @@ export default class App extends React.Component {
       if (!el) return;
       // Hide a failed image so the parent's neutral background shows through,
       // instead of the browser's broken-image glyph.
-      el.onerror = () => { el.style.visibility = 'hidden'; };
-      el.onload = () => { el.style.visibility = 'visible'; };
+      el.onerror = () => {
+        el.style.visibility = 'hidden';
+      };
+      el.onload = () => {
+        el.style.visibility = 'visible';
+      };
       if (url && el.src !== url) el.src = url;
     };
     const decorate = (f) => {
@@ -1915,9 +1920,9 @@ export default class App extends React.Component {
         showThumb: isImage || isVideo,
         isDocOrAudio: isDoc || isAudio,
         isTrashed: !!f.trashed,
-        tileBg: isDoc ? '#FEF2F2' : '#ECFDF9',
-        starFill: f.starred ? '#F5A623' : 'none',
-        starStroke: f.starred ? '#F5A623' : '#9AA1AC',
+        tileBg: isDoc ? theme.dangerBgSoft : theme.tealBg,
+        starFill: f.starred ? theme.star : 'none',
+        starStroke: f.starred ? theme.star : theme.textFaint,
         metaLine: isFolder
           ? itemCount + (itemCount === 1 ? ' item' : ' items')
           : `${f.size || ''}${f.size && f.modified ? ' · ' : ''}${f.modified || ''}`,
@@ -2015,9 +2020,9 @@ export default class App extends React.Component {
       isNew: c.isNew,
       subscribed: c.subscribed,
       subLabel: c.subscribed ? 'Following' : 'Subscribe',
-      subBg: c.subscribed ? '#ECEBFD' : '#5145E5',
-      subColor: c.subscribed ? '#5145E5' : '#fff',
-      subBorder: c.subscribed ? '#C7C3F5' : '#5145E5',
+      subBg: c.subscribed ? theme.brandBg : theme.brand,
+      subColor: c.subscribed ? theme.brand : theme.white,
+      subBorder: c.subscribed ? theme.brandBorder : theme.brand,
       onToggle: () => this.toggleSubscribe(c.id),
       onSettings: () => this.openChannelSettings(c.id),
       onView: () => this.openChannelView(c.id),
@@ -2042,9 +2047,9 @@ export default class App extends React.Component {
         fileSize: p.fileSize,
         views: p.views,
         likes: p.likes,
-        likeColor: p.liked ? '#E5484D' : '#656B76',
-        likeFill: p.liked ? '#E5484D' : 'none',
-        likeBg: p.liked ? '#FDECEC' : 'transparent',
+        likeColor: p.liked ? theme.danger : theme.textMuted,
+        likeFill: p.liked ? theme.danger : 'none',
+        likeBg: p.liked ? theme.dangerBg2 : 'transparent',
         isOwn: !!p.own,
         comments: (p.comments || []).map((c) => ({
           id: c.id,
@@ -2171,8 +2176,8 @@ export default class App extends React.Component {
           : null;
     const activeFile = activeRaw ? decorate(activeRaw) : null;
 
-    const navColor = (a) => (a ? '#5145E5' : '#656B76');
-    const navBg = (a) => (a ? '#ECEBFD' : 'transparent');
+    const navColor = (a) => (a ? theme.brand : theme.textMuted);
+    const navBg = (a) => (a ? theme.brandBg : 'transparent');
     const navW = (a) => (a ? 600 : 500);
     const af = (k) => !searchActive && filterKey === k;
     const _realTotalGB = st.realQuotaBytes != null ? st.realQuotaBytes / 1073741824 : null;
@@ -2203,9 +2208,9 @@ export default class App extends React.Component {
       ctxMenuView = { x: st.ctxMenu.x, y: st.ctxMenu.y, name: f.name, items };
     }
     const seg = (on) => ({
-      bg: on ? '#ECEBFD' : '#FFFFFF',
-      color: on ? '#5145E5' : '#656B76',
-      border: on ? '#C7C3F5' : '#E5E7EC',
+      bg: on ? theme.brandBg : theme.white,
+      color: on ? theme.brand : theme.textMuted,
+      border: on ? theme.brandBorder : theme.border,
     });
     const rA = seg(shareAccess === 'restricted'),
       aA = seg(shareAccess === 'anyone'),

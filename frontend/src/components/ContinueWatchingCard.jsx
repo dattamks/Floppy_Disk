@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // One card in the grid/carousel. Receives the view-model V and its item.
@@ -24,7 +25,7 @@ export default function ContinueWatchingCard({ V, c }) {
             height: `${V.d.carouselH}px`,
             borderRadius: '13px',
             overflow: 'hidden',
-            background: '#000',
+            background: theme.black,
           }}
         >
           {' '}
@@ -55,7 +56,7 @@ export default function ContinueWatchingCard({ V, c }) {
                 boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
               }}
             >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="#15171C">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill={theme.text}>
                 <path d="M6 4l14 8-14 8V4Z" />
               </svg>
             </div>
@@ -69,7 +70,7 @@ export default function ContinueWatchingCard({ V, c }) {
               borderRadius: '5px',
               padding: '1px 6px',
               fontSize: '10.5px',
-              color: '#fff',
+              color: theme.white,
             }}
           >
             {c.duration}
@@ -84,7 +85,7 @@ export default function ContinueWatchingCard({ V, c }) {
               background: 'rgba(255,255,255,0.35)',
             }}
           >
-            <div style={{ height: '100%', background: '#5145E5', width: `${c.watchedPct}%` }} />
+            <div style={{ height: '100%', background: theme.brand, width: `${c.watchedPct}%` }} />
           </div>{' '}
         </div>{' '}
         <span

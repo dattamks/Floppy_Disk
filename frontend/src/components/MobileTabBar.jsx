@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from AppShell.
@@ -13,8 +14,8 @@ export default function MobileTabBar(V) {
           left: '0',
           right: '0',
           height: '64px',
-          background: '#FFFFFF',
-          borderTop: '1px solid #E5E7EC',
+          background: theme.white,
+          borderTop: `1px solid ${theme.border}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-around',
@@ -69,7 +70,7 @@ export default function MobileTabBar(V) {
         <button
           onClick={V.openUpload}
           style={{
-            background: '#5145E5',
+            background: theme.brand,
             border: 'none',
             width: '46px',
             height: '46px',
@@ -85,7 +86,7 @@ export default function MobileTabBar(V) {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path
               d="M12 16V4M7 9l5-5 5 5M4 20h16"
-              stroke="#fff"
+              stroke={theme.white}
               strokeWidth="2.1"
               strokeLinecap="round"
               strokeLinejoin="round"

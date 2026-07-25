@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 export default function CategoryChip({ V, cat }) {
@@ -9,9 +10,9 @@ export default function CategoryChip({ V, cat }) {
         onClick={cat.onClick}
         style={{
           flex: '0 0 auto',
-          border: `1px solid ${cat.active ? '#5145E5' : '#E5E7EC'}`,
-          background: cat.active ? '#5145E5' : '#FFFFFF',
-          color: cat.active ? '#fff' : '#656B76',
+          border: `1px solid ${cat.active ? theme.brand : theme.border}`,
+          background: cat.active ? theme.brand : theme.white,
+          color: cat.active ? theme.white : theme.textMuted,
           borderRadius: '20px',
           padding: '7px 14px',
           fontSize: '12.5px',

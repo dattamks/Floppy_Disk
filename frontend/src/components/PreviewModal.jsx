@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.isPreviewModal is set.
@@ -32,7 +33,7 @@ export default function PreviewModal(V) {
             background: 'none',
             border: 'none',
             cursor: 'pointer',
-            color: '#8A909B',
+            color: theme.textMuted2,
             flex: '0 0 auto',
           }}
         >
@@ -56,7 +57,7 @@ export default function PreviewModal(V) {
               height: '300px',
               objectFit: 'cover',
               borderRadius: '11px',
-              background: '#EDEFF3',
+              background: theme.surface4,
             }}
           />
         </React.Fragment>
@@ -68,9 +69,9 @@ export default function PreviewModal(V) {
             style={{
               width: '100%',
               height: '300px',
-              border: '1px solid #E5E7EC',
+              border: `1px solid ${theme.border}`,
               borderRadius: '11px',
-              background: '#F1F2F5',
+              background: theme.surface,
             }}
           />
         </React.Fragment>
@@ -81,7 +82,7 @@ export default function PreviewModal(V) {
             style={{
               height: '150px',
               borderRadius: '11px',
-              background: '#F1F2F5',
+              background: theme.surface,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
@@ -93,7 +94,7 @@ export default function PreviewModal(V) {
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
               <path
                 d="M4 15V9m4 9V6m4 12V4m4 14v-7m4 5v-3"
-                stroke="#0EA5A0"
+                stroke={theme.teal}
                 strokeWidth="1.9"
                 strokeLinecap="round"
               />
@@ -110,13 +111,13 @@ export default function PreviewModal(V) {
           gap: '10px',
         }}
       >
-        <span style={{ fontSize: '11.5px', color: '#9AA1AC' }}>{V.activeFile.metaLine}</span>
+        <span style={{ fontSize: '11.5px', color: theme.textFaint }}>{V.activeFile.metaLine}</span>
         <div style={{ display: 'flex', gap: '8px', flex: '0 0 auto' }}>
           <button
             onClick={V.activeFile.onToggleStar}
             style={{
-              background: '#F1F2F5',
-              border: '1px solid #E5E7EC',
+              background: theme.surface,
+              border: `1px solid ${theme.border}`,
               borderRadius: '9px',
               width: '34px',
               height: '34px',
@@ -137,9 +138,9 @@ export default function PreviewModal(V) {
           <button
             onClick={V.downloadActive}
             style={{
-              background: '#F1F2F5',
-              border: '1px solid #E5E7EC',
-              color: '#15171C',
+              background: theme.surface,
+              border: `1px solid ${theme.border}`,
+              color: theme.text,
               borderRadius: '9px',
               padding: '0 14px',
               fontSize: '13px',
@@ -152,9 +153,9 @@ export default function PreviewModal(V) {
           <button
             onClick={V.deleteActive}
             style={{
-              background: '#FEF2F2',
-              border: '1px solid #FCA5A5',
-              color: '#E5484D',
+              background: theme.dangerBgSoft,
+              border: `1px solid ${theme.dangerBorder2}`,
+              color: theme.danger,
               borderRadius: '9px',
               padding: '0 14px',
               fontSize: '13px',
@@ -167,8 +168,8 @@ export default function PreviewModal(V) {
           <button
             onClick={V.openShareForActive}
             style={{
-              background: '#5145E5',
-              color: '#fff',
+              background: theme.brand,
+              color: theme.white,
               border: 'none',
               borderRadius: '9px',
               padding: '0 16px',

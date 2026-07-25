@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.isReportModal is set.
@@ -14,7 +15,7 @@ export default function ReportModal(V) {
         </span>
         <button
           onClick={V.closeModal}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A909B' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted2 }}
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
             <path
@@ -26,7 +27,9 @@ export default function ReportModal(V) {
           </svg>
         </button>
       </div>{' '}
-      <span style={{ fontSize: '13px', color: '#656B76' }}>Why are you reporting this post?</span>{' '}
+      <span style={{ fontSize: '13px', color: theme.textMuted }}>
+        Why are you reporting this post?
+      </span>{' '}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
         {(V.reportReasonChips || []).map((r, $index) => (
           <React.Fragment key={$index}>
@@ -34,9 +37,9 @@ export default function ReportModal(V) {
               onClick={r.onClick}
               style={{
                 textAlign: 'left',
-                border: `1px solid ${r.active ? '#C7C3F5' : '#E5E7EC'}`,
-                background: r.active ? '#ECEBFD' : '#FFFFFF',
-                color: r.active ? '#5145E5' : '#15171C',
+                border: `1px solid ${r.active ? theme.brandBorder : theme.border}`,
+                background: r.active ? theme.brandBg : theme.white,
+                color: r.active ? theme.brand : theme.text,
                 borderRadius: '10px',
                 padding: '11px 13px',
                 fontSize: '13px',
@@ -53,8 +56,8 @@ export default function ReportModal(V) {
       <button
         onClick={V.submitReport}
         style={{
-          background: '#E5484D',
-          color: '#fff',
+          background: theme.danger,
+          color: theme.white,
           border: 'none',
           borderRadius: '10px',
           padding: '12px',

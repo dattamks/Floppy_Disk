@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 export default function ChannelGridCard({ V, ch }) {
@@ -7,8 +8,8 @@ export default function ChannelGridCard({ V, ch }) {
       {' '}
       <div
         style={{
-          background: '#FFFFFF',
-          border: '1px solid #E5E7EC',
+          background: theme.white,
+          border: `1px solid ${theme.border}`,
           borderRadius: '14px',
           padding: '14px',
           display: 'flex',
@@ -29,7 +30,7 @@ export default function ChannelGridCard({ V, ch }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#fff',
+            color: theme.white,
             fontFamily: "'Space Grotesk',sans-serif",
             fontWeight: '700',
             fontSize: '15px',
@@ -44,13 +45,13 @@ export default function ChannelGridCard({ V, ch }) {
                 style={{
                   position: 'absolute',
                   bottom: '-3px',
-                  background: '#E5484D',
-                  color: '#fff',
+                  background: theme.danger,
+                  color: theme.white,
                   fontSize: '7px',
                   fontWeight: '700',
                   borderRadius: '4px',
                   padding: '1px 4px',
-                  border: '2px solid #FFF',
+                  border: `2px solid ${theme.white}`,
                 }}
               >
                 LIVE
@@ -83,7 +84,7 @@ export default function ChannelGridCard({ V, ch }) {
           >
             {ch.name}
           </span>{' '}
-          <span style={{ fontSize: '10px', color: '#9AA1AC' }}>{ch.subs} subs</span>{' '}
+          <span style={{ fontSize: '10px', color: theme.textFaint }}>{ch.subs} subs</span>{' '}
         </div>{' '}
         <button
           onClick={ch.onToggle}

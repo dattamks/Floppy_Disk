@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.isVideoModal is set.
@@ -57,7 +58,7 @@ export default function VideoModal(V) {
           position: 'relative',
           borderRadius: '12px',
           overflow: 'hidden',
-          background: '#000',
+          background: theme.black,
           flex: V.vVideoFlex,
           display: 'flex',
           alignItems: 'center',
@@ -69,7 +70,12 @@ export default function VideoModal(V) {
         <video
           ref={V.videoRef}
           playsInline
-          style={{ width: '100%', maxHeight: V.vVideoMaxH, display: 'block', background: '#000' }}
+          style={{
+            width: '100%',
+            maxHeight: V.vVideoMaxH,
+            display: 'block',
+            background: theme.black,
+          }}
         />{' '}
         <button
           onClick={V.toggleVideoPlay}
@@ -98,7 +104,7 @@ export default function VideoModal(V) {
                   boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
                 }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="#15171C">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill={theme.text}>
                   <path d="M6 4l14 8-14 8V4Z" />
                 </svg>
               </div>
@@ -123,7 +129,7 @@ export default function VideoModal(V) {
                   height: '40px',
                   borderRadius: '50%',
                   border: '3px solid rgba(255,255,255,0.35)',
-                  borderTopColor: '#fff',
+                  borderTopColor: theme.white,
                   animation: 'fdspin 0.8s linear infinite',
                 }}
               />
@@ -145,7 +151,7 @@ export default function VideoModal(V) {
         <div
           style={{
             height: '100%',
-            background: '#5145E5',
+            background: theme.brand,
             width: `${V.videoProgress}%`,
             borderRadius: '6px',
           }}
@@ -213,7 +219,7 @@ export default function VideoModal(V) {
               <React.Fragment>
                 <path
                   d="M17 9l4 6M21 9l-4 6"
-                  stroke="#E5484D"
+                  stroke={theme.danger}
                   strokeWidth="1.6"
                   strokeLinecap="round"
                 />
@@ -228,7 +234,7 @@ export default function VideoModal(V) {
           step="0.05"
           value={V.videoVolume}
           onInput={V.setVolume}
-          style={{ width: '64px', accentColor: '#5145E5', cursor: 'pointer' }}
+          style={{ width: '64px', accentColor: theme.brand, cursor: 'pointer' }}
         />{' '}
         <button
           onClick={V.cycleRate}
@@ -348,11 +354,11 @@ export default function VideoModal(V) {
                 position: 'absolute',
                 bottom: '30px',
                 right: '0',
-                background: '#15171C',
+                background: theme.text,
                 borderRadius: '10px',
                 padding: '9px 12px',
                 fontSize: '11.5px',
-                color: '#fff',
+                color: theme.white,
                 width: '200px',
                 boxShadow: '0 10px 24px rgba(0,0,0,0.3)',
               }}
@@ -366,11 +372,11 @@ export default function VideoModal(V) {
         <React.Fragment>
           <div
             style={{
-              border: '1px dashed #D2D6DE',
+              border: `1px dashed ${theme.borderStrong}`,
               borderRadius: '9px',
               padding: '7px 10px',
               fontSize: '10.5px',
-              color: '#9AA1AC',
+              color: theme.textFaint,
               textAlign: 'center',
               flex: '0 0 auto',
             }}

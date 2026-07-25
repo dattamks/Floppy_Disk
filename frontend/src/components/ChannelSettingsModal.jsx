@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.isChannelSettingsModal is set.
@@ -14,7 +15,7 @@ export default function ChannelSettingsModal(V) {
         </span>
         <button
           onClick={V.closeModal}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A909B' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted2 }}
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
             <path
@@ -36,7 +37,7 @@ export default function ChannelSettingsModal(V) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#fff',
+            color: theme.white,
             fontWeight: '700',
             fontSize: '18px',
             fontFamily: "'Space Grotesk',sans-serif",
@@ -46,10 +47,10 @@ export default function ChannelSettingsModal(V) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span style={{ fontWeight: '600', fontSize: '14px' }}>{V.csName}</span>
-          <span style={{ fontSize: '11.5px', color: '#9AA1AC' }}>{V.csSubs} subscribers</span>
+          <span style={{ fontSize: '11.5px', color: theme.textFaint }}>{V.csSubs} subscribers</span>
         </div>
       </div>{' '}
-      <label style={{ fontSize: '12px', color: '#656B76', fontWeight: '500' }}>
+      <label style={{ fontSize: '12px', color: theme.textMuted, fontWeight: '500' }}>
         Channel name
         <input
           value={V.csNameInput}
@@ -57,8 +58,8 @@ export default function ChannelSettingsModal(V) {
           style={{
             width: '100%',
             marginTop: '5px',
-            background: '#F1F2F5',
-            border: '1px solid #E5E7EC',
+            background: theme.surface,
+            border: `1px solid ${theme.border}`,
             borderRadius: '9px',
             padding: '10px 12px',
             fontSize: '13.5px',
@@ -67,7 +68,7 @@ export default function ChannelSettingsModal(V) {
           }}
         />
       </label>{' '}
-      <label style={{ fontSize: '12px', color: '#656B76', fontWeight: '500' }}>
+      <label style={{ fontSize: '12px', color: theme.textMuted, fontWeight: '500' }}>
         Description
         <textarea
           value={V.csDesc}
@@ -76,8 +77,8 @@ export default function ChannelSettingsModal(V) {
           style={{
             width: '100%',
             marginTop: '5px',
-            background: '#F1F2F5',
-            border: '1px solid #E5E7EC',
+            background: theme.surface,
+            border: `1px solid ${theme.border}`,
             borderRadius: '9px',
             padding: '10px 12px',
             fontSize: '13.5px',
@@ -88,7 +89,9 @@ export default function ChannelSettingsModal(V) {
         />
       </label>{' '}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <span style={{ fontSize: '12px', color: '#656B76', fontWeight: '500' }}>Who can post</span>
+        <span style={{ fontSize: '12px', color: theme.textMuted, fontWeight: '500' }}>
+          Who can post
+        </span>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={V.setPostAdmins}
@@ -127,7 +130,7 @@ export default function ChannelSettingsModal(V) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <span style={{ fontSize: '13px', fontWeight: '500' }}>Notifications</span>
-          <span style={{ fontSize: '11.5px', color: '#9AA1AC' }}>
+          <span style={{ fontSize: '11.5px', color: theme.textFaint }}>
             Notify subscribers of new posts
           </span>
         </div>
@@ -151,7 +154,7 @@ export default function ChannelSettingsModal(V) {
               width: '20px',
               height: '20px',
               borderRadius: '50%',
-              background: '#fff',
+              background: theme.white,
               transition: 'left .15s',
             }}
           />
@@ -160,8 +163,8 @@ export default function ChannelSettingsModal(V) {
       <button
         onClick={V.saveChannel}
         style={{
-          background: '#5145E5',
-          color: '#fff',
+          background: theme.brand,
+          color: theme.white,
           border: 'none',
           borderRadius: '9px',
           padding: '11px',
@@ -175,9 +178,9 @@ export default function ChannelSettingsModal(V) {
       <button
         onClick={V.leaveChannel}
         style={{
-          background: '#FFFFFF',
-          color: '#E5484D',
-          border: '1px solid #F3C9C9',
+          background: theme.white,
+          color: theme.danger,
+          border: `1px solid ${theme.dangerBorder}`,
           borderRadius: '9px',
           padding: '11px',
           fontSize: '13px',

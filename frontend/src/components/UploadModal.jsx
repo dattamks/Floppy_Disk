@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.isUploadModal is set.
@@ -14,7 +15,7 @@ export default function UploadModal(V) {
         </span>
         <button
           onClick={V.closeModal}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A909B' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted2 }}
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
             <path
@@ -29,7 +30,7 @@ export default function UploadModal(V) {
       <div
         onClick={V.browseFiles}
         style={{
-          border: '1.5px dashed #C7C3F5',
+          border: `1.5px dashed ${theme.brandBorder}`,
           borderRadius: '13px',
           padding: '30px 16px',
           display: 'flex',
@@ -37,23 +38,25 @@ export default function UploadModal(V) {
           alignItems: 'center',
           gap: '9px',
           cursor: 'pointer',
-          background: '#F7F7FE',
+          background: theme.brandBgSoft,
         }}
-        {...hov({ borderColor: '#5145E5', background: '#F1F0FD' })}
+        {...hov({ borderColor: theme.brand, background: theme.brandBgSoft2 })}
       >
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
           <path
             d="M12 16V4M7 9l5-5 5 5M4 20h16"
-            stroke="#5145E5"
+            stroke={theme.brand}
             strokeWidth="1.9"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
         </svg>
-        <span style={{ fontSize: '13.5px', color: '#15171C', fontWeight: '500' }}>
+        <span style={{ fontSize: '13.5px', color: theme.text, fontWeight: '500' }}>
           Drag & drop files here
         </span>
-        <span style={{ fontSize: '12px', color: '#9AA1AC' }}>or click to browse your device</span>
+        <span style={{ fontSize: '12px', color: theme.textFaint }}>
+          or click to browse your device
+        </span>
       </div>{' '}
       <input
         ref={V.fileInputRef}
@@ -67,7 +70,7 @@ export default function UploadModal(V) {
         style={{
           background: 'none',
           border: 'none',
-          color: '#9AA1AC',
+          color: theme.textFaint,
           fontSize: '11.5px',
           cursor: 'pointer',
           alignSelf: 'center',
@@ -83,24 +86,24 @@ export default function UploadModal(V) {
                 display: 'flex',
                 justifyContent: 'space-between',
                 fontSize: '12px',
-                color: '#15171C',
+                color: theme.text,
               }}
             >
               <span>{u.name}</span>
-              <span style={{ color: '#9AA1AC' }}>{u.progress}%</span>
+              <span style={{ color: theme.textFaint }}>{u.progress}%</span>
             </div>
             <div
               style={{
                 height: '6px',
                 borderRadius: '6px',
-                background: '#E5E7EC',
+                background: theme.border,
                 overflow: 'hidden',
               }}
             >
               <div
                 style={{
                   height: '100%',
-                  background: '#5145E5',
+                  background: theme.brand,
                   width: `${u.progress}%`,
                   borderRadius: '6px',
                 }}

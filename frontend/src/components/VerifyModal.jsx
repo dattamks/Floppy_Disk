@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.isVerifyModal is set.
@@ -14,7 +15,7 @@ export default function VerifyModal(V) {
         </span>
         <button
           onClick={V.backToSettings}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A909B' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted2 }}
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
             <path
@@ -26,17 +27,17 @@ export default function VerifyModal(V) {
           </svg>
         </button>
       </div>{' '}
-      <span style={{ fontSize: '13px', color: '#656B76' }}>
+      <span style={{ fontSize: '13px', color: theme.textMuted }}>
         Enter the 6-digit code we sent to{' '}
-        <strong style={{ color: '#15171C' }}>{V.verifyTarget}</strong>.
+        <strong style={{ color: theme.text }}>{V.verifyTarget}</strong>.
       </span>{' '}
       <input
         value={V.verifyCode}
         onInput={V.setVerifyCode}
         placeholder="6-digit code"
         style={{
-          background: '#F1F2F5',
-          border: '1px solid #E5E7EC',
+          background: theme.surface,
+          border: `1px solid ${theme.border}`,
           borderRadius: '10px',
           padding: '13px',
           fontSize: '17px',
@@ -49,8 +50,8 @@ export default function VerifyModal(V) {
       <button
         onClick={V.confirmVerify}
         style={{
-          background: '#5145E5',
-          color: '#fff',
+          background: theme.brand,
+          color: theme.white,
           border: 'none',
           borderRadius: '10px',
           padding: '12px',
@@ -66,7 +67,7 @@ export default function VerifyModal(V) {
         style={{
           background: 'none',
           border: 'none',
-          color: '#656B76',
+          color: theme.textMuted,
           cursor: 'pointer',
           fontSize: '12.5px',
         }}

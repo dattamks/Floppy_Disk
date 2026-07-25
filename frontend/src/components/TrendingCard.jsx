@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 export default function TrendingCard({ V, t }) {
@@ -22,7 +23,7 @@ export default function TrendingCard({ V, t }) {
             height: '100px',
             borderRadius: '12px',
             overflow: 'hidden',
-            background: '#000',
+            background: theme.black,
           }}
         >
           <img
@@ -39,7 +40,7 @@ export default function TrendingCard({ V, t }) {
               borderRadius: '5px',
               padding: '2px 7px',
               fontSize: '10px',
-              color: '#fff',
+              color: theme.white,
               fontWeight: '600',
             }}
           >
@@ -49,7 +50,7 @@ export default function TrendingCard({ V, t }) {
         <span
           style={{
             fontSize: '11.5px',
-            color: '#656B76',
+            color: theme.textMuted,
             fontWeight: '500',
             overflow: 'hidden',
             textOverflow: 'ellipsis',

@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // One card in the grid/carousel. Receives the view-model V and its item.
@@ -11,8 +12,8 @@ export default function FileCard({ V, file }) {
         onContextMenu={file.onCtxMenu}
         style={{
           position: 'relative',
-          background: '#FFFFFF',
-          border: '1px solid #E5E7EC',
+          background: theme.white,
+          border: `1px solid ${theme.border}`,
           borderRadius: '15px',
           padding: '11px',
           cursor: 'pointer',
@@ -23,7 +24,10 @@ export default function FileCard({ V, file }) {
           boxShadow: '0 1px 2px rgba(16,24,40,0.03)',
           transition: 'box-shadow .15s, border-color .15s',
         }}
-        {...hov({ borderColor: '#C7C3F5', boxShadow: '0 6px 18px -6px rgba(81,69,229,0.25)' })}
+        {...hov({
+          borderColor: theme.brandBorder,
+          boxShadow: '0 6px 18px -6px rgba(81,69,229,0.25)',
+        })}
       >
         {' '}
         <button
@@ -38,7 +42,7 @@ export default function FileCard({ V, file }) {
             height: '28px',
             borderRadius: '8px',
             background: 'rgba(255,255,255,0.92)',
-            border: '1px solid #E5E7EC',
+            border: `1px solid ${theme.border}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -47,9 +51,9 @@ export default function FileCard({ V, file }) {
           }}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-            <circle cx="5" cy="12" r="1.5" fill="#656B76" />
-            <circle cx="12" cy="12" r="1.5" fill="#656B76" />
-            <circle cx="19" cy="12" r="1.5" fill="#656B76" />
+            <circle cx="5" cy="12" r="1.5" fill={theme.textMuted} />
+            <circle cx="12" cy="12" r="1.5" fill={theme.textMuted} />
+            <circle cx="19" cy="12" r="1.5" fill={theme.textMuted} />
           </svg>
         </button>{' '}
         <button
@@ -62,7 +66,7 @@ export default function FileCard({ V, file }) {
             height: '28px',
             borderRadius: '8px',
             background: 'rgba(255,255,255,0.92)',
-            border: '1px solid #E5E7EC',
+            border: `1px solid ${theme.border}`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -71,10 +75,14 @@ export default function FileCard({ V, file }) {
           }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-            <circle cx="7" cy="12" r="2.4" stroke="#656B76" strokeWidth="1.8" />
-            <circle cx="17" cy="6" r="2.4" stroke="#656B76" strokeWidth="1.8" />
-            <circle cx="17" cy="18" r="2.4" stroke="#656B76" strokeWidth="1.8" />
-            <path d="M9.2 10.8 14.8 7.2M9.2 13.2l5.6 3.6" stroke="#656B76" strokeWidth="1.8" />
+            <circle cx="7" cy="12" r="2.4" stroke={theme.textMuted} strokeWidth="1.8" />
+            <circle cx="17" cy="6" r="2.4" stroke={theme.textMuted} strokeWidth="1.8" />
+            <circle cx="17" cy="18" r="2.4" stroke={theme.textMuted} strokeWidth="1.8" />
+            <path
+              d="M9.2 10.8 14.8 7.2M9.2 13.2l5.6 3.6"
+              stroke={theme.textMuted}
+              strokeWidth="1.8"
+            />
           </svg>
         </button>{' '}
         {file.isFolder ? (
@@ -83,7 +91,7 @@ export default function FileCard({ V, file }) {
               style={{
                 height: `${V.d.thumbH}px`,
                 borderRadius: '11px',
-                background: '#F1F2F5',
+                background: theme.surface,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -92,8 +100,8 @@ export default function FileCard({ V, file }) {
               <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
-                  fill="#DDE0FB"
-                  stroke="#5145E5"
+                  fill={theme.brandBgSoft3}
+                  stroke={theme.brand}
                   strokeWidth="1.5"
                 />
               </svg>
@@ -109,7 +117,7 @@ export default function FileCard({ V, file }) {
                 height: `${V.d.thumbH}px`,
                 borderRadius: '11px',
                 overflow: 'hidden',
-                background: '#EDEFF3',
+                background: theme.surface4,
               }}
             >
               {' '}
@@ -143,7 +151,7 @@ export default function FileCard({ V, file }) {
                         boxShadow: '0 3px 10px rgba(0,0,0,0.2)',
                       }}
                     >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="#15171C">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill={theme.text}>
                         <path d="M6 4l14 8-14 8V4Z" />
                       </svg>
                     </div>
@@ -157,7 +165,7 @@ export default function FileCard({ V, file }) {
                       borderRadius: '5px',
                       padding: '1px 6px',
                       fontSize: '10px',
-                      color: '#fff',
+                      color: theme.white,
                       pointerEvents: 'none',
                     }}
                   >
@@ -185,14 +193,14 @@ export default function FileCard({ V, file }) {
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
                     <path
                       d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-                      fill="#fff"
-                      stroke="#E5484D"
+                      fill={theme.white}
+                      stroke={theme.danger}
                       strokeWidth="1.4"
                     />
-                    <path d="M14 3v4h4" stroke="#E5484D" strokeWidth="1.4" />
+                    <path d="M14 3v4h4" stroke={theme.danger} strokeWidth="1.4" />
                     <path
                       d="M9 12.5h6M9 15.5h4"
-                      stroke="#E5484D"
+                      stroke={theme.danger}
                       strokeWidth="1.4"
                       strokeLinecap="round"
                     />
@@ -204,7 +212,7 @@ export default function FileCard({ V, file }) {
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
                     <path
                       d="M4 15V9m4 9V6m4 12V4m4 14v-7m4 5v-3"
-                      stroke="#0EA5A0"
+                      stroke={theme.teal}
                       strokeWidth="1.8"
                       strokeLinecap="round"
                     />
@@ -251,7 +259,7 @@ export default function FileCard({ V, file }) {
         <div
           style={{
             fontSize: '11px',
-            color: '#9AA1AC',
+            color: theme.textFaint,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -273,7 +281,7 @@ export default function FileCard({ V, file }) {
               <span
                 style={{
                   fontSize: '10.5px',
-                  color: '#D97706',
+                  color: theme.warn,
                   flex: '1 0 100%',
                   whiteSpace: 'nowrap',
                 }}
@@ -284,9 +292,9 @@ export default function FileCard({ V, file }) {
                 onClick={file.onRestore}
                 style={{
                   fontSize: '10.5px',
-                  background: '#F1F2F5',
-                  border: '1px solid #E5E7EC',
-                  color: '#15171C',
+                  background: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                  color: theme.text,
                   borderRadius: '7px',
                   padding: '4px 9px',
                   cursor: 'pointer',
@@ -298,9 +306,9 @@ export default function FileCard({ V, file }) {
                 onClick={file.onDeleteForever}
                 style={{
                   fontSize: '10.5px',
-                  background: '#FFF',
-                  border: '1px solid #F3C9C9',
-                  color: '#E5484D',
+                  background: theme.white,
+                  border: `1px solid ${theme.dangerBorder}`,
+                  color: theme.danger,
                   borderRadius: '7px',
                   padding: '4px 9px',
                   cursor: 'pointer',

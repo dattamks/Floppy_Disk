@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.isSettingsModal is set.
@@ -14,7 +15,7 @@ export default function SettingsModal(V) {
         </span>
         <button
           onClick={V.closeModal}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A909B' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted2 }}
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
             <path
@@ -29,7 +30,7 @@ export default function SettingsModal(V) {
       <div
         style={{
           display: 'flex',
-          background: '#EAECF0',
+          background: theme.surface3,
           borderRadius: '9px',
           padding: '3px',
           gap: '2px',
@@ -97,11 +98,11 @@ export default function SettingsModal(V) {
                 width: '58px',
                 height: '58px',
                 borderRadius: '50%',
-                background: '#5145E5',
+                background: theme.brand,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#fff',
+                color: theme.white,
                 fontFamily: "'Space Grotesk',sans-serif",
                 fontWeight: '700',
                 fontSize: '22px',
@@ -112,8 +113,8 @@ export default function SettingsModal(V) {
             <button
               onClick={V.toastPhoto}
               style={{
-                background: '#F1F2F5',
-                border: '1px solid #E5E7EC',
+                background: theme.surface,
+                border: `1px solid ${theme.border}`,
                 borderRadius: '9px',
                 padding: '9px 14px',
                 fontSize: '12.5px',
@@ -124,7 +125,7 @@ export default function SettingsModal(V) {
               Change photo
             </button>
           </div>{' '}
-          <label style={{ fontSize: '12px', color: '#656B76', fontWeight: '500' }}>
+          <label style={{ fontSize: '12px', color: theme.textMuted, fontWeight: '500' }}>
             Display name
             <input
               value={V.profileName}
@@ -132,8 +133,8 @@ export default function SettingsModal(V) {
               style={{
                 width: '100%',
                 marginTop: '5px',
-                background: '#F1F2F5',
-                border: '1px solid #E5E7EC',
+                background: theme.surface,
+                border: `1px solid ${theme.border}`,
                 borderRadius: '9px',
                 padding: '10px 12px',
                 fontSize: '13.5px',
@@ -142,7 +143,7 @@ export default function SettingsModal(V) {
               }}
             />
           </label>{' '}
-          <label style={{ fontSize: '12px', color: '#656B76', fontWeight: '500' }}>
+          <label style={{ fontSize: '12px', color: theme.textMuted, fontWeight: '500' }}>
             Username
             <input
               value={V.profileUsername}
@@ -150,8 +151,8 @@ export default function SettingsModal(V) {
               style={{
                 width: '100%',
                 marginTop: '5px',
-                background: '#F1F2F5',
-                border: '1px solid #E5E7EC',
+                background: theme.surface,
+                border: `1px solid ${theme.border}`,
                 borderRadius: '9px',
                 padding: '10px 12px',
                 fontSize: '13.5px',
@@ -160,7 +161,7 @@ export default function SettingsModal(V) {
               }}
             />
           </label>{' '}
-          <label style={{ fontSize: '12px', color: '#656B76', fontWeight: '500' }}>
+          <label style={{ fontSize: '12px', color: theme.textMuted, fontWeight: '500' }}>
             Bio
             <textarea
               value={V.profileBio}
@@ -169,8 +170,8 @@ export default function SettingsModal(V) {
               style={{
                 width: '100%',
                 marginTop: '5px',
-                background: '#F1F2F5',
-                border: '1px solid #E5E7EC',
+                background: theme.surface,
+                border: `1px solid ${theme.border}`,
                 borderRadius: '9px',
                 padding: '10px 12px',
                 fontSize: '13.5px',
@@ -183,8 +184,8 @@ export default function SettingsModal(V) {
           <button
             onClick={V.saveProfile}
             style={{
-              background: '#5145E5',
-              color: '#fff',
+              background: theme.brand,
+              color: theme.white,
               border: 'none',
               borderRadius: '9px',
               padding: '11px',
@@ -201,13 +202,15 @@ export default function SettingsModal(V) {
         <React.Fragment>
           {' '}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <span style={{ fontSize: '12px', color: '#656B76', fontWeight: '500' }}>Email</span>
+            <span style={{ fontSize: '12px', color: theme.textMuted, fontWeight: '500' }}>
+              Email
+            </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div
                 style={{
                   flex: '1',
-                  background: '#F1F2F5',
-                  border: '1px solid #E5E7EC',
+                  background: theme.surface,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: '9px',
                   padding: '10px 12px',
                   fontSize: '13px',
@@ -225,7 +228,7 @@ export default function SettingsModal(V) {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '4px',
-                      color: '#16A34A',
+                      color: theme.success,
                       fontSize: '11.5px',
                       fontWeight: '600',
                     }}
@@ -233,7 +236,7 @@ export default function SettingsModal(V) {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                       <path
                         d="M20 6L9 17l-5-5"
-                        stroke="#16A34A"
+                        stroke={theme.success}
                         strokeWidth="2.2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -248,8 +251,8 @@ export default function SettingsModal(V) {
                   <button
                     onClick={V.verifyEmailModal}
                     style={{
-                      background: '#5145E5',
-                      color: '#fff',
+                      background: theme.brand,
+                      color: theme.white,
                       border: 'none',
                       borderRadius: '8px',
                       padding: '8px 12px',
@@ -265,13 +268,15 @@ export default function SettingsModal(V) {
             </div>
           </div>{' '}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <span style={{ fontSize: '12px', color: '#656B76', fontWeight: '500' }}>Phone</span>
+            <span style={{ fontSize: '12px', color: theme.textMuted, fontWeight: '500' }}>
+              Phone
+            </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div
                 style={{
                   flex: '1',
-                  background: '#F1F2F5',
-                  border: '1px solid #E5E7EC',
+                  background: theme.surface,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: '9px',
                   padding: '10px 12px',
                   fontSize: '13px',
@@ -286,7 +291,7 @@ export default function SettingsModal(V) {
                       display: 'flex',
                       alignItems: 'center',
                       gap: '4px',
-                      color: '#16A34A',
+                      color: theme.success,
                       fontSize: '11.5px',
                       fontWeight: '600',
                     }}
@@ -294,7 +299,7 @@ export default function SettingsModal(V) {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
                       <path
                         d="M20 6L9 17l-5-5"
-                        stroke="#16A34A"
+                        stroke={theme.success}
                         strokeWidth="2.2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -309,8 +314,8 @@ export default function SettingsModal(V) {
                   <button
                     onClick={V.verifyPhoneModal}
                     style={{
-                      background: '#5145E5',
-                      color: '#fff',
+                      background: theme.brand,
+                      color: theme.white,
                       border: 'none',
                       borderRadius: '8px',
                       padding: '8px 12px',
@@ -325,14 +330,14 @@ export default function SettingsModal(V) {
               ) : null}
             </div>
           </div>{' '}
-          <label style={{ fontSize: '12px', color: '#656B76', fontWeight: '500' }}>
+          <label style={{ fontSize: '12px', color: theme.textMuted, fontWeight: '500' }}>
             Language
             <select
               style={{
                 width: '100%',
                 marginTop: '5px',
-                background: '#F1F2F5',
-                border: '1px solid #E5E7EC',
+                background: theme.surface,
+                border: `1px solid ${theme.border}`,
                 borderRadius: '9px',
                 padding: '10px 12px',
                 fontSize: '13.5px',
@@ -349,9 +354,9 @@ export default function SettingsModal(V) {
           <button
             onClick={V.toastDelete}
             style={{
-              background: '#FFFFFF',
-              color: '#E5484D',
-              border: '1px solid #F3C9C9',
+              background: theme.white,
+              color: theme.danger,
+              border: `1px solid ${theme.dangerBorder}`,
               borderRadius: '9px',
               padding: '11px',
               fontSize: '13px',
@@ -374,8 +379,8 @@ export default function SettingsModal(V) {
             type="password"
             placeholder="Current password"
             style={{
-              background: '#F1F2F5',
-              border: '1px solid #E5E7EC',
+              background: theme.surface,
+              border: `1px solid ${theme.border}`,
               borderRadius: '9px',
               padding: '10px 12px',
               fontSize: '13.5px',
@@ -389,8 +394,8 @@ export default function SettingsModal(V) {
             type="password"
             placeholder="New password"
             style={{
-              background: '#F1F2F5',
-              border: '1px solid #E5E7EC',
+              background: theme.surface,
+              border: `1px solid ${theme.border}`,
               borderRadius: '9px',
               padding: '10px 12px',
               fontSize: '13.5px',
@@ -404,8 +409,8 @@ export default function SettingsModal(V) {
             type="password"
             placeholder="Confirm new password"
             style={{
-              background: '#F1F2F5',
-              border: '1px solid #E5E7EC',
+              background: theme.surface,
+              border: `1px solid ${theme.border}`,
               borderRadius: '9px',
               padding: '10px 12px',
               fontSize: '13.5px',
@@ -416,8 +421,8 @@ export default function SettingsModal(V) {
           <button
             onClick={V.updatePassword}
             style={{
-              background: '#5145E5',
-              color: '#fff',
+              background: theme.brand,
+              color: theme.white,
               border: 'none',
               borderRadius: '9px',
               padding: '11px',
@@ -434,12 +439,12 @@ export default function SettingsModal(V) {
               alignItems: 'center',
               justifyContent: 'space-between',
               padding: '11px 0',
-              borderTop: '1px solid #F1F2F5',
+              borderTop: `1px solid ${theme.surface}`,
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <span style={{ fontSize: '13px', fontWeight: '500' }}>Two-factor authentication</span>
-              <span style={{ fontSize: '11.5px', color: '#9AA1AC' }}>
+              <span style={{ fontSize: '11.5px', color: theme.textFaint }}>
                 Extra security at sign-in
               </span>
             </div>
@@ -463,7 +468,7 @@ export default function SettingsModal(V) {
                   width: '20px',
                   height: '20px',
                   borderRadius: '50%',
-                  background: '#fff',
+                  background: theme.white,
                   transition: 'left .15s',
                 }}
               />
@@ -472,9 +477,9 @@ export default function SettingsModal(V) {
           <button
             onClick={V.toastSessions}
             style={{
-              background: '#FFFFFF',
-              color: '#15171C',
-              border: '1px solid #E5E7EC',
+              background: theme.white,
+              color: theme.text,
+              border: `1px solid ${theme.border}`,
               borderRadius: '9px',
               padding: '11px',
               fontSize: '13px',

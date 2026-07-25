@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from AppShell.
@@ -10,8 +11,8 @@ export default function Sidebar(V) {
         style={{
           width: '212px',
           flex: '0 0 auto',
-          background: '#FFFFFF',
-          borderRight: '1px solid #E5E7EC',
+          background: theme.white,
+          borderRight: `1px solid ${theme.border}`,
           display: 'flex',
           flexDirection: 'column',
           padding: '16px 12px',
@@ -71,7 +72,7 @@ export default function Sidebar(V) {
             <path d="M9.2 10.8 14.8 7.2M9.2 13.2l5.6 3.6" stroke="currentColor" strokeWidth="1.7" />
           </svg>
           Shared
-          <span style={{ marginLeft: 'auto', fontSize: '11.5px', color: '#9AA1AC' }}>
+          <span style={{ marginLeft: 'auto', fontSize: '11.5px', color: theme.textFaint }}>
             {V.sharedCount}
           </span>
         </button>{' '}
@@ -111,7 +112,7 @@ export default function Sidebar(V) {
             />
           </svg>
           Channels
-          <span style={{ marginLeft: 'auto', fontSize: '11.5px', color: '#9AA1AC' }}>
+          <span style={{ marginLeft: 'auto', fontSize: '11.5px', color: theme.textFaint }}>
             {V.channelsCount}
           </span>
         </button>{' '}
@@ -171,15 +172,15 @@ export default function Sidebar(V) {
             />
           </svg>
           Trash
-          <span style={{ marginLeft: 'auto', fontSize: '11.5px', color: '#9AA1AC' }}>
+          <span style={{ marginLeft: 'auto', fontSize: '11.5px', color: theme.textFaint }}>
             {V.trashCount}
           </span>
         </button>{' '}
         <div style={{ flex: '1' }} />{' '}
         <div
           style={{
-            background: '#F7F8FA',
-            border: '1px solid #E5E7EC',
+            background: theme.surface2,
+            border: `1px solid ${theme.border}`,
             borderRadius: '12px',
             padding: '14px',
             display: 'flex',
@@ -193,7 +194,7 @@ export default function Sidebar(V) {
               display: 'flex',
               justifyContent: 'space-between',
               fontSize: '12px',
-              color: '#656B76',
+              color: theme.textMuted,
             }}
           >
             <span>
@@ -201,11 +202,11 @@ export default function Sidebar(V) {
             </span>
             <span
               style={{
-                background: '#EEF0F4',
+                background: theme.appBg2,
                 borderRadius: '5px',
                 padding: '1px 7px',
                 fontSize: '11px',
-                color: '#656B76',
+                color: theme.textMuted,
               }}
             >
               {V.tierLabel}
@@ -215,7 +216,7 @@ export default function Sidebar(V) {
             style={{
               height: '7px',
               borderRadius: '7px',
-              background: '#E5E7EC',
+              background: theme.border,
               overflow: 'hidden',
             }}
           >
@@ -232,8 +233,8 @@ export default function Sidebar(V) {
             <button
               onClick={V.upgradeStorage}
               style={{
-                background: '#15171C',
-                color: '#fff',
+                background: theme.text,
+                color: theme.white,
                 border: 'none',
                 borderRadius: '8px',
                 padding: '8px',
@@ -242,7 +243,7 @@ export default function Sidebar(V) {
                 cursor: 'pointer',
                 fontFamily: "'IBM Plex Sans',sans-serif",
               }}
-              {...hov({ background: '#2A2D34' })}
+              {...hov({ background: theme.textSoft })}
             >
               Upgrade storage
             </button>
@@ -258,13 +259,13 @@ export default function Sidebar(V) {
             borderRadius: '9px',
             border: 'none',
             background: 'none',
-            color: '#656B76',
+            color: theme.textMuted,
             fontSize: '13px',
             cursor: 'pointer',
             textAlign: 'left',
             fontFamily: "'IBM Plex Sans',sans-serif",
           }}
-          {...hov({ background: '#F1F2F5' })}
+          {...hov({ background: theme.surface })}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
             <path

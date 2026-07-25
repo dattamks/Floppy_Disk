@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 export default function SubscribedChip({ V, ch }) {
@@ -27,7 +28,7 @@ export default function SubscribedChip({ V, ch }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#fff',
+            color: theme.white,
             fontFamily: "'Space Grotesk',sans-serif",
             fontWeight: '700',
             fontSize: '15px',
@@ -41,13 +42,13 @@ export default function SubscribedChip({ V, ch }) {
                 style={{
                   position: 'absolute',
                   bottom: '-3px',
-                  background: '#E5484D',
-                  color: '#fff',
+                  background: theme.danger,
+                  color: theme.white,
                   fontSize: '7px',
                   fontWeight: '700',
                   borderRadius: '4px',
                   padding: '1px 4px',
-                  border: '2px solid #F4F5F8',
+                  border: `2px solid ${theme.appBg}`,
                 }}
               >
                 LIVE
@@ -58,7 +59,7 @@ export default function SubscribedChip({ V, ch }) {
         <span
           style={{
             fontSize: '10.5px',
-            color: '#656B76',
+            color: theme.textMuted,
             textAlign: 'center',
             overflow: 'hidden',
             textOverflow: 'ellipsis',

@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 import AuthScreen from '../components/AuthScreen';
 import AppShell from '../components/AppShell';
@@ -27,9 +28,9 @@ export default function AppView({ V }) {
           width: '100%',
           height: '100vh',
           overflow: 'hidden',
-          background: '#F4F5F8',
+          background: theme.appBg,
           fontFamily: "'IBM Plex Sans',sans-serif",
-          color: '#15171C',
+          color: theme.text,
           position: 'relative',
         }}
       >
@@ -40,7 +41,7 @@ export default function AppView({ V }) {
             inset: '0',
             display: 'flex',
             flexDirection: 'column',
-            background: '#F4F5F8',
+            background: theme.appBg,
           }}
         >
           {' '}
@@ -64,7 +65,7 @@ export default function AppView({ V }) {
                   style={{
                     width: '258px',
                     height: '100%',
-                    background: '#FFFFFF',
+                    background: theme.white,
                     display: 'flex',
                     flexDirection: 'column',
                     padding: '18px 14px',
@@ -82,10 +83,10 @@ export default function AppView({ V }) {
                     }}
                   >
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                      <rect x="3" y="3" width="18" height="18" rx="4" fill="#5145E5" />
+                      <rect x="3" y="3" width="18" height="18" rx="4" fill={theme.brand} />
                       <path
                         d="M8 3v5h6.5M8.5 20v-6h7v6"
-                        stroke="#fff"
+                        stroke={theme.white}
                         strokeWidth="1.7"
                         strokeLinejoin="round"
                       />
@@ -156,7 +157,7 @@ export default function AppView({ V }) {
                       />
                     </svg>
                     Shared
-                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#9AA1AC' }}>
+                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: theme.textFaint }}>
                       {V.sharedCount}
                     </span>
                   </button>{' '}
@@ -196,7 +197,7 @@ export default function AppView({ V }) {
                       />
                     </svg>
                     Channels
-                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#9AA1AC' }}>
+                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: theme.textFaint }}>
                       {V.channelsCount}
                     </span>
                   </button>{' '}
@@ -256,7 +257,7 @@ export default function AppView({ V }) {
                       />
                     </svg>
                     Trash
-                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: '#9AA1AC' }}>
+                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: theme.textFaint }}>
                       {V.trashCount}
                     </span>
                   </button>{' '}
@@ -270,7 +271,7 @@ export default function AppView({ V }) {
                       borderRadius: '9px',
                       border: 'none',
                       background: 'none',
-                      color: '#656B76',
+                      color: theme.textMuted,
                       fontSize: '14px',
                       cursor: 'pointer',
                       textAlign: 'left',
@@ -290,8 +291,8 @@ export default function AppView({ V }) {
                   <div style={{ flex: '1' }} />{' '}
                   <div
                     style={{
-                      background: '#F7F8FA',
-                      border: '1px solid #E5E7EC',
+                      background: theme.surface2,
+                      border: `1px solid ${theme.border}`,
                       borderRadius: '12px',
                       padding: '13px',
                       display: 'flex',
@@ -304,7 +305,7 @@ export default function AppView({ V }) {
                         display: 'flex',
                         justifyContent: 'space-between',
                         fontSize: '12px',
-                        color: '#656B76',
+                        color: theme.textMuted,
                       }}
                     >
                       <span>
@@ -316,7 +317,7 @@ export default function AppView({ V }) {
                       style={{
                         height: '7px',
                         borderRadius: '7px',
-                        background: '#E5E7EC',
+                        background: theme.border,
                         overflow: 'hidden',
                       }}
                     >
@@ -340,7 +341,7 @@ export default function AppView({ V }) {
                       borderRadius: '9px',
                       border: 'none',
                       background: 'none',
-                      color: '#E5484D',
+                      color: theme.danger,
                       fontSize: '14px',
                       cursor: 'pointer',
                       textAlign: 'left',
