@@ -48,12 +48,12 @@ export default class App extends React.Component {
     settingsTab: 'profile',
     verifyType: 'email',
     verifyCode: '',
-    profileName: 'Aiden Rivera',
-    profileUsername: '@aiden',
-    profileBio: 'Product designer. Cloud hoarder.',
-    accountEmail: 'aiden.rivera@floppy.disk',
-    accountPhone: '+91 98••• ••210',
-    emailVerified: true,
+    profileName: '',
+    profileUsername: '',
+    profileBio: '',
+    accountEmail: '',
+    accountPhone: '',
+    emailVerified: false,
     phoneVerified: false,
     twofa: false,
     pwCurrent: '',
@@ -1888,7 +1888,12 @@ export default class App extends React.Component {
     const nonTrashed = files.filter((f) => !f.trashed);
 
     const mkImgRef = (url) => (el) => {
-      if (el && url && el.src !== url) el.src = url;
+      if (!el) return;
+      // Hide a failed image so the parent's neutral background shows through,
+      // instead of the browser's broken-image glyph.
+      el.onerror = () => { el.style.visibility = 'hidden'; };
+      el.onload = () => { el.style.visibility = 'visible'; };
+      if (url && el.src !== url) el.src = url;
     };
     const decorate = (f) => {
       const isFolder = f.kind === 'folder',
@@ -2274,6 +2279,8 @@ export default class App extends React.Component {
       authTitle: authTitles[authView] || 'Floppy Disk',
       authSubtitle: authSubs[authView] || '',
       authIsLogin: authView === 'login',
+      // Demo credentials hint only in dev builds, never in production.
+      showDemoCreds: !!(import.meta && import.meta.env && import.meta.env.DEV),
       authIsRegister: authView === 'register',
       authIsForgot: authView === 'forgot',
       authIsVerifyEmail: authView === 'verifyEmail',

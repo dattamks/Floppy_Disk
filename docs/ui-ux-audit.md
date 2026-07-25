@@ -46,8 +46,9 @@ shows real `used_bytes` / `quota_bytes` / `tier`. Labels format compactly
 (`0 GB of 2 TB`, sub-GB → MB, ≥1024 GB → TB) and the bar is colour-graded by
 **real** fill (blue < 75%, amber 75–90%, red > 90%) instead of always-red. Falls
 back to the demo values only if the API call fails.
-*Files:* `frontend/src/App.jsx` (`fmtStorage`, `TIER_LABELS`, `loadUsage()`,
-meter view-model). *Verified:* new account now reads "0 GB of 2 TB", empty blue bar.
+*Files:* `frontend/src/App.jsx` (`loadUsage()`, meter view-model) +
+`frontend/src/lib/ui.js` (`fmtStorage`, `TIER_LABELS`). *Verified:* new account
+now reads "0 GB of 2 TB", empty blue bar.
 
 ### M1 — Mobile video controls no longer clip ✅
 

@@ -221,20 +221,22 @@ export default function AuthScreen(V) {
           {V.authIsLogin ? (
             <React.Fragment>
               {' '}
-              <div
-                style={{
-                  background: '#F1F2F5',
-                  border: '1px solid #E5E7EC',
-                  borderRadius: '8px',
-                  padding: '8px 11px',
-                  fontSize: '11.5px',
-                  color: '#656B76',
-                  textAlign: 'center',
-                }}
-              >
-                Demo: <strong style={{ color: '#15171C' }}>aiden.rivera@floppy.disk</strong> /{' '}
-                <strong style={{ color: '#15171C' }}>password</strong>
-              </div>{' '}
+              {V.showDemoCreds ? (
+                <div
+                  style={{
+                    background: '#F1F2F5',
+                    border: '1px solid #E5E7EC',
+                    borderRadius: '8px',
+                    padding: '8px 11px',
+                    fontSize: '11.5px',
+                    color: '#656B76',
+                    textAlign: 'center',
+                  }}
+                >
+                  Demo: <strong style={{ color: '#15171C' }}>aiden.rivera@floppy.disk</strong> /{' '}
+                  <strong style={{ color: '#15171C' }}>password</strong>
+                </div>
+              ) : null}{' '}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
                 {' '}
                 <button
