@@ -36,7 +36,7 @@ tags:
   - name: Upload
   - name: Video
   - name: Sharing
-  - name: Channels
+#   - name: Channels  # DEACTIVATED
   - name: Moderation
   - name: Billing
   - name: Notifications
@@ -110,25 +110,26 @@ components:
         revoked: { type: boolean }
         target_name: { type: string }
         created_at: { type: string, format: date-time }
-    Channel:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        name: { type: string }
-        handle: { type: string }
-        description: { type: string }
-        is_public: { type: boolean }
-        subscriber_count: { type: integer }
-        role: { type: [string, "null"], enum: [owner, admin, subscriber, null] }
-        created_at: { type: string, format: date-time }
-    ChannelPost:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        channel: { type: string, format: uuid }
-        caption: { type: string }
-        file: { type: [string, "null"], format: uuid }
-        created_at: { type: string, format: date-time }
+    # DEACTIVATED (Drive-focus pivot) — see docs/deactivated-features.md
+#     Channel:
+#       type: object
+#       properties:
+#         id: { type: string, format: uuid }
+#         name: { type: string }
+#         handle: { type: string }
+#         description: { type: string }
+#         is_public: { type: boolean }
+#         subscriber_count: { type: integer }
+#         role: { type: [string, "null"], enum: [owner, admin, subscriber, null] }
+#         created_at: { type: string, format: date-time }
+#     ChannelPost:
+#       type: object
+#       properties:
+#         id: { type: string, format: uuid }
+#         channel: { type: string, format: uuid }
+#         caption: { type: string }
+#         file: { type: [string, "null"], format: uuid }
+#         created_at: { type: string, format: date-time }
     Notification:
       type: object
       properties:
@@ -164,11 +165,11 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
-    ChannelId:
-      name: channel_id
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
+#     ChannelId:
+#       name: channel_id
+#       in: path
+#       required: true
+#       schema: { type: string, format: uuid }
   responses:
     NoContent: { description: "Success (no body)." }
     Unauthorized:
