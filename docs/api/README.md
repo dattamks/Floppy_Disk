@@ -26,7 +26,7 @@ Unauthenticated endpoints: `register`, `login`, `csrf`, `password-reset*`,
 `verify-email`, `public/share/*`, the Stream/Razorpay webhooks, and `health`.
 
 ## Conventions
-- **IDs** are UUIDs, except channel `handle` and share `token` (strings).
+- **IDs** are UUIDs, except share `token` (a string).
 - **Sizes** are bytes; **money** is paise (₹1 = 100 paise).
 - **Errors**: `{ "detail": "…", "code": "…" }`. `detail` may be a string or a
   list (field validation). `code` appears on typed errors (`quota_exceeded`,
@@ -97,9 +97,10 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 |---|---|---|
 | POST | `/files/{id}/play` | Direct URL to play your own video inline (`mode: direct`) |
 
-> The video **streaming platform** (Cloudflare Stream/HLS promote, HD/SD
-> tiering, Stream webhook) and **Channels** were deactivated in the
-> Drive-focus pivot — see [`../deactivated-features.md`](../deactivated-features.md).
+> **Channels** were removed in the Drive-focus pivot, and the video
+> **streaming platform** (Cloudflare Stream/HLS promote, HD/SD tiering, Stream
+> webhook) was deactivated — see
+> [`../deactivated-features.md`](../deactivated-features.md).
 
 ### Sharing — `/api/v1/storage` & `/api/v1/public`
 | Method | Path | Summary |

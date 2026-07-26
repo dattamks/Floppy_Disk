@@ -4,8 +4,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes
 the Floppy Disk cloud-storage platform as tools. Any MCP-aware client — **Claude
 Code**, **n8n**, **Codex / OpenAI**, Claude Desktop, etc. — can then do
 everything a user does: browse and manage folders and files, upload and download
-media, create public share links, run channels, read notifications, and check
-billing.
+media, create public share links, read notifications, and check billing.
 
 Built with [FastMCP](https://github.com/jlowin/fastmcp) (Python) over the
 REST API documented in [`../docs/api/`](../docs/api).
@@ -145,8 +144,9 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 - `create_share_link(file_id, password?, expires_at?)`
 - `list_share_links()`, `revoke_share_link(share_id)`
 
-> Channel tools and `promote_video_to_stream` were removed in the Drive-focus
-> pivot — see [`../docs/deactivated-features.md`](../docs/deactivated-features.md).
+> The channels feature was removed in the Drive-focus pivot, and
+> `promote_video_to_stream` (video streaming) was deactivated — see
+> [`../docs/deactivated-features.md`](../docs/deactivated-features.md).
 
 **Notifications**
 - `list_notifications()`, `mark_notification_read(id)`, `mark_all_notifications_read()`

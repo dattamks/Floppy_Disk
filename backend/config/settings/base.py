@@ -41,7 +41,6 @@ LOCAL_APPS = [
     "apps.accounts",
     "apps.storage",
     "apps.sharing",
-    # "deactivated.channels",  # DEACTIVATED (Drive-focus pivot) — see docs/deactivated-features.md
     "apps.billing",
     "apps.moderation",
     "apps.notifications",

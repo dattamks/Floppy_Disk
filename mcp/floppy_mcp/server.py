@@ -2,7 +2,7 @@
 
 Exposes the Floppy Disk cloud-storage API as MCP tools so MCP-aware clients
 (Claude Code, n8n, Codex/OpenAI, etc.) can do everything a user does: manage
-folders and files, upload and download media, share links, run channels, read
+folders and files, upload and download media, share links, read
 notifications, and check billing.
 
 Auth: set FLOPPY_API_KEY (a Bearer API key) and optionally FLOPPY_API_BASE_URL
@@ -298,14 +298,6 @@ def revoke_share_link(share_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Channels — DEACTIVATED (Drive-focus pivot)
-# ---------------------------------------------------------------------------
-# The channel tools (list_channels, create_channel, subscribe_channel,
-# unsubscribe_channel, list_channel_posts, create_channel_post) were removed
-# with the channels feature. See docs/deactivated-features.md to re-enable.
-
-
-# ---------------------------------------------------------------------------
 # Notifications
 # ---------------------------------------------------------------------------
 @mcp.tool
@@ -339,9 +331,9 @@ def report_content(
 ) -> dict:
     """Flag or report content.
 
-    target_type: file | channel | post. reason: copyright | inappropriate | csam
-    | other (copyright requires `detail`). kind='report' reversibly isolates a
-    file target pending review; kind='flag' is lightweight with no auto-action.
+    target_type: file. reason: copyright | inappropriate | csam | other
+    (copyright requires `detail`). kind='report' reversibly isolates a file
+    target pending review; kind='flag' is lightweight with no auto-action.
     """
     return client().post(
         "moderation/reports",

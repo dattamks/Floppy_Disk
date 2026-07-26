@@ -76,7 +76,6 @@ export default function Sidebar(V) {
             {V.sharedCount}
           </span>
         </button>{' '}
-        {/* DEACTIVATED (Drive-focus pivot): Channels nav — see docs/deactivated-features.md */}
         <button
           onClick={V.navToRecent}
           style={{

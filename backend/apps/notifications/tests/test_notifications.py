@@ -1,8 +1,4 @@
-"""TDD spec for notifications: read state + owner scoping.
-
-(Channel-fan-out notification tests moved to deactivated/ with the channels
-feature — see docs/deactivated-features.md.)
-"""
+"""TDD spec for notifications: read state + owner scoping."""
 import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient

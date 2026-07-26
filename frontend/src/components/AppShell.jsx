@@ -8,7 +8,7 @@ import Breadcrumb from './Breadcrumb';
 import TopBarMobile from './TopBarMobile';
 import MobileTabBar from './MobileTabBar';
 import TrashScreen from './TrashScreen';
-// DEACTIVATED (Drive-focus pivot): ChannelsScreen + ContinueWatchingCard —
+// DEACTIVATED (Drive-focus pivot): ContinueWatchingCard (video streaming) —
 // see src/deactivated/ and docs/deactivated-features.md.
 import EmptyState from './EmptyState';
 
@@ -115,47 +115,41 @@ export default function AppShell(V) {
                 </div>{' '}
               </React.Fragment>
             ) : null}{' '}
-            {Breadcrumb(V)}{' '}
-            {V.notChannelsView ? (
+            {Breadcrumb(V)} {TrashScreen(V)}{' '}
+            {V.hasFiles ? (
               <React.Fragment>
                 {' '}
-                {TrashScreen(V)}{' '}
-                {V.hasFiles ? (
-                  <React.Fragment>
-                    {' '}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
-                      {' '}
-                      {V.showGridLabel ? (
-                        <React.Fragment>
-                          <span
-                            style={{
-                              fontFamily: "'Space Grotesk',sans-serif",
-                              fontWeight: '600',
-                              fontSize: '15px',
-                            }}
-                          >
-                            {V.gridLabel}
-                          </span>
-                        </React.Fragment>
-                      ) : null}{' '}
-                      <div
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
+                  {' '}
+                  {V.showGridLabel ? (
+                    <React.Fragment>
+                      <span
                         style={{
-                          display: 'grid',
-                          gridTemplateColumns: `repeat(auto-fill, minmax(${V.d.gridMin}px, 1fr))`,
-                          gap: `${V.d.cardGap}px`,
+                          fontFamily: "'Space Grotesk',sans-serif",
+                          fontWeight: '600',
+                          fontSize: '15px',
                         }}
                       >
-                        {' '}
-                        {(V.visibleFiles || []).map((file, $index) => (
-                          <FileCard key={$index} V={V} file={file} />
-                        ))}{' '}
-                      </div>{' '}
-                    </div>{' '}
-                  </React.Fragment>
-                ) : null}{' '}
-                {EmptyState(V)}{' '}
+                        {V.gridLabel}
+                      </span>
+                    </React.Fragment>
+                  ) : null}{' '}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(auto-fill, minmax(${V.d.gridMin}px, 1fr))`,
+                      gap: `${V.d.cardGap}px`,
+                    }}
+                  >
+                    {' '}
+                    {(V.visibleFiles || []).map((file, $index) => (
+                      <FileCard key={$index} V={V} file={file} />
+                    ))}{' '}
+                  </div>{' '}
+                </div>{' '}
               </React.Fragment>
             ) : null}{' '}
+            {EmptyState(V)}{' '}
           </div>{' '}
         </div>{' '}
         {MobileTabBar(V)}{' '}

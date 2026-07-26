@@ -7,9 +7,6 @@ import AppView from './view/AppView';
 export default class App extends React.Component {
   state = {
     files: this.buildFiles(),
-    // DEACTIVATED (Drive-focus pivot): channel demo data — see docs/deactivated-features.md
-    channels: [], // this.buildChannels(),
-    posts: [], // this.buildPosts(),
     authView: 'login',
     authName: '',
     authEmail: '',
@@ -20,13 +17,6 @@ export default class App extends React.Component {
     authError: '',
     authBusy: false,
     usedGB: 4.6,
-    reportPostId: null,
-    reportReason: '',
-    commentsOpenFor: null,
-    commentInput: '',
-    newChName: '',
-    newChHandle: '',
-    newChCategory: 'Design',
     newFolderName: '',
     videoVolume: 1,
     videoRate: 1,
@@ -35,18 +25,11 @@ export default class App extends React.Component {
     vw: typeof window !== 'undefined' ? window.innerWidth : 1200,
     currentFolderId: null,
     filterKey: 'all',
-    channelsTab: 'discover',
-    discoverQuery: '',
-    discoverCategory: 'all',
-    trendingSort: 'likes',
     searchQuery: '',
     mobileSearchOpen: false,
     drawerOpen: false,
     modal: null,
     activeFileId: null,
-    activeChannelId: null,
-    openChannelId: null,
-    discoverView: 'list',
     settingsTab: 'profile',
     verifyType: 'email',
     verifyCode: '',
@@ -61,12 +44,6 @@ export default class App extends React.Component {
     pwCurrent: '',
     pwNew: '',
     pwConfirm: '',
-    composerText: '',
-    composerAttach: null,
-    csNameInput: '',
-    csDesc: 'Team broadcast channel.',
-    csWhoCanPost: 'admins',
-    csNotif: true,
     uploadQueue: [],
     shareAccess: 'restricted',
     sharePermission: 'view',
@@ -113,7 +90,6 @@ export default class App extends React.Component {
         videoSrc: V + 'BigBuckBunny.mp4',
         watchedPct: 35,
         shared: true,
-        channel: false,
         starred: false,
         trashed: false,
         recentRank: 1,
@@ -127,7 +103,6 @@ export default class App extends React.Component {
         modified: '1w ago',
         poster: P('family'),
         shared: false,
-        channel: false,
         starred: true,
         trashed: false,
         recentRank: 3,
@@ -141,7 +116,6 @@ export default class App extends React.Component {
         modified: '3d ago',
         docUrl: PDF,
         shared: true,
-        channel: false,
         starred: false,
         trashed: false,
         recentRank: 5,
@@ -155,7 +129,6 @@ export default class App extends React.Component {
         modified: '5d ago',
         audioSrc: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
         shared: false,
-        channel: false,
         starred: false,
         trashed: false,
         recentRank: 8,
@@ -169,7 +142,6 @@ export default class App extends React.Component {
         modified: '4h ago',
         poster: P('hero1'),
         shared: true,
-        channel: false,
         starred: false,
         trashed: false,
         recentRank: 2,
@@ -183,7 +155,6 @@ export default class App extends React.Component {
         modified: '4h ago',
         poster: P('hero2'),
         shared: false,
-        channel: false,
         starred: false,
         trashed: false,
         recentRank: 7,
@@ -200,7 +171,6 @@ export default class App extends React.Component {
         videoSrc: V + 'ForBiggerJoyrides.mp4',
         watchedPct: 0,
         shared: false,
-        channel: false,
         starred: false,
         trashed: false,
         recentRank: 6,
@@ -214,7 +184,6 @@ export default class App extends React.Component {
         modified: '1d ago',
         docUrl: PDF,
         shared: false,
-        channel: false,
         starred: false,
         trashed: false,
         recentRank: 9,
@@ -231,7 +200,6 @@ export default class App extends React.Component {
         videoSrc: V + 'ForBiggerBlazes.mp4',
         watchedPct: 60,
         shared: false,
-        channel: false,
         starred: false,
         trashed: false,
         recentRank: 4,
@@ -248,7 +216,6 @@ export default class App extends React.Component {
         videoSrc: V + 'ForBiggerEscapes.mp4',
         watchedPct: 12,
         shared: false,
-        channel: false,
         starred: false,
         trashed: false,
         recentRank: 10,
@@ -265,7 +232,6 @@ export default class App extends React.Component {
         videoSrc: V + 'ForBiggerFun.mp4',
         watchedPct: 90,
         shared: false,
-        channel: false,
         starred: false,
         trashed: false,
         recentRank: 11,
@@ -279,7 +245,6 @@ export default class App extends React.Component {
         modified: '5d ago',
         docUrl: PDF,
         shared: false,
-        channel: false,
         starred: false,
         trashed: true,
         deletedDaysAgo: 5,
@@ -293,192 +258,12 @@ export default class App extends React.Component {
         modified: '1d ago',
         poster: P('meme'),
         shared: false,
-        channel: false,
         starred: false,
         trashed: true,
         deletedDaysAgo: 1,
       },
     ];
   }
-
-  // DEACTIVATED (Drive-focus pivot): buildChannels()/buildPosts() demo data — see docs/deactivated-features.md
-//   buildChannels() {
-//     return [
-//       {
-//         id: 'ch-design',
-//         name: 'Design Team',
-//         handle: '@designteam',
-//         color: theme.brand,
-//         initials: 'DT',
-//         subs: '1.2K',
-//         subsNum: 1200,
-//         live: false,
-//         subscribed: true,
-//         isAdmin: true,
-//         category: 'Design',
-//         isNew: false,
-//       },
-//       {
-//         id: 'ch-eng',
-//         name: 'Engineering',
-//         handle: '@engineering',
-//         color: theme.teal,
-//         initials: 'EN',
-//         subs: '860',
-//         subsNum: 860,
-//         live: true,
-//         subscribed: true,
-//         isAdmin: false,
-//         category: 'Engineering',
-//         isNew: false,
-//       },
-//       {
-//         id: 'ch-mktg',
-//         name: 'Marketing Drops',
-//         handle: '@mktgdrops',
-//         color: theme.danger,
-//         initials: 'MK',
-//         subs: '3.4K',
-//         subsNum: 3400,
-//         live: false,
-//         subscribed: false,
-//         isAdmin: false,
-//         category: 'Marketing',
-//         isNew: true,
-//       },
-//       {
-//         id: 'ch-allhands',
-//         name: 'All Hands',
-//         handle: '@allhands',
-//         color: theme.warn,
-//         initials: 'AH',
-//         subs: '5.1K',
-//         subsNum: 5100,
-//         live: false,
-//         subscribed: false,
-//         isAdmin: false,
-//         category: 'Company',
-//         isNew: false,
-//       },
-//       {
-//         id: 'ch-product',
-//         name: 'Product Updates',
-//         handle: '@productupdates',
-//         color: theme.violet,
-//         initials: 'PR',
-//         subs: '410',
-//         subsNum: 410,
-//         live: false,
-//         subscribed: false,
-//         isAdmin: false,
-//         category: 'Product',
-//         isNew: true,
-//       },
-//     ];
-//   }
-
-//   buildPosts() {
-//     const P = (s) => `https://picsum.photos/seed/${s}/720/440`;
-//     const V = 'https://storage.googleapis.com/gtv-videos-bucket/sample/';
-//     return [
-//       {
-//         id: 'p1',
-//         channelId: 'ch-mktg',
-//         time: '2h',
-//         media: 'video',
-//         text: 'New Q3 brand film is live 🎬 Full cut below — share widely!',
-//         poster: P('post-brand'),
-//         videoSrc: V + 'BigBuckBunny.mp4',
-//         duration: '9:56',
-//         views: '4.2K',
-//         viewsNum: 4200,
-//         likes: 128,
-//         sharesNum: 340,
-//         liked: false,
-//       },
-//       {
-//         id: 'p2',
-//         channelId: 'ch-design',
-//         time: '5h',
-//         media: 'image',
-//         text: 'Fresh hero shots from yesterday\u2019s product shoot. Which crop do you prefer?',
-//         poster: P('post-hero'),
-//         views: '1.1K',
-//         viewsNum: 1100,
-//         likes: 64,
-//         sharesNum: 58,
-//         liked: false,
-//       },
-//       {
-//         id: 'p3',
-//         channelId: 'ch-eng',
-//         time: '1d',
-//         media: 'file',
-//         text: 'Design review recording + notes attached. Timestamps in the doc.',
-//         fileName: 'design-review-notes.pdf',
-//         fileSize: '512 KB',
-//         docUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-//         views: '640',
-//         viewsNum: 640,
-//         likes: 22,
-//         sharesNum: 20,
-//         liked: false,
-//       },
-//       {
-//         id: 'p4',
-//         channelId: 'ch-allhands',
-//         time: '1d',
-//         media: 'video',
-//         text: 'Monday all-hands replay for anyone who missed it.',
-//         poster: P('post-allhands'),
-//         videoSrc: V + 'ForBiggerBlazes.mp4',
-//         duration: '15:00',
-//         views: '5.0K',
-//         viewsNum: 5000,
-//         likes: 210,
-//         sharesNum: 410,
-//         liked: true,
-//       },
-//       {
-//         id: 'p5',
-//         channelId: 'ch-design',
-//         time: '2d',
-//         media: 'none',
-//         text: 'Reminder: design crit moved to 3pm today. Bring your Figma links 🎨',
-//         views: '820',
-//         viewsNum: 820,
-//         likes: 41,
-//         sharesNum: 12,
-//         liked: false,
-//       },
-//       {
-//         id: 'p6',
-//         channelId: 'ch-product',
-//         time: '3h',
-//         media: 'image',
-//         text: 'Introducing dark mode ✨ Rolling out to everyone this week.',
-//         poster: P('post-darkmode'),
-//         views: '2.3K',
-//         viewsNum: 2300,
-//         likes: 150,
-//         sharesNum: 95,
-//         liked: false,
-//       },
-//     ].map((p) => ({
-//       comments: [],
-//       own: false,
-//       ...p,
-//       comments:
-//         p.id === 'p1'
-//           ? [
-//               { id: 'c1', name: 'Priya', text: 'This looks incredible 🔥' },
-//               { id: 'c2', name: 'Marco', text: 'Sharing with my team now.' },
-//             ]
-//           : p.id === 'p4'
-//             ? [{ id: 'c3', name: 'Sam', text: 'Thanks for the replay!' }]
-//             : [],
-//     }));
-//   }
 
   toast(msg) {
     this.setState({ toastMsg: msg });
@@ -514,8 +299,6 @@ export default class App extends React.Component {
         const d = JSON.parse(raw);
         this.setState({
           files: d.files || this.state.files,
-          channels: d.channels || this.state.channels,
-          posts: d.posts || this.state.posts,
           usedGB: d.usedGB != null ? d.usedGB : this.state.usedGB,
           profileName: d.profileName || this.state.profileName,
           profileUsername: d.profileUsername || this.state.profileUsername,
@@ -538,8 +321,6 @@ export default class App extends React.Component {
         'floppydisk-state',
         JSON.stringify({
           files: s.files,
-          channels: s.channels,
-          posts: s.posts,
           usedGB: s.usedGB,
           profileName: s.profileName,
           profileUsername: s.profileUsername,
@@ -614,7 +395,6 @@ export default class App extends React.Component {
     });
     this.loadStorage();
     this.loadUsage();
-    // this.loadChannels();  // DEACTIVATED (Drive-focus pivot) — see docs/deactivated-features.md
     this.loadNotifications();
   }
 
@@ -716,7 +496,6 @@ export default class App extends React.Component {
       searchQuery: '',
       drawerOpen: false,
       mobileSearchOpen: false,
-      openChannelId: null,
     });
   }
   navToAll() {
@@ -728,64 +507,11 @@ export default class App extends React.Component {
   navToShared() {
     this.go('shared');
   }
-  navToChannels() {
-    this.go('channels');
-  }
   navToRecent() {
     this.go('recent');
   }
   navToTrash() {
     this.go('trash');
-  }
-  setTabDiscover() {
-    this.setState({ channelsTab: 'discover', openChannelId: null });
-  }
-  setTabSubscribed() {
-    this.setState({ channelsTab: 'subscribed', openChannelId: null });
-  }
-  setDiscoverQuery(e) {
-    this.setState({ discoverQuery: e.target.value });
-  }
-  openChannelView(id) {
-    this.setState({ openChannelId: id });
-  }
-  closeChannelView() {
-    this.setState({ openChannelId: null });
-  }
-  setDiscoverList() {
-    this.setState({ discoverView: 'list' });
-  }
-  setDiscoverGrid() {
-    this.setState({ discoverView: 'grid' });
-  }
-  clearDiscoverQuery() {
-    this.setState({ discoverQuery: '' });
-  }
-  setDiscoverCategory(cat) {
-    this.setState({ discoverCategory: cat });
-  }
-  setTrendingSort(sort) {
-    this.setState({ trendingSort: sort });
-  }
-  toggleSubscribe(id) {
-    const c = this.state.channels.find((x) => x.id === id);
-    const willSubscribe = !(c && c.subscribed);
-    if (c && c.real) {
-      const call = willSubscribe ? api.subscribeChannel(id) : api.unsubscribeChannel(id);
-      call.catch((err) => this.toast(firstError(err, 'Could not update subscription')));
-    }
-    this.setState((s) => ({
-      channels: s.channels.map((x) =>
-        x.id === id
-          ? {
-              ...x,
-              subscribed: willSubscribe,
-              subsNum: Math.max(0, (x.subsNum || 0) + (willSubscribe ? 1 : -1)),
-            }
-          : x
-      ),
-    }));
-    this.toast(willSubscribe ? 'Subscribed' : 'Unsubscribed');
   }
 
   setSearch(e) {
@@ -805,7 +531,6 @@ export default class App extends React.Component {
               parentId: null,
               trashed: false,
               shared: false,
-              channel: false,
               starred: false,
               discovered: !x.is_own,
               real: true,
@@ -840,7 +565,6 @@ export default class App extends React.Component {
       modal: 'settings',
       settingsTab: 'profile',
       drawerOpen: false,
-      csNameInput: '',
     });
   }
   setSettingsProfile() {
@@ -924,207 +648,6 @@ export default class App extends React.Component {
     this.setState({ modal: 'settings', settingsTab: 'account' });
   }
 
-  openComposer() {
-    const ch =
-      this.state.channels.find((c) => c.subscribed && c.isAdmin) ||
-      this.state.channels.find((c) => c.isAdmin);
-    this.setState({
-      modal: 'composer',
-      activeChannelId: ch ? ch.id : null,
-      composerText: '',
-      composerAttach: null,
-    });
-  }
-  setComposerText(e) {
-    this.setState({ composerText: e.target.value });
-  }
-  attachPhoto() {
-    this.setState({
-      composerAttach: {
-        type: 'image',
-        poster: `https://picsum.photos/seed/new${Date.now()}/720/440`,
-      },
-    });
-  }
-  attachVideo() {
-    this.setState({
-      composerAttach: {
-        type: 'video',
-        poster: `https://picsum.photos/seed/newv${Date.now()}/720/440`,
-        videoSrc: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
-        duration: '0:15',
-      },
-    });
-  }
-  attachFile() {
-    this.setState({
-      composerAttach: {
-        type: 'file',
-        fileName: 'attachment.pdf',
-        fileSize: '320 KB',
-        docUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      },
-    });
-  }
-  clearAttach() {
-    this.setState({ composerAttach: null });
-  }
-  submitPost() {
-    const { composerText, composerAttach, activeChannelId } = this.state;
-    if (!composerText.trim() && !composerAttach) {
-      this.toast('Write something first');
-      return;
-    }
-    const a = composerAttach;
-    const post = {
-      id: 'post-' + Date.now(),
-      channelId: activeChannelId,
-      time: 'now',
-      media: a ? a.type : 'none',
-      text: composerText.trim(),
-      poster: a && a.poster,
-      videoSrc: a && a.videoSrc,
-      duration: a && a.duration,
-      fileName: a && a.fileName,
-      fileSize: a && a.fileSize,
-      docUrl: a && a.docUrl,
-      views: '0',
-      viewsNum: 0,
-      likes: 0,
-      sharesNum: 0,
-      liked: false,
-      own: true,
-      comments: [],
-    };
-    this.setState((s) => ({
-      posts: [post, ...s.posts],
-      modal: null,
-      composerText: '',
-      composerAttach: null,
-    }));
-    this.toast('Posted to channel');
-  }
-  deletePost(id) {
-    this.setState((s) => ({ posts: s.posts.filter((p) => p.id !== id) }));
-    this.toast('Post deleted');
-  }
-
-  toggleComments(id) {
-    this.setState((s) => ({
-      commentsOpenFor: s.commentsOpenFor === id ? null : id,
-      commentInput: '',
-    }));
-  }
-  setCommentInput(e) {
-    this.setState({ commentInput: e.target.value });
-  }
-  addComment(id) {
-    const t = this.state.commentInput.trim();
-    if (!t) return;
-    this.setState((s) => ({
-      posts: s.posts.map((p) =>
-        p.id === id
-          ? {
-              ...p,
-              comments: [
-                ...(p.comments || []),
-                { id: 'c' + Date.now(), name: s.profileName.split(' ')[0] || 'You', text: t },
-              ],
-            }
-          : p
-      ),
-      commentInput: '',
-    }));
-  }
-
-  openNewChannel() {
-    this.setState({ modal: 'newChannel', newChName: '', newChHandle: '', newChCategory: 'Design' });
-  }
-  setNewChName(e) {
-    this.setState({ newChName: e.target.value });
-  }
-  setNewChHandle(e) {
-    this.setState({ newChHandle: e.target.value });
-  }
-  setNewChCategory(cat) {
-    this.setState({ newChCategory: cat });
-  }
-  _mapChannel(c) {
-    const palette = [theme.brand, theme.teal, theme.danger, theme.warn, theme.violet];
-    const initials = (c.name || '?')
-      .trim()
-      .split(/\s+/)
-      .map((w) => w[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
-    let hash = 0;
-    for (const ch of c.handle || '') hash = (hash + ch.charCodeAt(0)) % palette.length;
-    return {
-      id: c.id,
-      name: c.name,
-      handle: c.handle.startsWith('@') ? c.handle : '@' + c.handle,
-      color: palette[hash],
-      initials,
-      subs: String(c.subscriber_count ?? 1),
-      subsNum: c.subscriber_count ?? 1,
-      live: false,
-      subscribed: !!c.role,
-      isAdmin: c.role === 'owner' || c.role === 'admin',
-      category: 'General',
-      isNew: false,
-      real: true,
-    };
-  }
-
-  createChannel() {
-    const s = this.state;
-    const name = s.newChName.trim();
-    if (!name) {
-      this.toast('Enter a channel name');
-      return;
-    }
-    const handle = (s.newChHandle.trim() || name.toLowerCase().replace(/\s+/g, '')).replace(
-      /^@/,
-      ''
-    );
-    api
-      .createChannel({ name, handle, is_public: true })
-      .then((c) => {
-        this.setState((st) => ({
-          channels: [this._mapChannel(c), ...st.channels],
-          modal: null,
-          newChName: '',
-          newChHandle: '',
-        }));
-        this.toast('Channel created');
-      })
-      .catch((err) => this.toast(firstError(err, 'Could not create channel')));
-  }
-
-  // Load discoverable + subscribed channels from the backend, merged by id.
-  loadChannels() {
-    Promise.all([
-      api.listChannels(false).catch(() => []),
-      api.listChannels(true).catch(() => []),
-    ]).then(([pub, mine]) => {
-      const byId = new Map();
-      [...(pub || []), ...(mine || [])].forEach((c) => byId.set(c.id, this._mapChannel(c)));
-      if (!byId.size) return;
-      this.setState((st) => {
-        const existing = new Set(st.channels.map((c) => c.id));
-        const fresh = [...byId.values()].filter((c) => !existing.has(c.id));
-        return fresh.length ? { channels: [...fresh, ...st.channels] } : null;
-      });
-    });
-  }
-
-  openReport(id) {
-    this.setState({ modal: 'report', reportPostId: id, reportReason: '' });
-  }
-  setReportReason(r) {
-    this.setState({ reportReason: r });
-  }
   openNewFolder() {
     this.setState({ modal: 'newFolder', newFolderName: '' });
   }
@@ -1193,7 +716,6 @@ export default class App extends React.Component {
               size: humanSize(f.size_bytes),
               modified: '',
               shared: false,
-              channel: false,
               starred: false,
               trashed: false,
               real: true,
@@ -1230,82 +752,6 @@ export default class App extends React.Component {
       })
       .catch(() => {});
   }
-  submitReport() {
-    if (!this.state.reportReason) {
-      this.toast('Select a reason');
-      return;
-    }
-    const id = this.state.reportPostId;
-    const isUuid = typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id);
-    if (isUuid) {
-      api
-        .report({
-          kind: 'report',
-          target_type: 'post',
-          target_id: id,
-          reason: 'inappropriate',
-          detail: this.state.reportReason,
-        })
-        .catch(() => {});
-    }
-    this.setState({ modal: null, reportPostId: null });
-    this.toast('Reported to moderators');
-  }
-  flagPost() {
-    this.toast('Post flagged for review');
-  }
-
-  openChannelSettings(id) {
-    const ch = this.state.channels.find((c) => c.id === id);
-    this.setState({
-      modal: 'channelSettings',
-      activeChannelId: id,
-      csNameInput: ch ? ch.name : '',
-      csWhoCanPost: 'admins',
-      csNotif: true,
-    });
-  }
-  setCsName(e) {
-    this.setState({ csNameInput: e.target.value });
-  }
-  setCsDesc(e) {
-    this.setState({ csDesc: e.target.value });
-  }
-  setPostAdmins() {
-    this.setState({ csWhoCanPost: 'admins' });
-  }
-  setPostEveryone() {
-    this.setState({ csWhoCanPost: 'everyone' });
-  }
-  toggleChNotif() {
-    this.setState((s) => ({ csNotif: !s.csNotif }));
-  }
-  saveChannel() {
-    const id = this.state.activeChannelId,
-      name = this.state.csNameInput;
-    this.setState((s) => ({ channels: s.channels.map((c) => (c.id === id ? { ...c, name } : c)) }));
-    this.toast('Channel updated');
-  }
-  leaveChannel() {
-    const id = this.state.activeChannelId;
-    this.setState((s) => ({
-      channels: s.channels.map((c) => (c.id === id ? { ...c, subscribed: false } : c)),
-      modal: null,
-    }));
-    this.toast('You left the channel');
-  }
-
-  likePost(id) {
-    this.setState((s) => ({
-      posts: s.posts.map((p) =>
-        p.id === id ? { ...p, liked: !p.liked, likes: p.likes + (p.liked ? -1 : 1) } : p
-      ),
-    }));
-  }
-  reportPost() {
-    this.toast('Reported to moderators');
-  }
-
   openUpload() {
     this.setState({ modal: 'upload', drawerOpen: false });
   }
@@ -1360,74 +806,6 @@ export default class App extends React.Component {
     }
     this._activeAudioSrc = file.audioSrc || '';
     this.setState({ modal: 'preview', activeFileId: file.id });
-  }
-  openPostMedia(post, channel) {
-    const chName = channel ? channel.name : 'Channel';
-    if (post.media === 'video') {
-      this._videoEl = null;
-      this._activeVideoSrc = post.videoSrc;
-      this._activePoster = post.poster;
-      this._activeMediaObj = {
-        id: post.id,
-        name: post.fileName || chName + ' — video',
-        kind: 'video',
-        channelLine: chName + ' · Channel post',
-        poster: post.poster,
-        videoSrc: post.videoSrc,
-        duration: post.duration,
-        size: '',
-        modified: '',
-      };
-      this.setState({
-        modal: 'video',
-        activeFileId: '__media',
-        videoPlaying: false,
-        videoProgress: 0,
-        videoCurrent: 0,
-        videoDuration: 0,
-        videoFullscreen: false,
-      });
-    } else if (post.media === 'image') {
-      this._activeAudioSrc = '';
-      this._activePoster = post.poster;
-      this._activeMediaObj = {
-        id: post.id,
-        name: chName + ' — photo',
-        kind: 'image',
-        poster: post.poster,
-        size: '',
-        modified: '',
-      };
-      this.setState({ modal: 'preview', activeFileId: '__media' });
-    } else if (post.media === 'file') {
-      this._activeAudioSrc = '';
-      this._activeMediaObj = {
-        id: post.id,
-        name: post.fileName,
-        kind: 'doc',
-        docUrl: post.docUrl,
-        size: post.fileSize,
-        modified: '',
-      };
-      this.setState({ modal: 'preview', activeFileId: '__media' });
-    }
-  }
-  sharePost(post, channel) {
-    const chName = channel ? channel.name : 'Channel';
-    this._activeMediaObj = {
-      id: post.id,
-      name: post.fileName || chName + ' post',
-      kind: post.media,
-    };
-    this.setState({
-      modal: 'share',
-      activeFileId: '__media',
-      shareAccess: 'anyone',
-      sharePermission: 'view',
-      shareEmails: [],
-      shareEmailInput: '',
-      shareCopied: false,
-    });
   }
   openShare(file, e) {
     if (e) e.stopPropagation();
@@ -1609,7 +987,6 @@ export default class App extends React.Component {
           size: humanSize(file.size_bytes),
           modified: 'Just now',
           shared: false,
-          channel: false,
           starred: false,
           trashed: false,
           real: true,
@@ -1673,7 +1050,6 @@ export default class App extends React.Component {
               docUrl: item.docUrl,
               watchedPct: 0,
               shared: false,
-              channel: false,
               starred: false,
               trashed: false,
               recentRank: 0,
@@ -1841,17 +1217,10 @@ export default class App extends React.Component {
     const st = this.state;
     const {
       files,
-      channels,
-      posts,
       authView,
       deviceMode,
       currentFolderId,
       filterKey,
-      channelsTab,
-      discoverQuery,
-      discoverCategory,
-      discoverView,
-      openChannelId,
       searchQuery,
       mobileSearchOpen,
       drawerOpen,
@@ -1878,9 +1247,6 @@ export default class App extends React.Component {
       videoCC,
       videoUpgradeHint,
       videoFullscreen,
-      csWhoCanPost,
-      csNotif,
-      composerAttach,
       toastMsg,
       discoverResults,
     } = st;
@@ -1930,7 +1296,7 @@ export default class App extends React.Component {
           : `${f.size || ''}${f.size && f.modified ? ' · ' : ''}${f.modified || ''}`,
         retentionLabel:
           daysLeft !== null ? daysLeft + (daysLeft === 1 ? ' day left' : ' days left') : '',
-        channelLine: f.channelLine || (f.channel ? 'Team Channel · Broadcast' : 'Uploaded by you'),
+        channelLine: 'Uploaded by you',
         shareUrl: 'floppy.disk/s/' + f.id,
         imgRef: mkImgRef(f.poster),
         onOpen: () => this.openFile(f),
@@ -1946,8 +1312,7 @@ export default class App extends React.Component {
     let rawList,
       sectionTitle,
       currentFolderName = null,
-      showBreadcrumb = false,
-      isChannelsView = false;
+      showBreadcrumb = false;
     if (searchActive) {
       const local = nonTrashed.filter((f) => f.name.toLowerCase().includes(q));
       const localIds = new Set(local.map((f) => f.id));
@@ -1968,10 +1333,6 @@ export default class App extends React.Component {
     } else if (filterKey === 'shared') {
       rawList = nonTrashed.filter((f) => f.shared);
       sectionTitle = 'Shared with me';
-    } else if (filterKey === 'channels') {
-      rawList = [];
-      sectionTitle = 'Channels';
-      isChannelsView = true;
     } else if (filterKey === 'recent') {
       rawList = nonTrashed
         .filter((f) => f.kind !== 'folder')
@@ -1984,17 +1345,9 @@ export default class App extends React.Component {
     }
 
     const visibleFiles = rawList.map(decorate);
-    const searchHasChannelMatch =
-      searchActive &&
-      channels.some(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.handle.toLowerCase().includes(q) ||
-          c.category.toLowerCase().includes(q)
-      );
-    const isEmpty = !isChannelsView && visibleFiles.length === 0 && !searchHasChannelMatch;
+    const isEmpty = visibleFiles.length === 0;
     const emptyMessage = searchActive
-      ? 'No files or channels match your search'
+      ? 'No files match your search'
       : filterKey === 'all' && currentFolderId
         ? 'This folder is empty'
         : filterKey === 'trash'
@@ -2005,160 +1358,6 @@ export default class App extends React.Component {
     const isHome = !searchActive && filterKey === 'all' && !currentFolderId;
     const showCarousel = isHome && !isEmpty;
 
-    const chById = {};
-    channels.forEach((c) => {
-      chById[c.id] = c;
-    });
-    const tabSubscribed = channelsTab === 'subscribed';
-    const buildCard = (c) => ({
-      color: c.color,
-      initials: c.initials,
-      name: c.name,
-      handle: c.handle,
-      category: c.category,
-      subs: c.subs,
-      live: c.live,
-      isAdmin: c.isAdmin,
-      isNew: c.isNew,
-      subscribed: c.subscribed,
-      subLabel: c.subscribed ? 'Following' : 'Subscribe',
-      subBg: c.subscribed ? theme.brandBg : theme.brand,
-      subColor: c.subscribed ? theme.brand : theme.white,
-      subBorder: c.subscribed ? theme.brandBorder : theme.brand,
-      onToggle: () => this.toggleSubscribe(c.id),
-      onSettings: () => this.openChannelSettings(c.id),
-      onView: () => this.openChannelView(c.id),
-    });
-    const makePostView = (p) => {
-      const ch = chById[p.channelId] || {};
-      return {
-        id: p.id,
-        color: ch.color,
-        initials: ch.initials,
-        channelName: ch.name,
-        handle: ch.handle,
-        time: p.time,
-        hasText: !!p.text,
-        text: p.text,
-        isImage: p.media === 'image',
-        isVideo: p.media === 'video',
-        isFile: p.media === 'file',
-        poster: p.poster,
-        duration: p.duration,
-        fileName: p.fileName,
-        fileSize: p.fileSize,
-        views: p.views,
-        likes: p.likes,
-        likeColor: p.liked ? theme.danger : theme.textMuted,
-        likeFill: p.liked ? theme.danger : 'none',
-        likeBg: p.liked ? theme.dangerBg2 : 'transparent',
-        isOwn: !!p.own,
-        comments: (p.comments || []).map((c) => ({
-          id: c.id,
-          name: c.name,
-          text: c.text,
-          initial: (c.name || '?')[0].toUpperCase(),
-        })),
-        commentCount: (p.comments || []).length,
-        commentsOpen: st.commentsOpenFor === p.id,
-        imgRef: mkImgRef(p.poster),
-        onOpen: () => this.openPostMedia(p, ch),
-        onLike: () => this.likePost(p.id),
-        onShare: () => this.sharePost(p, ch),
-        onFlag: () => this.flagPost(),
-        onReport: () => this.openReport(p.id),
-        onToggleComments: () => this.toggleComments(p.id),
-        onAddComment: () => this.addComment(p.id),
-        onDelete: () => this.deletePost(p.id),
-      };
-    };
-    const feedPosts = tabSubscribed
-      ? posts.filter((p) => (chById[p.channelId] || {}).subscribed)
-      : posts;
-    const postViews = feedPosts.map(makePostView);
-    const adminChannel = channels.find((c) => c.subscribed && c.isAdmin);
-
-    const openCh = openChannelId ? chById[openChannelId] : null;
-    const channelPostViews = openCh
-      ? posts.filter((p) => p.channelId === openCh.id).map(makePostView)
-      : [];
-
-    const dq = discoverQuery.trim().toLowerCase();
-    const categories = ['all', ...Array.from(new Set(channels.map((c) => c.category)))];
-    const categoryChips = categories.map((cat) => ({
-      key: cat,
-      label: cat === 'all' ? 'All' : cat,
-      active: discoverCategory === cat,
-      onClick: () => this.setDiscoverCategory(cat),
-    }));
-    const matchesDiscover = (c) =>
-      (discoverCategory === 'all' || c.category === discoverCategory) &&
-      (!dq ||
-        c.name.toLowerCase().includes(dq) ||
-        c.handle.toLowerCase().includes(dq) ||
-        c.category.toLowerCase().includes(dq));
-    const discoverFilteredChannels = channels.filter(matchesDiscover);
-    const discoverCards = discoverFilteredChannels.map(buildCard);
-    const newChannelCards = discoverFilteredChannels.filter((c) => c.isNew).map(buildCard);
-    const topRatedCards = [...discoverFilteredChannels]
-      .sort((a, b) => b.subsNum - a.subsNum)
-      .slice(0, 4)
-      .map(buildCard);
-    const isDiscoverTab = !tabSubscribed;
-    const channelRows = (
-      tabSubscribed ? channels.filter((c) => c.subscribed) : discoverFilteredChannels
-    ).map(buildCard);
-    const channelListRows = [...discoverFilteredChannels]
-      .sort(
-        (a, b) =>
-          (a.subscribed === b.subscribed ? 0 : a.subscribed ? -1 : 1) || b.subsNum - a.subsNum
-      )
-      .map(buildCard);
-    const subscribedChips = channels.filter((c) => c.subscribed).map(buildCard);
-
-    const trendingSort = st.trendingSort;
-    const metricKey =
-      trendingSort === 'views' ? 'viewsNum' : trendingSort === 'shares' ? 'sharesNum' : 'likes';
-    const trendingCards = [...posts]
-      .sort((a, b) => b[metricKey] - a[metricKey])
-      .slice(0, 6)
-      .map((p) => {
-        const ch = chById[p.channelId] || {};
-        const metricVal =
-          trendingSort === 'views'
-            ? p.views
-            : trendingSort === 'shares'
-              ? p.sharesNum >= 1000
-                ? (p.sharesNum / 1000).toFixed(1) + 'K'
-                : String(p.sharesNum)
-              : String(p.likes);
-        const metricLabel =
-          trendingSort === 'views'
-            ? metricVal + ' views'
-            : trendingSort === 'shares'
-              ? metricVal + ' shares'
-              : metricVal + ' likes';
-        return {
-          title: p.fileName || ch.name + ' post',
-          channelName: ch.name,
-          poster: p.poster || `https://picsum.photos/seed/${p.id}/400/280`,
-          metricLabel,
-          imgRef: mkImgRef(p.poster),
-          onOpen: () => this.openPostMedia(p, ch),
-        };
-      });
-
-    const searchChannelResults = searchActive
-      ? channels
-          .filter(
-            (c) =>
-              c.name.toLowerCase().includes(q) ||
-              c.handle.toLowerCase().includes(q) ||
-              c.category.toLowerCase().includes(q)
-          )
-          .map(buildCard)
-      : [];
-    const showSearchChannels = searchActive && searchChannelResults.length > 0;
     const carouselItems = nonTrashed
       .filter((f) => f.kind === 'video')
       .map((f) => ({
@@ -2218,8 +1417,6 @@ export default class App extends React.Component {
       aA = seg(shareAccess === 'anyone'),
       vP = seg(sharePermission === 'view'),
       eP = seg(sharePermission === 'edit');
-    const paSeg = seg(csWhoCanPost === 'admins'),
-      peSeg = seg(csWhoCanPost === 'everyone');
 
     const d = isMobile
       ? {
@@ -2267,8 +1464,6 @@ export default class App extends React.Component {
       verifyPhone: 'Add your phone for account recovery',
       forgot: 'Enter your email and we\u2019ll send a reset link',
     };
-    const csCh = channels.find((c) => c.id === st.activeChannelId) || {};
-    const compCh = channels.find((c) => c.id === st.activeChannelId) || {};
 
     return {
       d,
@@ -2276,13 +1471,7 @@ export default class App extends React.Component {
       isDesktop: !isMobile,
       isApp,
       isAuth: !isApp,
-      urlPath: !isApp
-        ? authView === 'register'
-          ? 'signup'
-          : 'login'
-        : isChannelsView
-          ? 'channels'
-          : 'files',
+      urlPath: !isApp ? (authView === 'register' ? 'signup' : 'login') : 'files',
       authTitle: authTitles[authView] || 'Floppy Disk',
       authSubtitle: authSubs[authView] || '',
       authIsLogin: authView === 'login',
@@ -2344,7 +1533,7 @@ export default class App extends React.Component {
       upgradeStorage: () => this.upgradeStorage(),
       billingEnabled: st.billingEnabled,
       visibleFiles,
-      hasFiles: !isEmpty && !isChannelsView,
+      hasFiles: !isEmpty,
       isEmpty,
       emptyMessage,
       sectionTitle,
@@ -2366,89 +1555,14 @@ export default class App extends React.Component {
       navToFolder: (id) => this.navToFolder(id),
       isTrashView: af('trash'),
       crumbRootColor: currentFolderName ? '#9AA1AC' : '#15171C',
-      isChannelsView,
-      notChannelsView: !isChannelsView,
-      channelRows,
-      posts: postViews,
-      postsEmpty: postViews.length === 0,
-      channelsTab,
-      setTabDiscover: () => this.setTabDiscover(),
-      setTabSubscribed: () => this.setTabSubscribed(),
-      discoverTabBg: !tabSubscribed ? '#FFFFFF' : 'transparent',
-      discoverTabColor: !tabSubscribed ? '#5145E5' : '#656B76',
-      discoverTabShadow: !tabSubscribed ? '0 1px 3px rgba(16,24,40,0.12)' : 'none',
-      subscribedTabBg: tabSubscribed ? '#FFFFFF' : 'transparent',
-      subscribedTabColor: tabSubscribed ? '#5145E5' : '#656B76',
-      subscribedTabShadow: tabSubscribed ? '0 1px 3px rgba(16,24,40,0.12)' : 'none',
-      showComposerBtn: tabSubscribed && !!adminChannel,
-      adminChannelName: adminChannel ? adminChannel.name : '',
-      openComposer: () => this.openComposer(),
-      isDiscoverTab,
-      isSubscribedTab: tabSubscribed,
-      channelListRows,
-      subscribedChips,
-      discoverEmpty: channelListRows.length === 0,
-      hasSubscribed: subscribedChips.length > 0,
-      discoverView,
-      isDiscoverList: discoverView === 'list',
-      isDiscoverGrid: discoverView === 'grid',
-      setDiscoverList: () => this.setDiscoverList(),
-      setDiscoverGrid: () => this.setDiscoverGrid(),
-      listViewBg: discoverView === 'list' ? '#5145E5' : '#FFFFFF',
-      listViewColor: discoverView === 'list' ? '#fff' : '#8A909B',
-      listViewBorder: discoverView === 'list' ? '#5145E5' : '#E5E7EC',
-      gridViewBg: discoverView === 'grid' ? '#5145E5' : '#FFFFFF',
-      gridViewColor: discoverView === 'grid' ? '#fff' : '#8A909B',
-      gridViewBorder: discoverView === 'grid' ? '#5145E5' : '#E5E7EC',
-      showChannelDetail: !!openCh,
-      showChannelBrowse: !openCh,
-      closeChannelView: () => this.closeChannelView(),
-      cdColor: openCh ? openCh.color : '#5145E5',
-      cdInitials: openCh ? openCh.initials : '',
-      cdName: openCh ? openCh.name : '',
-      cdHandle: openCh ? openCh.handle : '',
-      cdSubs: openCh ? openCh.subs : '',
-      cdCategory: openCh ? openCh.category : '',
-      cdLive: openCh ? openCh.live : false,
-      cdIsAdmin: openCh ? openCh.isAdmin : false,
-      cdSubLabel: openCh && openCh.subscribed ? 'Following' : 'Subscribe',
-      cdSubBg: openCh && openCh.subscribed ? '#ECEBFD' : '#5145E5',
-      cdSubColor: openCh && openCh.subscribed ? '#5145E5' : '#fff',
-      cdSubBorder: openCh && openCh.subscribed ? '#C7C3F5' : '#5145E5',
-      cdOnToggle: () => openCh && this.toggleSubscribe(openCh.id),
-      cdOnSettings: () => openCh && this.openChannelSettings(openCh.id),
-      cdOnCompose: () => openCh && this.openComposer(),
-      channelPosts: channelPostViews,
-      channelPostsEmpty: channelPostViews.length === 0,
-      discoverQuery,
-      setDiscoverQuery: (e) => this.setDiscoverQuery(e),
-      clearDiscoverQuery: () => this.clearDiscoverQuery(),
-      discoverQueryActive: dq.length > 0,
-      categoryChips,
-      discoverCards,
-      hasNewChannels: newChannelCards.length > 0,
-      newChannelCards,
-      topRatedCards,
-      trendingSort,
-      likesSortActive: trendingSort === 'likes',
-      viewsSortActive: trendingSort === 'views',
-      sharesSortActive: trendingSort === 'shares',
-      setSortLikes: () => this.setTrendingSort('likes'),
-      setSortViews: () => this.setTrendingSort('views'),
-      setSortShares: () => this.setTrendingSort('shares'),
-      trendingCards,
-      showSearchChannels,
-      searchChannelResults,
       showCarousel,
       carouselItems,
       showGridLabel: showCarousel,
       gridLabel: 'Files & folders',
       sharedCount: nonTrashed.filter((f) => f.shared).length,
-      channelsCount: channels.length,
       trashCount: files.filter((f) => f.trashed).length,
       navToAll: () => this.navToAll(),
       navToShared: () => this.navToShared(),
-      navToChannels: () => this.navToChannels(),
       navToRecent: () => this.navToRecent(),
       navToTrash: () => this.navToTrash(),
       navAllBg: navBg(af('all')),
@@ -2457,9 +1571,6 @@ export default class App extends React.Component {
       navSharedBg: navBg(af('shared')),
       navSharedColor: navColor(af('shared')),
       navSharedWeight: navW(af('shared')),
-      navChannelsBg: navBg(af('channels')),
-      navChannelsColor: navColor(af('channels')),
-      navChannelsWeight: navW(af('channels')),
       navRecentBg: navBg(af('recent')),
       navRecentColor: navColor(af('recent')),
       navRecentWeight: navW(af('recent')),
@@ -2486,37 +1597,16 @@ export default class App extends React.Component {
       browseFiles: () => this.browseFiles(),
       onFilesPicked: (e) => this.onFilesPicked(e),
       emptyTrash: () => this.emptyTrash(),
-      commentInput: st.commentInput,
-      setCommentInput: (e) => this.setCommentInput(e),
       videoVolume: st.videoVolume,
       setVolume: (e) => this.setVolume(e),
       videoRate: st.videoRate,
       rateLabel: st.videoRate + '×',
       cycleRate: () => this.cycleRate(),
       videoLoading: st.videoLoading,
-      openNewChannel: () => this.openNewChannel(),
-      newChName: st.newChName,
-      setNewChName: (e) => this.setNewChName(e),
-      newChHandle: st.newChHandle,
-      setNewChHandle: (e) => this.setNewChHandle(e),
-      createChannel: () => this.createChannel(),
-      newChCatChips: ['Design', 'Engineering', 'Marketing', 'Company', 'Product'].map((cat) => ({
-        label: cat,
-        active: st.newChCategory === cat,
-        onClick: () => this.setNewChCategory(cat),
-      })),
-      isNewChannelModal: modal === 'newChannel',
-      isReportModal: modal === 'report',
-      submitReport: () => this.submitReport(),
-      reportReasonChips: ['Spam or scam', 'Harassment', 'Violence', 'Misinformation', 'Other'].map(
-        (r) => ({ label: r, active: st.reportReason === r, onClick: () => this.setReportReason(r) })
-      ),
       modalOpen: !!modal,
       isUploadModal: modal === 'upload',
       isSettingsModal: modal === 'settings',
       isVerifyModal: modal === 'verify',
-      isComposerModal: modal === 'composer',
-      isChannelSettingsModal: modal === 'channelSettings',
       isPreviewModal: modal === 'preview',
       isVideoModal: modal === 'video',
       isShareModal: modal === 'share',
@@ -2570,45 +1660,6 @@ export default class App extends React.Component {
       setVerifyCode: (e) => this.setVerifyCode(e),
       confirmVerify: () => this.confirmVerify(),
       backToSettings: () => this.backToSettings(),
-      composerChannelName: compCh.name || 'Channel',
-      composerColor: compCh.color || '#5145E5',
-      composerInitials: compCh.initials || 'CH',
-      composerText: st.composerText,
-      setComposerText: (e) => this.setComposerText(e),
-      attachPhoto: () => this.attachPhoto(),
-      attachVideo: () => this.attachVideo(),
-      attachFile: () => this.attachFile(),
-      clearAttach: () => this.clearAttach(),
-      submitPost: () => this.submitPost(),
-      composerHasAttach: !!composerAttach,
-      composerAttachLabel: composerAttach
-        ? composerAttach.type === 'image'
-          ? 'Photo'
-          : composerAttach.type === 'video'
-            ? 'Video'
-            : 'File'
-        : '',
-      csColor: csCh.color || '#5145E5',
-      csInitials: csCh.initials || 'CH',
-      csName: csCh.name || 'Channel',
-      csSubs: csCh.subs || '0',
-      csNameInput: st.csNameInput,
-      setCsName: (e) => this.setCsName(e),
-      csDesc: st.csDesc,
-      setCsDesc: (e) => this.setCsDesc(e),
-      setPostAdmins: () => this.setPostAdmins(),
-      setPostEveryone: () => this.setPostEveryone(),
-      postAdminsBg: paSeg.bg,
-      postAdminsColor: paSeg.color,
-      postAdminsBorder: paSeg.border,
-      postEveryoneBg: peSeg.bg,
-      postEveryoneColor: peSeg.color,
-      postEveryoneBorder: peSeg.border,
-      chNotifBg: csNotif ? '#5145E5' : '#CBD0D8',
-      chNotifX: csNotif ? 20 : 2,
-      toggleChNotif: () => this.toggleChNotif(),
-      saveChannel: () => this.saveChannel(),
-      leaveChannel: () => this.leaveChannel(),
       activeFile,
       openShareForActive: () => this.openShareForActive(),
       downloadActive: () => this.downloadActive(),

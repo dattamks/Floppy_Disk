@@ -21,7 +21,7 @@ info:
     bypasses CSRF.
 
     ## Conventions
-    - IDs are UUIDs unless noted (channel handles and share tokens are strings).
+    - IDs are UUIDs unless noted (share tokens are strings).
     - Sizes are bytes. Money is paise (₹1 = 100).
     - List endpoints return arrays; a few wrap results in an object (noted per path).
     - Errors use `{ "detail": "...", "code": "..." }` (code is present on typed errors).
@@ -36,7 +36,6 @@ tags:
   - name: Upload
   - name: Video
   - name: Sharing
-#   - name: Channels  # DEACTIVATED
   - name: Moderation
   - name: Billing
   - name: Notifications
@@ -110,31 +109,11 @@ components:
         revoked: { type: boolean }
         target_name: { type: string }
         created_at: { type: string, format: date-time }
-    # DEACTIVATED (Drive-focus pivot) — see docs/deactivated-features.md
-#     Channel:
-#       type: object
-#       properties:
-#         id: { type: string, format: uuid }
-#         name: { type: string }
-#         handle: { type: string }
-#         description: { type: string }
-#         is_public: { type: boolean }
-#         subscriber_count: { type: integer }
-#         role: { type: [string, "null"], enum: [owner, admin, subscriber, null] }
-#         created_at: { type: string, format: date-time }
-#     ChannelPost:
-#       type: object
-#       properties:
-#         id: { type: string, format: uuid }
-#         channel: { type: string, format: uuid }
-#         caption: { type: string }
-#         file: { type: [string, "null"], format: uuid }
-#         created_at: { type: string, format: date-time }
     Notification:
       type: object
       properties:
         id: { type: string, format: uuid }
-        type: { type: string, enum: [system, channel_created, channel_post, quota, security] }
+        type: { type: string, enum: [system, quota, security] }
         title: { type: string }
         body: { type: string }
         data: { type: object }
@@ -165,11 +144,6 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
-#     ChannelId:
-#       name: channel_id
-#       in: path
-#       required: true
-#       schema: { type: string, format: uuid }
   responses:
     NoContent: { description: "Success (no body)." }
     Unauthorized:
@@ -604,7 +578,7 @@ paths:
               required: [kind, target_type, target_id]
               properties:
                 kind: { type: string, enum: [flag, report] }
-                target_type: { type: string, enum: [file, channel, post] }
+                target_type: { type: string, enum: [file] }
                 target_id: { type: string, format: uuid }
                 reason: { type: string, enum: [copyright, inappropriate, csam, other], default: other }
                 detail: { type: string, description: Required for copyright reports. }

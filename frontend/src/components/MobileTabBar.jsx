@@ -93,7 +93,6 @@ export default function MobileTabBar(V) {
             />
           </svg>
         </button>{' '}
-        {/* DEACTIVATED (Drive-focus pivot): Channels tab — see docs/deactivated-features.md */}
         <button
           onClick={V.navToTrash}
           style={{

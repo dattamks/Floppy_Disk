@@ -20,7 +20,7 @@ def notify(user, *, type: str, title: str, body: str = "", data: dict | None = N
 
 
 def notify_many(users, *, type: str, title: str, body: str = "", data: dict | None = None) -> int:
-    """Fan-out to many recipients (e.g. channel subscribers). Returns count sent."""
+    """Fan-out to many recipients. Returns count sent."""
     objs = [
         Notification(user=u, type=type, title=title, body=body, data=data or {})
         for u in users

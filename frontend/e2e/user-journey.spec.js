@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 // Full end-to-end user journey through the app, asserting each milestone:
 // sign up -> create folder -> upload a real image -> context menu -> share ->
-// preview -> play a video -> channels (subscribe + feed) -> trash -> log out.
+// preview -> play a video -> trash -> log out.
 //
 // To also capture a screen recording, run with video enabled, e.g.:
 //   npx playwright test user-journey --config=playwright.config.js \
@@ -30,7 +30,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('full user journey: sign up → upload → share → play → channels → trash → log out', async ({
+test('full user journey: sign up → upload → share → play → trash → log out', async ({
   page,
 }) => {
   const email = uniqueEmail();

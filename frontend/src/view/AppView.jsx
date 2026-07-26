@@ -11,8 +11,6 @@ import ShareModal from '../components/ShareModal';
 import PreviewModal from '../components/PreviewModal';
 import VerifyModal from '../components/VerifyModal';
 import ContextMenu from '../components/ContextMenu';
-// DEACTIVATED (Drive-focus pivot): ComposerModal, NewChannelModal, ReportModal,
-// ChannelSettingsModal — see src/deactivated/ and docs/deactivated-features.md.
 import Toast from '../components/Toast';
 
 // Presentational view for the whole app. Receives the computed view-model V
