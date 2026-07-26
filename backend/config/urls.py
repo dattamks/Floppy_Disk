@@ -12,7 +12,7 @@ urlpatterns = [
     path("api/v1/storage/", include("apps.storage.urls")),
     path("api/v1/storage/", include((sharing_owner, "sharing_owner"))),
     path("api/v1/public/", include((sharing_public, "sharing_public"))),
-    path("api/v1/channels/", include("apps.channels.urls")),
+    # path("api/v1/channels/", include("deactivated.channels.urls")),  # DEACTIVATED — see docs/deactivated-features.md
     path("api/v1/moderation/", include("apps.moderation.urls")),
     path("api/v1/billing/", include("apps.billing.urls")),
     path("api/v1/notifications/", include("apps.notifications.urls")),

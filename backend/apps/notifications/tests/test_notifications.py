@@ -1,9 +1,13 @@
-"""TDD spec for notifications: fan-out on channel events + read state."""
+"""TDD spec for notifications: read state + owner scoping.
+
+(Channel-fan-out notification tests moved to deactivated/ with the channels
+feature — see docs/deactivated-features.md.)
+"""
 import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
-from apps.notifications.models import Notification
+from apps.notifications.dispatch import notify
 
 User = get_user_model()
 pytestmark = pytest.mark.django_db
@@ -29,36 +33,12 @@ def owner_client(owner):
     return client_for(owner)
 
 
-def _channel(client, handle="chan"):
-    return client.post("/api/v1/channels/", {"name": "Chan", "handle": handle}, format="json").json()
-
-
-def test_creating_a_channel_notifies_the_owner(owner_client, owner):
-    _channel(owner_client)
-    resp = owner_client.get("/api/v1/notifications/").json()
-    assert resp["unread_count"] == 1
-    assert resp["results"][0]["type"] == "channel_created"
-
-
-def test_posting_notifies_subscribers_not_author(owner_client, owner):
-    ch = _channel(owner_client, handle="feed")
-    sub = user("sub@floppy.disk")
-    sclient = client_for(sub)
-    sclient.post(f"/api/v1/channels/{ch['id']}/subscribe")
-
-    owner_client.post(f"/api/v1/channels/{ch['id']}/posts", {"caption": "hello all"}, format="json")
-
-    # subscriber got a channel_post notification
-    sub_notifs = sclient.get("/api/v1/notifications/").json()
-    assert any(n["type"] == "channel_post" for n in sub_notifs["results"])
-
-    # author did NOT get a channel_post notification for their own post
-    owner_notifs = owner_client.get("/api/v1/notifications/").json()
-    assert not any(n["type"] == "channel_post" for n in owner_notifs["results"])
+def _notify(u, title="Heads up"):
+    notify(u, type="system", title=title, body="…")
 
 
 def test_mark_one_read_decrements_unread(owner_client, owner):
-    _channel(owner_client)
+    _notify(owner)
     data = owner_client.get("/api/v1/notifications/").json()
     assert data["unread_count"] == 1
     nid = data["results"][0]["id"]
@@ -68,15 +48,15 @@ def test_mark_one_read_decrements_unread(owner_client, owner):
 
 
 def test_mark_all_read(owner_client, owner):
-    _channel(owner_client, handle="a")
-    _channel(owner_client, handle="b")
+    _notify(owner, "a")
+    _notify(owner, "b")
     assert owner_client.get("/api/v1/notifications/").json()["unread_count"] == 2
     assert owner_client.post("/api/v1/notifications/read-all").status_code == 204
     assert owner_client.get("/api/v1/notifications/").json()["unread_count"] == 0
 
 
 def test_notifications_are_owner_scoped(owner_client, owner):
-    _channel(owner_client)
+    _notify(owner)
     other = client_for(user("other@floppy.disk"))
     assert other.get("/api/v1/notifications/").json()["unread_count"] == 0
 
