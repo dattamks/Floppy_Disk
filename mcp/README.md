@@ -139,16 +139,14 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 - `get_download_url(file_id)`, `download_file(file_id, dest_path)`
 
 **Video**
-- `get_video_playback(file_id)`, `promote_video_to_stream(file_id)`
+- `get_video_playback(file_id)` — direct URL to play an owned video inline
 
 **Sharing**
 - `create_share_link(file_id, password?, expires_at?)`
 - `list_share_links()`, `revoke_share_link(share_id)`
 
-**Channels**
-- `list_channels(mine?)`, `create_channel(handle, name, description?, is_public?)`
-- `subscribe_channel`, `unsubscribe_channel`
-- `list_channel_posts(channel_id)`, `create_channel_post(channel_id, file_id, caption?)`
+> Channel tools and `promote_video_to_stream` were removed in the Drive-focus
+> pivot — see [`../docs/deactivated-features.md`](../docs/deactivated-features.md).
 
 **Notifications**
 - `list_notifications()`, `mark_notification_read(id)`, `mark_all_notifications_read()`

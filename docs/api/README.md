@@ -95,9 +95,11 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 ### Video — `/api/v1/storage`
 | Method | Path | Summary |
 |---|---|---|
-| POST | `/files/{id}/play` | Playback descriptor (`r2` direct / `hls`) |
-| POST | `/files/{id}/promote` | Promote to Stream (HD/HLS) — 503 if unconfigured |
-| POST | `/stream/webhook` | Stream processing callback (idempotent) |
+| POST | `/files/{id}/play` | Direct URL to play your own video inline (`mode: direct`) |
+
+> The video **streaming platform** (Cloudflare Stream/HLS promote, HD/SD
+> tiering, Stream webhook) and **Channels** were deactivated in the
+> Drive-focus pivot — see [`../deactivated-features.md`](../deactivated-features.md).
 
 ### Sharing — `/api/v1/storage` & `/api/v1/public`
 | Method | Path | Summary |
@@ -109,13 +111,6 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | POST | `/public/share/{token}` | Unlock a password-protected link |
 | GET | `/public/share/{token}/download` | Download the bytes (no account; `?password=` for locked links) |
 
-### Channels — `/api/v1/channels`
-| Method | Path | Summary |
-|---|---|---|
-| GET / POST | `/` | Discover (`?mine=1`) / create |
-| POST / DELETE | `/{id}/subscribe` | Subscribe / unsubscribe |
-| POST | `/{id}/members/{user_id}/promote` | Promote to admin (owner only) |
-| GET / POST | `/{id}/posts` | List / post (owner+admin only) |
 
 ### Moderation — `/api/v1/moderation`
 | Method | Path | Summary |

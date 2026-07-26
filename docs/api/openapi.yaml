@@ -500,8 +500,8 @@ paths:
   /storage/files/{file_id}/play:
     post:
       tags: [Video]
-      summary: Get a playback descriptor
-      description: "Private video streams direct from storage (mode r2); promoted video plays HLS (mode hls). Free tier is SD-capped."
+      summary: Get a direct URL to play an owned video inline
+      description: "Basic Drive-style inline playback. (The streaming platform — Cloudflare Stream/HLS promote, HD/SD tiering, Stream webhook — was deactivated; see docs/deactivated-features.md.)"
       parameters: [{ $ref: "#/components/parameters/FileId" }]
       responses:
         "200":
@@ -511,28 +511,10 @@ paths:
               schema:
                 type: object
                 properties:
-                  mode: { type: string, enum: [r2, hls] }
+                  mode: { type: string, enum: [direct] }
                   url: { type: string }
-                  max_resolution: { type: string, enum: [sd, hd] }
-                  stream_uid: { type: string }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { description: Still processing. }
-  /storage/files/{file_id}/promote:
-    post:
-      tags: [Video]
-      summary: Promote a video to Cloudflare Stream (HD/HLS)
-      parameters: [{ $ref: "#/components/parameters/FileId" }]
-      responses:
-        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { stream_uid: { type: string }, hls_url: { type: string } } } } } }
-        "404": { $ref: "#/components/responses/NotFound" }
-        "503": { description: "Stream not configured (`stream_unavailable`) — playback stays direct.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
-  /storage/stream/webhook:
-    post:
-      tags: [Video]
-      summary: Cloudflare Stream processing-complete callback (idempotent)
-      security: []
-      requestBody: { content: { application/json: { schema: { type: object, properties: { uid: { type: string }, status: { type: string } } } } } }
-      responses: { "200": { description: "{ processed: bool }" }, "400": { description: Bad payload. } }
 
   # ---------------------------------------------------------------- Sharing
   /storage/files/{file_id}/share:
@@ -606,50 +588,6 @@ paths:
         "401": { description: Incorrect/missing password. }
         "404": { description: Unknown token / nothing to download. }
         "410": { description: Expired or revoked. }
-
-  # ---------------------------------------------------------------- Channels
-  /channels/:
-    get:
-      tags: [Channels]
-      summary: Discover public channels (or `?mine=1` for my memberships)
-      parameters: [{ name: mine, in: query, schema: { type: boolean } }]
-      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Channel" } } } } } }
-    post:
-      tags: [Channels]
-      summary: Create a channel (creator becomes owner)
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, handle], properties: { name: { type: string }, handle: { type: string }, description: { type: string }, is_public: { type: boolean, default: true } } } } } }
-      responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Channel" } } } }, "400": { $ref: "#/components/responses/ValidationError" } }
-  /channels/{channel_id}/subscribe:
-    post:
-      tags: [Channels]
-      summary: Subscribe
-      parameters: [{ $ref: "#/components/parameters/ChannelId" }]
-      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Channel" } } } }, "403": { description: Invite-only. }, "404": { $ref: "#/components/responses/NotFound" } }
-    delete:
-      tags: [Channels]
-      summary: Unsubscribe (owner cannot)
-      parameters: [{ $ref: "#/components/parameters/ChannelId" }]
-      responses: { "204": { $ref: "#/components/responses/NoContent" }, "400": { description: Owner cannot unsubscribe. }, "404": { $ref: "#/components/responses/NotFound" } }
-  /channels/{channel_id}/members/{user_id}/promote:
-    post:
-      tags: [Channels]
-      summary: Promote a subscriber to admin (owner only)
-      parameters:
-        - { $ref: "#/components/parameters/ChannelId" }
-        - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses: { "200": { description: "{ role: admin }" }, "403": { description: Owner only. }, "404": { $ref: "#/components/responses/NotFound" } }
-  /channels/{channel_id}/posts:
-    get:
-      tags: [Channels]
-      summary: List posts (public channel or member)
-      parameters: [{ $ref: "#/components/parameters/ChannelId" }]
-      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ChannelPost" } } } } }, "403": { description: Private. }, "404": { $ref: "#/components/responses/NotFound" } }
-    post:
-      tags: [Channels]
-      summary: Post (owner/admin only)
-      parameters: [{ $ref: "#/components/parameters/ChannelId" }]
-      requestBody: { content: { application/json: { schema: { type: object, properties: { caption: { type: string }, file: { type: string, format: uuid } } } } } }
-      responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/ChannelPost" } } } }, "403": { description: Owner/admin only. } }
 
   # ---------------------------------------------------------------- Moderation
   /moderation/reports:
