@@ -93,38 +93,7 @@ export default function MobileTabBar(V) {
             />
           </svg>
         </button>{' '}
-        <button
-          onClick={V.navToChannels}
-          style={{
-            background: 'none',
-            border: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '3px',
-            color: V.navChannelsColor,
-            cursor: 'pointer',
-          }}
-        >
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
-            <rect
-              x="3"
-              y="6"
-              width="14"
-              height="12"
-              rx="2"
-              stroke="currentColor"
-              strokeWidth="1.7"
-            />
-            <path
-              d="M17 10l4-3v10l-4-3"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinejoin="round"
-            />
-          </svg>
-          <span style={{ fontSize: '9.5px', fontWeight: '500' }}>Channels</span>
-        </button>{' '}
+        {/* DEACTIVATED (Drive-focus pivot): Channels tab — see docs/deactivated-features.md */}
         <button
           onClick={V.navToTrash}
           style={{

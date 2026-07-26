@@ -76,46 +76,7 @@ export default function Sidebar(V) {
             {V.sharedCount}
           </span>
         </button>{' '}
-        <button
-          onClick={V.navToChannels}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '11px',
-            padding: '10px 11px',
-            borderRadius: '9px',
-            border: 'none',
-            background: V.navChannelsBg,
-            color: V.navChannelsColor,
-            fontSize: '13.5px',
-            fontWeight: V.navChannelsWeight,
-            cursor: 'pointer',
-            textAlign: 'left',
-            fontFamily: "'IBM Plex Sans',sans-serif",
-          }}
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-            <rect
-              x="3"
-              y="6"
-              width="14"
-              height="12"
-              rx="2"
-              stroke="currentColor"
-              strokeWidth="1.7"
-            />
-            <path
-              d="M17 10l4-3v10l-4-3"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Channels
-          <span style={{ marginLeft: 'auto', fontSize: '11.5px', color: theme.textFaint }}>
-            {V.channelsCount}
-          </span>
-        </button>{' '}
+        {/* DEACTIVATED (Drive-focus pivot): Channels nav — see docs/deactivated-features.md */}
         <button
           onClick={V.navToRecent}
           style={{

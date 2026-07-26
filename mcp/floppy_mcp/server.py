@@ -255,14 +255,12 @@ def download_file(file_id: str, dest_path: str) -> dict:
 # ---------------------------------------------------------------------------
 @mcp.tool
 def get_video_playback(file_id: str) -> dict:
-    """Get a playback descriptor for a video (direct URL or HLS manifest)."""
+    """Get a direct URL to play an owned video inline."""
     return client().post(f"storage/files/{file_id}/play")
 
 
-@mcp.tool
-def promote_video_to_stream(file_id: str) -> dict:
-    """Promote a video to Cloudflare Stream (HD/HLS). 503 if Stream isn't configured."""
-    return client().post(f"storage/files/{file_id}/promote")
+# DEACTIVATED (Drive-focus pivot): promote_video_to_stream (Cloudflare Stream /
+# HD-HLS) — see docs/deactivated-features.md.
 
 
 # ---------------------------------------------------------------------------
@@ -300,49 +298,11 @@ def revoke_share_link(share_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Channels
+# Channels — DEACTIVATED (Drive-focus pivot)
 # ---------------------------------------------------------------------------
-@mcp.tool
-def list_channels(mine: bool = False) -> list:
-    """List channels. Pass mine=true for channels you own; otherwise discover public ones."""
-    params = {"mine": 1} if mine else None
-    return client().get("channels/", params=params)
-
-
-@mcp.tool
-def create_channel(handle: str, name: str, description: str = "", is_public: bool = True) -> dict:
-    """Create a channel you own. handle is a unique @-style slug."""
-    return client().post(
-        "channels/",
-        json={"handle": handle, "name": name, "description": description, "is_public": is_public},
-    )
-
-
-@mcp.tool
-def subscribe_channel(channel_id: str) -> dict:
-    """Subscribe to a channel."""
-    return client().post(f"channels/{channel_id}/subscribe")
-
-
-@mcp.tool
-def unsubscribe_channel(channel_id: str) -> dict:
-    """Unsubscribe from a channel."""
-    return client().delete(f"channels/{channel_id}/subscribe")
-
-
-@mcp.tool
-def list_channel_posts(channel_id: str) -> list:
-    """List a channel's posts."""
-    return client().get(f"channels/{channel_id}/posts")
-
-
-@mcp.tool
-def create_channel_post(channel_id: str, file_id: str, caption: str = "") -> dict:
-    """Post a file to a channel (owner/admin only)."""
-    return client().post(
-        f"channels/{channel_id}/posts",
-        json={"file": file_id, "caption": caption},
-    )
+# The channel tools (list_channels, create_channel, subscribe_channel,
+# unsubscribe_channel, list_channel_posts, create_channel_post) were removed
+# with the channels feature. See docs/deactivated-features.md to re-enable.
 
 
 # ---------------------------------------------------------------------------

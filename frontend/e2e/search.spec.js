@@ -25,6 +25,6 @@ test('search surfaces a file via the backend and the UI', async ({ page }) => {
   expect(results.some((x) => x.name === name)).toBe(true);
 
   // UI search box filters to it.
-  await page.getByPlaceholder('Search files, folders, channels').first().fill(stem);
+  await page.getByPlaceholder('Search files and folders').first().fill(stem);
   await expect(page.getByText(name).first()).toBeVisible();
 });

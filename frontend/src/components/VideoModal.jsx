@@ -268,50 +268,7 @@ export default function VideoModal(V) {
         >
           CC
         </button>{' '}
-        <button
-          style={{
-            background: V.sdBg,
-            border: `1px solid ${V.sdBorder}`,
-            color: V.vTextColor,
-            fontSize: '10.5px',
-            fontWeight: '600',
-            borderRadius: '6px',
-            padding: '4px 9px',
-            cursor: 'pointer',
-          }}
-        >
-          SD
-        </button>{' '}
-        <button
-          onClick={V.selectHD}
-          style={{
-            background: V.sdBg,
-            border: `1px solid ${V.sdBorder}`,
-            color: V.vMutedColor,
-            fontSize: '10.5px',
-            fontWeight: '600',
-            borderRadius: '6px',
-            padding: '4px 9px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-          }}
-        >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
-            <rect
-              x="5"
-              y="10"
-              width="14"
-              height="10"
-              rx="2"
-              stroke="currentColor"
-              strokeWidth="1.8"
-            />
-            <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="1.8" />
-          </svg>
-          HD
-        </button>{' '}
+        {/* DEACTIVATED (Drive-focus pivot): SD/HD tier selector — see docs/deactivated-features.md */}
         <button
           onClick={V.toggleTheater}
           style={{
@@ -347,44 +304,9 @@ export default function VideoModal(V) {
             </React.Fragment>
           ) : null}
         </button>{' '}
-        {V.videoUpgradeHint ? (
-          <React.Fragment>
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '30px',
-                right: '0',
-                background: theme.text,
-                borderRadius: '10px',
-                padding: '9px 12px',
-                fontSize: '11.5px',
-                color: theme.white,
-                width: '200px',
-                boxShadow: '0 10px 24px rgba(0,0,0,0.3)',
-              }}
-            >
-              HD streaming is a Pro feature — upgrade for crisp, ad‑free playback.
-            </div>
-          </React.Fragment>
-        ) : null}{' '}
       </div>{' '}
-      {V.videoNotFullscreen ? (
-        <React.Fragment>
-          <div
-            style={{
-              border: `1px dashed ${theme.borderStrong}`,
-              borderRadius: '9px',
-              padding: '7px 10px',
-              fontSize: '10.5px',
-              color: theme.textFaint,
-              textAlign: 'center',
-              flex: '0 0 auto',
-            }}
-          >
-            Pre‑roll ad slot — hidden in this ad‑free preview
-          </div>
-        </React.Fragment>
-      ) : null}{' '}
+      {/* DEACTIVATED (Drive-focus pivot): HD-upgrade hint + pre-roll ad slot —
+          see docs/deactivated-features.md */}
     </React.Fragment>
   ) : null;
 }

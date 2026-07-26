@@ -9,12 +9,10 @@ import SettingsModal from '../components/SettingsModal';
 import VideoModal from '../components/VideoModal';
 import ShareModal from '../components/ShareModal';
 import PreviewModal from '../components/PreviewModal';
-import ComposerModal from '../components/ComposerModal';
-import NewChannelModal from '../components/NewChannelModal';
-import ReportModal from '../components/ReportModal';
 import VerifyModal from '../components/VerifyModal';
-import ChannelSettingsModal from '../components/ChannelSettingsModal';
 import ContextMenu from '../components/ContextMenu';
+// DEACTIVATED (Drive-focus pivot): ComposerModal, NewChannelModal, ReportModal,
+// ChannelSettingsModal — see src/deactivated/ and docs/deactivated-features.md.
 import Toast from '../components/Toast';
 
 // Presentational view for the whole app. Receives the computed view-model V
@@ -159,46 +157,6 @@ export default function AppView({ V }) {
                     Shared
                     <span style={{ marginLeft: 'auto', fontSize: '12px', color: theme.textFaint }}>
                       {V.sharedCount}
-                    </span>
-                  </button>{' '}
-                  <button
-                    onClick={V.navToChannels}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '11px',
-                      padding: '11px 11px',
-                      borderRadius: '9px',
-                      border: 'none',
-                      background: V.navChannelsBg,
-                      color: V.navChannelsColor,
-                      fontSize: '14px',
-                      fontWeight: V.navChannelsWeight,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontFamily: "'IBM Plex Sans',sans-serif",
-                    }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                      <rect
-                        x="3"
-                        y="6"
-                        width="14"
-                        height="12"
-                        rx="2"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                      />
-                      <path
-                        d="M17 10l4-3v10l-4-3"
-                        stroke="currentColor"
-                        strokeWidth="1.7"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    Channels
-                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: theme.textFaint }}>
-                      {V.channelsCount}
                     </span>
                   </button>{' '}
                   <button
@@ -400,9 +358,8 @@ export default function AppView({ V }) {
                   }}
                 >
                   {' '}
-                  {UploadModal(V)} {SettingsModal(V)} {VerifyModal(V)} {ComposerModal(V)}{' '}
-                  {ChannelSettingsModal(V)} {NewFolderModal(V)} {NewChannelModal(V)}{' '}
-                  {ReportModal(V)} {PreviewModal(V)} {VideoModal(V)} {ShareModal(V)}{' '}
+                  {UploadModal(V)} {SettingsModal(V)} {VerifyModal(V)} {NewFolderModal(V)}{' '}
+                  {PreviewModal(V)} {VideoModal(V)} {ShareModal(V)}{' '}
                 </div>{' '}
               </div>{' '}
             </React.Fragment>

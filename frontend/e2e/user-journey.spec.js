@@ -77,13 +77,7 @@ test('full user journey: sign up → upload → share → play → channels → 
   await expect(page.locator('video')).toBeVisible();
   await page.keyboard.press('Escape');
 
-  // 7. Channels: subscribe, then view the subscribed feed
-  await page.getByText('Channels', { exact: false }).first().click();
-  await expect(page.getByText('Discover', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Subscribe' }).first().click();
-  await page.getByText('Subscribed', { exact: true }).first().click();
-
-  // 8. Trash shows the retention notice
+  // 7. Trash shows the retention notice
   await page.getByText('Trash', { exact: false }).first().click();
   await expect(page.getByText(/kept for|days? left|retention/i).first()).toBeVisible();
 

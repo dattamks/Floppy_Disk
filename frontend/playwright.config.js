@@ -11,6 +11,8 @@ const E2E_DB = '/tmp/claude-0/-home-user-Floppy-Disk/5c03de2b-195c-53d0-b890-a37
 
 export default defineConfig({
   testDir: './e2e',
+  // Deactivated features (Drive-focus pivot) aren't run — see docs/deactivated-features.md
+  testIgnore: '**/deactivated/**',
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,

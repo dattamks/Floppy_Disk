@@ -612,7 +612,7 @@ export default class App extends React.Component {
     });
     this.loadStorage();
     this.loadUsage();
-    this.loadChannels();
+    // this.loadChannels();  // DEACTIVATED (Drive-focus pivot) — see docs/deactivated-features.md
     this.loadNotifications();
   }
 

@@ -33,7 +33,7 @@ export default function TopBarDesktop(V) {
         <input
           value={V.searchQuery}
           onInput={V.setSearch}
-          placeholder="Search files, folders, channels"
+          placeholder="Search files and folders"
           style={{
             background: 'none',
             border: 'none',
