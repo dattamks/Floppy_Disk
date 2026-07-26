@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { blockExternal, registerNewUser } from './helpers.js';
 
-test.beforeEach(async ({ page }) => { await blockExternal(page); });
+test.beforeEach(async ({ page }) => {
+  await blockExternal(page);
+});
 
 test('upload a file end-to-end and it persists to the backend', async ({ page }) => {
   await registerNewUser(page);

@@ -30,9 +30,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('full user journey: sign up → upload → share → play → trash → log out', async ({
-  page,
-}) => {
+test('full user journey: sign up → upload → share → play → trash → log out', async ({ page }) => {
   const email = uniqueEmail();
 
   // 1. Sign up

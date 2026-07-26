@@ -10,6 +10,8 @@ import VideoModal from '../components/VideoModal';
 import ShareModal from '../components/ShareModal';
 import PreviewModal from '../components/PreviewModal';
 import VerifyModal from '../components/VerifyModal';
+import RenameModal from '../components/RenameModal';
+import MoveModal from '../components/MoveModal';
 import ContextMenu from '../components/ContextMenu';
 import Toast from '../components/Toast';
 
@@ -357,7 +359,8 @@ export default function AppView({ V }) {
                 >
                   {' '}
                   {UploadModal(V)} {SettingsModal(V)} {VerifyModal(V)} {NewFolderModal(V)}{' '}
-                  {PreviewModal(V)} {VideoModal(V)} {ShareModal(V)}{' '}
+                  {PreviewModal(V)} {VideoModal(V)} {ShareModal(V)} {RenameModal(V)}{' '}
+                  {MoveModal(V)}{' '}
                 </div>{' '}
               </div>{' '}
             </React.Fragment>

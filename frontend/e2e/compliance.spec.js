@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { blockExternal, registerNewUser } from './helpers.js';
 
-test.beforeEach(async ({ page }) => { await blockExternal(page); });
+test.beforeEach(async ({ page }) => {
+  await blockExternal(page);
+});
 
 test('deleting the account ends the session', async ({ page }) => {
   await registerNewUser(page);

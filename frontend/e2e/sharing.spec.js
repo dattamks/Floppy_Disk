@@ -1,14 +1,18 @@
 import { test, expect } from '@playwright/test';
 import { blockExternal, registerNewUser } from './helpers.js';
 
-test.beforeEach(async ({ page }) => { await blockExternal(page); });
+test.beforeEach(async ({ page }) => {
+  await blockExternal(page);
+});
 
 test('sharing a file creates a real backend link', async ({ page }) => {
   await registerNewUser(page);
 
   await page.getByRole('button', { name: 'Upload' }).click();
   await page.locator('input[type="file"]').setInputFiles({
-    name: 'sharable.txt', mimeType: 'text/plain', buffer: Buffer.from('share me'),
+    name: 'sharable.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('share me'),
   });
   await expect(page.getByText('sharable.txt')).toBeVisible();
 

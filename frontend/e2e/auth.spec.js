@@ -48,7 +48,10 @@ test('register lands in the app and the session survives a reload', async ({ pag
 test('under-18 signup is rejected by the backend', async ({ page }) => {
   await page.goto('/');
   await fillRegister(page, {
-    name: 'Too Young', dob: '2015-01-01', email: uniqueEmail(), password: PASSWORD,
+    name: 'Too Young',
+    dob: '2015-01-01',
+    email: uniqueEmail(),
+    password: PASSWORD,
   });
   // Stays on the register screen with the age error surfaced.
   await expect(page.getByText(/at least 18/i)).toBeVisible();

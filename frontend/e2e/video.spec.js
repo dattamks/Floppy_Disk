@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { blockExternal, registerNewUser } from './helpers.js';
 
-test.beforeEach(async ({ page }) => { await blockExternal(page); });
+test.beforeEach(async ({ page }) => {
+  await blockExternal(page);
+});
 
 test('an uploaded video yields a real playback descriptor', async ({ page }) => {
   await registerNewUser(page);
@@ -11,10 +13,12 @@ test('an uploaded video yields a real playback descriptor', async ({ page }) => 
   const [complete] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/complete')),
     page.locator('input[type="file"]').setInputFiles({
-      name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.from('fake mp4 bytes'),
+      name: 'clip.mp4',
+      mimeType: 'video/mp4',
+      buffer: Buffer.from('fake mp4 bytes'),
     }),
   ]);
-  const file = (await complete.json());
+  const file = await complete.json();
   expect(file.kind).toBe('video');
 
   // Ask the backend for a playback descriptor via the app's own session.

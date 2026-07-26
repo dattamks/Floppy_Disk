@@ -315,6 +315,13 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string }, parent: { type: string, format: uuid } } } } } }
       responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Folder" } } } }, "400": { $ref: "#/components/responses/ValidationError" } }
   /storage/folders/{folder_id}:
+    patch:
+      tags: [Storage]
+      summary: Rename and/or move a folder
+      description: "Set `name` to rename, `parent` (uuid or null) to move. Names are auto-suffixed \" (n)\" to stay unique among active siblings. Moving a folder into itself or its own subtree is rejected (400)."
+      parameters: [{ $ref: "#/components/parameters/FolderId" }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string }, parent: { type: [string, "null"], format: uuid } } } } } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Folder" } } } }, "400": { $ref: "#/components/responses/ValidationError" }, "404": { $ref: "#/components/responses/NotFound" } }
     delete:
       tags: [Storage]
       summary: Soft-delete a folder (to trash)
@@ -338,6 +345,13 @@ paths:
       parameters: [{ name: folder, in: query, schema: { type: string, format: uuid } }]
       responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/File" } } } } } }
   /storage/files/{file_id}:
+    patch:
+      tags: [Storage]
+      summary: Rename and/or move a file
+      description: "Set `name` to rename, `folder` (uuid or null) to move between folders. Names are auto-suffixed \" (n)\" (extension preserved) to stay unique in the destination."
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string }, folder: { type: [string, "null"], format: uuid } } } } } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/File" } } } }, "400": { $ref: "#/components/responses/ValidationError" }, "404": { $ref: "#/components/responses/NotFound" } }
     delete:
       tags: [Storage]
       summary: Soft-delete a file (to trash; still counts to quota)

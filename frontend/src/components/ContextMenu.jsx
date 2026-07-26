@@ -15,6 +15,7 @@ export default function ContextMenu(V) {
         style={{ position: 'fixed', inset: '0', zIndex: '70' }}
       />{' '}
       <div
+        data-testid="ctx-menu"
         style={{
           position: 'fixed',
           left: `${V.ctxMenuView.x}px`,

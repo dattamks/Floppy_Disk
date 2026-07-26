@@ -1,7 +1,8 @@
 import React from 'react';
 import { theme } from './lib/theme';
 import { api, firstError } from './api';
-import { humanSize, fmtStorage, TIER_LABELS, kindOf } from './lib/ui';
+import { humanSize, fmtStorage, TIER_LABELS, kindOf, previewKindOf } from './lib/ui';
+import { renderMarkdown } from './lib/markdown';
 import AppView from './view/AppView';
 
 export default class App extends React.Component {
@@ -30,6 +31,19 @@ export default class App extends React.Component {
     drawerOpen: false,
     modal: null,
     activeFileId: null,
+    // File preview (real uploads fetch a URL / text content on open).
+    previewKind: 'doc',
+    previewUrl: '',
+    previewText: '',
+    previewLoading: false,
+    previewError: '',
+    // Rename / move dialogs.
+    renameName: '',
+    renameTargetId: null,
+    renameIsFolder: false,
+    moveTargetId: null,
+    moveIsFolder: false,
+    moveDestId: null,
     settingsTab: 'profile',
     verifyType: 'email',
     verifyCode: '',
@@ -811,8 +825,116 @@ export default class App extends React.Component {
       }
       return;
     }
-    this._activeAudioSrc = file.audioSrc || '';
-    this.setState({ modal: 'preview', activeFileId: file.id });
+    // Non-video preview (image / pdf / audio / markdown / json / yaml / text).
+    const pk = previewKindOf(file.name, file.kind);
+    const isText = pk === 'markdown' || pk === 'json' || pk === 'yaml' || pk === 'text';
+    this.setState({
+      modal: 'preview',
+      activeFileId: file.id,
+      previewKind: pk,
+      previewUrl: '',
+      previewText: '',
+      previewError: '',
+      previewLoading: !!file.real,
+    });
+    if (file.real) {
+      // Fetch a real, same-origin URL for the bytes; for text formats also read
+      // the content so we can render it (markdown/json/yaml/code).
+      api
+        .fileDownload(file.id)
+        .then((d) => {
+          const url = (d && d.download_url) || '';
+          if (isText) {
+            return fetch(url)
+              .then((r) => r.text())
+              .then((txt) =>
+                this.setState({ previewUrl: url, previewText: txt, previewLoading: false })
+              );
+          }
+          this.setState({ previewUrl: url, previewLoading: false });
+        })
+        .catch(() => this.setState({ previewLoading: false, previewError: 'Could not load file' }));
+    } else {
+      // Demo data carries hardcoded URLs/content.
+      this.setState({ previewUrl: file.docUrl || file.audioSrc || file.poster || '' });
+    }
+  }
+
+  // --- Rename (files & folders) ---------------------------------------------
+  openRename(file) {
+    this.closeCtxMenu();
+    this.setState({
+      modal: 'rename',
+      renameTargetId: file.id,
+      renameIsFolder: file.kind === 'folder',
+      renameName: file.name,
+    });
+  }
+  setRenameName(e) {
+    this.setState({ renameName: e.target.value });
+  }
+  submitRename() {
+    const { renameTargetId, renameIsFolder, renameName } = this.state;
+    const name = (renameName || '').trim();
+    if (!name) {
+      this.toast('Enter a name');
+      return;
+    }
+    const item = this.state.files.find((f) => f.id === renameTargetId);
+    const applyName = (finalName) => {
+      this.setState((s) => ({
+        files: s.files.map((f) => (f.id === renameTargetId ? { ...f, name: finalName } : f)),
+        modal: null,
+      }));
+      this.toast(finalName !== name ? `Renamed to "${finalName}"` : 'Renamed');
+    };
+    if (item && item.real) {
+      const call = renameIsFolder
+        ? api.updateFolder(renameTargetId, { name })
+        : api.updateFile(renameTargetId, { name });
+      call
+        .then((r) => applyName((r && r.name) || name))
+        .catch((err) => this.toast(firstError(err, 'Could not rename')));
+    } else {
+      applyName(name);
+    }
+  }
+
+  // --- Move (files & folders) -----------------------------------------------
+  openMove(file) {
+    this.closeCtxMenu();
+    this.setState({
+      modal: 'move',
+      moveTargetId: file.id,
+      moveIsFolder: file.kind === 'folder',
+      moveDestId: null,
+    });
+  }
+  setMoveDest(id) {
+    this.setState({ moveDestId: id });
+  }
+  submitMove() {
+    const { moveTargetId, moveIsFolder, moveDestId } = this.state;
+    const item = this.state.files.find((f) => f.id === moveTargetId);
+    const apply = (finalName) => {
+      this.setState((s) => ({
+        files: s.files.map((f) =>
+          f.id === moveTargetId ? { ...f, parentId: moveDestId, name: finalName || f.name } : f
+        ),
+        modal: null,
+      }));
+      this.toast('Moved');
+    };
+    if (item && item.real) {
+      const call = moveIsFolder
+        ? api.updateFolder(moveTargetId, { parent: moveDestId })
+        : api.updateFile(moveTargetId, { folder: moveDestId });
+      call
+        .then((r) => apply(r && r.name))
+        .catch((err) => this.toast(firstError(err, 'Could not move')));
+    } else {
+      apply();
+    }
   }
   openShare(file, e) {
     if (e) e.stopPropagation();
@@ -853,7 +975,12 @@ export default class App extends React.Component {
   downloadActive() {
     const f =
       this._activeMediaObj || this.state.files.find((x) => x.id === this.state.activeFileId);
-    const url = f && (f.docUrl || f.audioSrc || f.poster || f.videoSrc);
+    if (!f) return;
+    if (f.real) {
+      this.downloadFile(f);
+      return;
+    }
+    const url = f.docUrl || f.audioSrc || f.poster || f.videoSrc || this.state.previewUrl;
     if (url) window.open(url, '_blank');
     this.toast('Download started');
   }
@@ -921,25 +1048,40 @@ export default class App extends React.Component {
   restoreFile(id, e) {
     if (e) e.stopPropagation();
     const f = this.state.files.find((x) => x.id === id);
-    if (f && f.real) api.restoreFile(id).catch(() => {});
     this.setState((s) => ({
       files: s.files.map((x) => (x.id === id ? { ...x, trashed: false } : x)),
     }));
+    if (f && f.real) {
+      // Folders and files have separate restore endpoints; the server may hand
+      // back a de-duped name if the old name was reused while it was trashed.
+      const call = f.kind === 'folder' ? api.restoreFolder(id) : api.restoreFile(id);
+      call
+        .then((r) => {
+          if (r && r.name)
+            this.setState((s) => ({
+              files: s.files.map((x) => (x.id === id ? { ...x, name: r.name } : x)),
+            }));
+        })
+        .catch(() => {});
+    }
     this.toast('Restored');
   }
   deleteForever(id, e) {
     if (e) e.stopPropagation();
     const f = this.state.files.find((x) => x.id === id);
     if (!f) return;
+    const isFolder = f.kind === 'folder';
     if (f.trashed) {
-      // Permanent purge from trash.
-      if (f.real) api.purgeFile(id).catch(() => {});
+      // Permanent purge from trash (files only; folder purge is UI-side here).
+      if (f.real && !isFolder) api.purgeFile(id).catch(() => {});
       this.setState((s) => ({ files: s.files.filter((x) => x.id !== id), modal: null }));
       this.toast('Deleted permanently');
     } else {
       // Soft delete: move to trash (still counts toward quota until purged).
-      if (f.real)
-        api.deleteFile(id).catch((err) => this.toast(firstError(err, 'Could not delete')));
+      if (f.real) {
+        const call = isFolder ? api.deleteFolder(id) : api.deleteFile(id);
+        call.catch((err) => this.toast(firstError(err, 'Could not delete')));
+      }
       this.setState((s) => ({
         files: s.files.map((x) => (x.id === id ? { ...x, trashed: true } : x)),
         modal: null,
@@ -1220,6 +1362,41 @@ export default class App extends React.Component {
     return m + ':' + (s < 10 ? '0' + s : s);
   }
 
+  // Destination folders for the Move dialog: "My Files" (root) + every folder,
+  // indented by depth, excluding the item being moved and (for a folder) its
+  // own subtree — those would create a cycle.
+  moveDestOptions() {
+    const { files, moveTargetId, moveIsFolder } = this.state;
+    const excluded = new Set();
+    if (moveTargetId) {
+      excluded.add(moveTargetId);
+      if (moveIsFolder) {
+        const addKids = (pid) =>
+          files.forEach((f) => {
+            if (f.kind === 'folder' && !f.trashed && f.parentId === pid) {
+              excluded.add(f.id);
+              addKids(f.id);
+            }
+          });
+        addKids(moveTargetId);
+      }
+    }
+    const opts = [{ id: null, name: 'My Files', depth: 0 }];
+    const walk = (parentId, depth) => {
+      files
+        .filter(
+          (f) => f.kind === 'folder' && !f.trashed && f.parentId === parentId && !excluded.has(f.id)
+        )
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach((f) => {
+          opts.push({ id: f.id, name: f.name, depth });
+          walk(f.id, depth + 1);
+        });
+    };
+    walk(null, 1);
+    return opts;
+  }
+
   renderVals() {
     const st = this.state;
     const {
@@ -1409,6 +1586,8 @@ export default class App extends React.Component {
       } else {
         items.push({ label: 'Open', fn: () => this.openFile(f) });
         if (f.kind !== 'folder') items.push({ label: 'Download', fn: () => this.downloadFile(f) });
+        items.push({ label: 'Rename', fn: () => this.openRename(f) });
+        items.push({ label: 'Move to…', fn: () => this.openMove(f) });
         items.push({ label: f.starred ? 'Unstar' : 'Star', fn: () => this.toggleStar(f.id) });
         items.push({ label: 'Share link', fn: () => this.openShare(f) });
         items.push({ label: 'Move to trash', danger: true, fn: () => this.deleteForever(f.id) });
@@ -1617,6 +1796,40 @@ export default class App extends React.Component {
       isPreviewModal: modal === 'preview',
       isVideoModal: modal === 'video',
       isShareModal: modal === 'share',
+      // Preview viewers (image / pdf / audio / markdown / json / yaml / text).
+      previewKind: st.previewKind,
+      previewUrl: st.previewUrl,
+      previewText: st.previewText,
+      previewLoading: st.previewLoading,
+      previewError: st.previewError,
+      previewHtml: st.previewKind === 'markdown' ? renderMarkdown(st.previewText || '') : '',
+      previewCode:
+        st.previewKind === 'json'
+          ? (() => {
+              try {
+                return JSON.stringify(JSON.parse(st.previewText || 'null'), null, 2);
+              } catch {
+                return st.previewText || '';
+              }
+            })()
+          : st.previewText || '',
+      // Rename dialog.
+      isRenameModal: modal === 'rename',
+      renameName: st.renameName,
+      renameIsFolder: st.renameIsFolder,
+      setRenameName: (e) => this.setRenameName(e),
+      submitRename: () => this.submitRename(),
+      // Move dialog.
+      isMoveModal: modal === 'move',
+      moveIsFolder: st.moveIsFolder,
+      moveDestId: st.moveDestId,
+      setMoveDest: (id) => this.setMoveDest(id),
+      submitMove: () => this.submitMove(),
+      moveTargetName: (st.files.find((f) => f.id === st.moveTargetId) || {}).name || '',
+      moveDestOptions: this.moveDestOptions().map((o) => ({
+        ...o,
+        active: o.id === st.moveDestId,
+      })),
       closeModal: () => this.closeModal(),
       simulateUpload: () => this.simulateUpload(),
       uploadQueueView: uploadQueue.map((u) => ({ name: u.name, progress: u.progress })),

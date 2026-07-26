@@ -66,9 +66,13 @@ export const api = {
   listFolders: (parent) => request(`/storage/folders${parent ? `?parent=${parent}` : ''}`),
   createFolder: (name, parent) =>
     request('/storage/folders', { method: 'POST', body: parent ? { name, parent } : { name } }),
+  updateFolder: (id, patch) => request(`/storage/folders/${id}`, { method: 'PATCH', body: patch }),
+  deleteFolder: (id) => request(`/storage/folders/${id}`, { method: 'DELETE' }),
+  restoreFolder: (id) => request(`/storage/folders/${id}/restore`, { method: 'POST' }),
   listFiles: (folder) => request(`/storage/files${folder ? `?folder=${folder}` : ''}`),
   usage: () => request('/storage/usage'),
   trash: () => request('/storage/trash'),
+  updateFile: (id, patch) => request(`/storage/files/${id}`, { method: 'PATCH', body: patch }),
   deleteFile: (id) => request(`/storage/files/${id}`, { method: 'DELETE' }),
   fileDownload: (id) => request(`/storage/files/${id}/download`),
   restoreFile: (id) => request(`/storage/files/${id}/restore`, { method: 'POST' }),
@@ -112,7 +116,6 @@ export const api = {
 
   // Video
   play: (fileId) => request(`/storage/files/${fileId}/play`, { method: 'POST' }),
-  promoteVideo: (fileId) => request(`/storage/files/${fileId}/promote`, { method: 'POST' }),
 
   // Account / compliance (DPDPA)
   deleteAccount: () => request('/auth/account/delete', { method: 'POST' }),

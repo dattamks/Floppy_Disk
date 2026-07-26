@@ -17,6 +17,7 @@ from rest_framework.views import APIView
 
 from .lifecycle import purge_file
 from .models import File, Folder, StorageObject, StorageReservation
+from .naming import unique_name
 from .quota import FileTooLarge, QuotaExceeded, available_bytes, commit, reserve
 from .serializers import (
     FileSerializer,
@@ -68,12 +69,84 @@ class FolderListCreateView(APIView):
     def post(self, request):
         serializer = FolderCreateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        folder = serializer.save(owner=request.user)
+        parent = serializer.validated_data.get("parent")
+        name = unique_name(
+            serializer.validated_data["name"], _active_folder_names(request.user, parent)
+        )
+        folder = serializer.save(owner=request.user, name=name)
         return Response(FolderSerializer(folder).data, status=status.HTTP_201_CREATED)
+
+
+def _active_folder_names(user, parent, exclude_id=None):
+    qs = Folder.objects.filter(owner=user, parent=parent, deleted_at__isnull=True)
+    if exclude_id is not None:
+        qs = qs.exclude(pk=exclude_id)
+    return set(qs.values_list("name", flat=True))
+
+
+def _active_file_names(user, folder, exclude_id=None):
+    qs = File.objects.filter(owner=user, folder=folder, deleted_at__isnull=True)
+    if exclude_id is not None:
+        qs = qs.exclude(pk=exclude_id)
+    return set(qs.values_list("name", flat=True))
+
+
+def _is_self_or_descendant(candidate_parent, folder):
+    """True if moving `folder` under `candidate_parent` would create a cycle."""
+    node = candidate_parent
+    while node is not None:
+        if node.pk == folder.pk:
+            return True
+        node = node.parent
+    return False
 
 
 class FolderDetailView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def patch(self, request, folder_id):
+        """Rename and/or move a folder (Drive-style). Auto-suffixes on collision."""
+        try:
+            folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=True)
+        except Folder.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        fields = []
+        if "parent" in request.data:
+            parent_id = request.data["parent"] or None
+            parent = None
+            if parent_id:
+                parent = Folder.objects.filter(
+                    pk=parent_id, owner=request.user, deleted_at__isnull=True
+                ).first()
+                if parent is None:
+                    return Response({"detail": "Invalid destination folder."},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                if _is_self_or_descendant(parent, folder):
+                    return Response({"detail": "Cannot move a folder into itself or a subfolder."},
+                                    status=status.HTTP_400_BAD_REQUEST)
+            folder.parent = parent
+            fields.append("parent")
+
+        if "name" in request.data:
+            name = (request.data.get("name") or "").strip()
+            if not name:
+                return Response({"detail": "Folder name cannot be empty."},
+                                status=status.HTTP_400_BAD_REQUEST)
+            folder.name = name
+            fields.append("name")
+
+        if not fields:
+            return Response(FolderSerializer(folder).data)
+
+        # Keep the name unique among active siblings at the (possibly new) parent.
+        folder.name = unique_name(
+            folder.name, _active_folder_names(request.user, folder.parent, exclude_id=folder.pk)
+        )
+        if "name" not in fields:
+            fields.append("name")
+        folder.save(update_fields=[*fields, "updated_at"])
+        return Response(FolderSerializer(folder).data)
 
     def delete(self, request, folder_id):
         try:
@@ -178,6 +251,46 @@ class UsageView(APIView):
 class FileDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def patch(self, request, file_id):
+        """Rename and/or move a file between folders. Auto-suffixes on collision."""
+        try:
+            file = File.objects.get(pk=file_id, owner=request.user, deleted_at__isnull=True)
+        except File.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        fields = []
+        if "folder" in request.data:
+            folder_id = request.data["folder"] or None
+            folder = None
+            if folder_id:
+                folder = Folder.objects.filter(
+                    pk=folder_id, owner=request.user, deleted_at__isnull=True
+                ).first()
+                if folder is None:
+                    return Response({"detail": "Invalid destination folder."},
+                                    status=status.HTTP_400_BAD_REQUEST)
+            file.folder = folder
+            fields.append("folder")
+
+        if "name" in request.data:
+            name = (request.data.get("name") or "").strip()
+            if not name:
+                return Response({"detail": "File name cannot be empty."},
+                                status=status.HTTP_400_BAD_REQUEST)
+            file.name = name
+            fields.append("name")
+
+        if not fields:
+            return Response(FileSerializer(file).data)
+
+        file.name = unique_name(
+            file.name, _active_file_names(request.user, file.folder, exclude_id=file.pk)
+        )
+        if "name" not in fields:
+            fields.append("name")
+        file.save(update_fields=[*fields, "updated_at"])
+        return Response(FileSerializer(file).data)
+
     def delete(self, request, file_id):
         """Soft-delete (move to trash). Still counts toward quota until purged."""
         try:
@@ -198,7 +311,9 @@ class FileRestoreView(APIView):
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         file.deleted_at = None
-        file.save(update_fields=["deleted_at", "updated_at"])
+        # If a live file now occupies the old name here, restore under a variant.
+        file.name = unique_name(file.name, _active_file_names(request.user, file.folder, exclude_id=file.pk))
+        file.save(update_fields=["deleted_at", "name", "updated_at"])
         return Response(FileSerializer(file).data)
 
 
@@ -224,7 +339,11 @@ class FolderRestoreView(APIView):
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         folder.deleted_at = None
-        folder.save(update_fields=["deleted_at", "updated_at"])
+        # If a live folder now occupies the old name here, restore under a variant.
+        folder.name = unique_name(
+            folder.name, _active_folder_names(request.user, folder.parent, exclude_id=folder.pk)
+        )
+        folder.save(update_fields=["deleted_at", "name", "updated_at"])
         return Response(FolderSerializer(folder).data)
 
 
@@ -248,9 +367,10 @@ class UploadInitiateView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        name = unique_name(data["name"], _active_file_names(request.user, data.get("folder")))
         file = File.objects.create(
             owner=request.user,
-            name=data["name"],
+            name=name,
             folder=data.get("folder"),
             kind=data["kind"],
             size_bytes=data["size_bytes"],
@@ -406,8 +526,13 @@ class DevBlobView(APIView):
 
     @staticmethod
     def _content_type(object_key):
-        # object_key is "<user_id>/<file_id>"; guess the type from the File's name.
         import mimetypes
+        # Rendition keys carry their own extension (….play.mp4, ….poster.jpg).
+        ctype, _ = mimetypes.guess_type(object_key)
+        if ctype:
+            return ctype
+        # Original uploads are keyed by "<user_id>/<file_id>" (no extension);
+        # guess from the File's name instead.
         try:
             file_id = object_key.split("/")[-1]
             f = File.objects.filter(pk=file_id).only("name").first()
