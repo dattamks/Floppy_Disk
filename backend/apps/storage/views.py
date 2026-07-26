@@ -362,12 +362,20 @@ class UploadCompleteView(APIView):
 
         file.storage_object = obj
         file.size_bytes = size_bytes
-        file.status = File.Status.READY  # scan hook (ClamAV) runs before this in a later slice
+        # Videos go `processing` while a self-hosted FFmpeg transcode produces a
+        # browser-playable MP4 rendition + poster; everything else is ready now.
+        is_video = file.kind == File.Kind.VIDEO
+        file.status = File.Status.PROCESSING if is_video else File.Status.READY
         file.save(update_fields=["storage_object", "size_bytes", "status", "updated_at"])
 
         res = file.reservations.filter(status=StorageReservation.Status.ACTIVE).first()
         if res:
             commit(res)
+
+        if is_video:
+            from .tasks import transcode_video_task
+            transcode_video_task.delay(str(file.id))
+            file.refresh_from_db()  # eager task (dev/tests) may already have finished
 
         from apps.analytics.track import track
         track("upload_complete", user=request.user, kind=file.kind, size_bytes=file.size_bytes)

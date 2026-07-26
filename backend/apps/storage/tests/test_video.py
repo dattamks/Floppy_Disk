@@ -1,7 +1,7 @@
 """Basic video playback (Drive-style inline preview of your own files).
 
-The streaming-platform tests (promote-to-Stream, HLS, webhook, HD/SD tiering)
-moved to deactivated/tests_video_streaming.py with the feature.
+Self-hosted transcoding is covered in test_video_transcode.py. The old
+third-party streaming platform (Cloudflare Stream/HLS) was removed.
 """
 import pytest
 from django.contrib.auth import get_user_model
@@ -40,7 +40,7 @@ def test_video_plays_with_a_direct_url(client, user):
     body = resp.json()
     assert body["mode"] == "direct"
     assert body["url"]
-    # No HD/SD tier gating anymore — the streaming platform is deactivated.
+    # No HD/SD tier gating — playback is a single self-hosted MP4 rendition.
     assert "max_resolution" not in body
 
 
@@ -63,11 +63,9 @@ def test_storage_service_default_falls_back_without_r2(monkeypatch):
     import importlib
 
     import config.settings.base as base
-    for var in ("R2_ENDPOINT_URL", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
-                "CLOUDFLARE_STREAM_ACCOUNT_ID", "CLOUDFLARE_STREAM_API_TOKEN"):
+    for var in ("R2_ENDPOINT_URL", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.delenv("STORAGE_SERVICE", raising=False)
-    monkeypatch.delenv("VIDEO_SERVICE", raising=False)
     reloaded = importlib.reload(base)
     try:
         assert reloaded.R2_CONFIGURED is False

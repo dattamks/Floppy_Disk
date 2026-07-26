@@ -21,12 +21,9 @@ urlpatterns = [
     path("trash", views.TrashView.as_view(), name="trash"),
     path("uploads", views.UploadInitiateView.as_view(), name="upload_initiate"),
     path("uploads/<uuid:file_id>/complete", views.UploadCompleteView.as_view(), name="upload_complete"),
-    # Video — basic inline playback of your own files (Drive-style preview).
+    # Video — self-hosted inline playback of your own files (FFmpeg transcode,
+    # served over the Range endpoint below; no third-party streaming).
     path("files/<uuid:file_id>/play", video_views.VideoPlayView.as_view(), name="video_play"),
-    # DEACTIVATED (Drive-focus pivot): video streaming platform (Stream/HLS).
-    # See deactivated/video_streaming.py + docs/deactivated-features.md.
-    # path("files/<uuid:file_id>/promote", ...VideoPromoteView...),
-    # path("stream/webhook", ...StreamWebhookView...),
     # dev-only blob store (object_key can contain '/')
     re_path(r"^_dev/blob/(?P<region>[\w-]+)/(?P<object_key>.+)$", views.DevBlobView.as_view(), name="dev_blob"),
 ]

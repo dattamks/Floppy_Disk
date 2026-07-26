@@ -255,12 +255,13 @@ def download_file(file_id: str, dest_path: str) -> dict:
 # ---------------------------------------------------------------------------
 @mcp.tool
 def get_video_playback(file_id: str) -> dict:
-    """Get a direct URL to play an owned video inline."""
+    """Get a direct URL to play an owned video inline.
+
+    Returns {mode: "direct", url, poster?, duration_seconds?}. Video is
+    transcoded to a browser-playable MP4 server-side (self-hosted FFmpeg); a
+    409 with code "processing" means the transcode hasn't finished yet.
+    """
     return client().post(f"storage/files/{file_id}/play")
-
-
-# DEACTIVATED (Drive-focus pivot): promote_video_to_stream (Cloudflare Stream /
-# HD-HLS) — see docs/deactivated-features.md.
 
 
 # ---------------------------------------------------------------------------

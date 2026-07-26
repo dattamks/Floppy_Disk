@@ -476,7 +476,7 @@ paths:
     post:
       tags: [Video]
       summary: Get a direct URL to play an owned video inline
-      description: "Basic Drive-style inline playback. (The streaming platform — Cloudflare Stream/HLS promote, HD/SD tiering, Stream webhook — was deactivated; see docs/deactivated-features.md.)"
+      description: "Self-hosted inline playback. Uploaded videos are transcoded to a browser-playable H.264/AAC MP4 with FFmpeg on our own servers (no third-party streaming) and served over the Range endpoint. A 409 with code `processing` means the transcode is still running."
       parameters: [{ $ref: "#/components/parameters/FileId" }]
       responses:
         "200":
@@ -487,9 +487,11 @@ paths:
                 type: object
                 properties:
                   mode: { type: string, enum: [direct] }
-                  url: { type: string }
+                  url: { type: string, description: URL of the playable MP4 rendition (Range-served). }
+                  poster: { type: string, description: Poster-frame JPEG URL (if generated). }
+                  duration_seconds: { type: number, description: Probed duration (if known). }
         "404": { $ref: "#/components/responses/NotFound" }
-        "409": { description: Still processing. }
+        "409": { description: "Still processing (code: processing) or not ready." }
 
   # ---------------------------------------------------------------- Sharing
   /storage/files/{file_id}/share:

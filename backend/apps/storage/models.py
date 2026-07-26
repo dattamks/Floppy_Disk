@@ -68,6 +68,7 @@ class File(TimeStampedModel):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending upload"
         SCANNING = "scanning", "Scanning"
+        PROCESSING = "processing", "Processing"  # video transcoding in progress
         READY = "ready", "Ready"
         FAILED = "failed", "Failed"
 
@@ -85,12 +86,22 @@ class File(TimeStampedModel):
     name = models.CharField(max_length=255)
     size_bytes = models.BigIntegerField(default=0)
     kind = models.CharField(max_length=8, choices=Kind.choices, default=Kind.FILE)
-    status = models.CharField(max_length=8, choices=Status.choices, default=Status.PENDING)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     deleted_at = models.DateTimeField(null=True, blank=True)
     # Reversible isolation: set by a failed malware scan or a Report (PRD 5.7).
     is_quarantined = models.BooleanField(default=False)
-    # Cloudflare Stream id once a video is promoted for adaptive HLS (PRD 5.5).
-    stream_uid = models.CharField(max_length=128, blank=True, default="")
+    # Self-hosted video playback: a browser-playable H.264/AAC MP4 rendition
+    # transcoded with FFmpeg (points at storage_object when the upload was
+    # already web-playable), an optional JPEG poster frame, and probed metadata.
+    playable_object = models.ForeignKey(
+        StorageObject, null=True, blank=True, on_delete=models.SET_NULL, related_name="playable_for"
+    )
+    poster_object = models.ForeignKey(
+        StorageObject, null=True, blank=True, on_delete=models.SET_NULL, related_name="poster_for"
+    )
+    duration_seconds = models.FloatField(null=True, blank=True)
+    width = models.PositiveIntegerField(null=True, blank=True)
+    height = models.PositiveIntegerField(null=True, blank=True)
     # Frozen after a lapsed subscription: cannot view/share, can still download/
     # delete; purged if the account stays lapsed long enough (PRD 5.3).
     is_frozen = models.BooleanField(default=False)

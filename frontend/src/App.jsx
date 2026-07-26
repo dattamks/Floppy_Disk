@@ -793,14 +793,21 @@ export default class App extends React.Component {
         videoFullscreen: false,
       });
       if (file.real) {
-        // Fetch a real playback URL (private -> R2 signed; promoted -> HLS).
+        // Fetch a self-hosted playback URL for the (transcoded) MP4 rendition.
         api
           .play(file.id)
           .then((d) => {
             this._activeVideoSrc = d.url;
+            if (d.poster) this._activePoster = d.poster;
             this.forceUpdate();
           })
-          .catch(() => {});
+          .catch((err) => {
+            // Still transcoding on the server — tell the user and close.
+            if (err && err.status === 409) {
+              this.toast('Video is still processing — try again shortly');
+              this.closeModal();
+            }
+          });
       }
       return;
     }

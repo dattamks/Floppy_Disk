@@ -95,12 +95,13 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 ### Video — `/api/v1/storage`
 | Method | Path | Summary |
 |---|---|---|
-| POST | `/files/{id}/play` | Direct URL to play your own video inline (`mode: direct`) |
+| POST | `/files/{id}/play` | Direct URL to play your own video inline (`mode: direct`, plus `poster`/`duration_seconds`) |
 
-> **Channels** were removed in the Drive-focus pivot, and the video
-> **streaming platform** (Cloudflare Stream/HLS promote, HD/SD tiering, Stream
-> webhook) was deactivated — see
-> [`../deactivated-features.md`](../deactivated-features.md).
+> Videos are transcoded to a browser-playable MP4 **server-side with FFmpeg**
+> (self-hosted, no third-party streaming) and served over the Range endpoint;
+> `play` returns `409 {code: processing}` while a transcode is running.
+> **Channels** and the old **Cloudflare Stream** integration were removed in the
+> Drive-focus pivot — see [`../deactivated-features.md`](../deactivated-features.md).
 
 ### Sharing — `/api/v1/storage` & `/api/v1/public`
 | Method | Path | Summary |
