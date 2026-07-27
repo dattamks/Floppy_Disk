@@ -90,7 +90,6 @@ export default class App extends React.Component {
     videoUpgradeHint: false,
     videoFullscreen: false,
     unreadCount: 0,
-    billingEnabled: false,
     discoverResults: [],
     realUsedBytes: null,
     realQuotaBytes: null,
@@ -431,7 +430,6 @@ export default class App extends React.Component {
       accountEmail: user.email,
       emailVerified: !!user.email_verified,
       profileName: user.display_name || this.state.profileName,
-      billingEnabled: !!user.billing_enabled,
       twofa: !!user.two_factor_enabled,
     });
     this.loadStorage();
@@ -1614,24 +1612,6 @@ export default class App extends React.Component {
     setTimeout(() => this.setState({ videoUpgradeHint: false }), 2500);
   }
 
-  upgradeStorage() {
-    if (this._upgrading) return;
-    this._upgrading = true;
-    api
-      .subscribe('paid_2tb')
-      .then((res) => {
-        this._upgrading = false;
-        this.setState({ userTier: res.tier, quotaBytes: res.quota_bytes });
-        // Refresh the usage meter, which reads realQuotaBytes/realTierLabel
-        // (set by loadUsage) — not the userTier/quotaBytes written above.
-        this.loadUsage();
-        this.toast('Upgraded to 2TB — enjoy the extra space');
-      })
-      .catch((err) => {
-        this._upgrading = false;
-        this.toast(firstError(err, 'Upgrade failed'));
-      });
-  }
   toggleCC() {
     this.setState((s) => ({ videoCC: !s.videoCC }));
   }
@@ -2061,8 +2041,6 @@ export default class App extends React.Component {
       closeDrawer: () => this.closeDrawer(),
       stop: (e) => this.stop(e),
       openSettings: () => this.openSettings(),
-      upgradeStorage: () => this.upgradeStorage(),
-      billingEnabled: st.billingEnabled,
       visibleFiles,
       hasFiles: !isEmpty,
       isEmpty,

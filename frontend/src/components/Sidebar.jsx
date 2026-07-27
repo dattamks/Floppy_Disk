@@ -216,25 +216,6 @@ export default function Sidebar(V) {
               }}
             />
           </div>{' '}
-          {V.billingEnabled ? (
-            <button
-              onClick={V.upgradeStorage}
-              style={{
-                background: theme.text,
-                color: theme.white,
-                border: 'none',
-                borderRadius: '8px',
-                padding: '8px',
-                fontSize: '12.5px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                fontFamily: "'IBM Plex Sans',sans-serif",
-              }}
-              {...hov({ background: theme.textSoft })}
-            >
-              Upgrade storage
-            </button>
-          ) : null}{' '}
         </div>{' '}
         <button
           onClick={V.logout}

@@ -2,8 +2,8 @@
 
 Exposes the Floppy Disk cloud-storage API as MCP tools so MCP-aware clients
 (Claude Code, n8n, Codex/OpenAI, etc.) can do everything a user does: manage
-folders and files, upload and download media, share links, read
-notifications, and check billing.
+folders and files, upload and download media, share links, and read
+notifications.
 
 Auth: set FLOPPY_API_KEY (a Bearer API key) and optionally FLOPPY_API_BASE_URL
 (default http://localhost:8000/api/v1). Mint a key with
@@ -59,7 +59,7 @@ def _guess_kind(name: str) -> str:
 # ---------------------------------------------------------------------------
 @mcp.tool
 def whoami() -> dict:
-    """Return the authenticated user (email, tier, billing_enabled)."""
+    """Return the authenticated user (email, tier, quota)."""
     return client().get("auth/me")
 
 
@@ -377,27 +377,6 @@ def report_content(
             "detail": detail,
         },
     )
-
-
-# ---------------------------------------------------------------------------
-# Billing
-# ---------------------------------------------------------------------------
-@mcp.tool
-def list_plans() -> Any:
-    """List the billing plan catalog."""
-    return client().get("billing/plans")
-
-
-@mcp.tool
-def get_subscription() -> Any:
-    """Get the current subscription."""
-    return client().get("billing/subscription")
-
-
-@mcp.tool
-def get_referral() -> Any:
-    """Get your referral code and stats."""
-    return client().get("billing/referral")
 
 
 def main() -> None:

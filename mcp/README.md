@@ -4,7 +4,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes
 the Floppy Disk cloud-storage platform as tools. Any MCP-aware client — **Claude
 Code**, **n8n**, **Codex / OpenAI**, Claude Desktop, etc. — can then do
 everything a user does: browse and manage folders and files, upload and download
-media, create public share links, read notifications, and check billing.
+media, create public share links, and read notifications.
 
 Built with [FastMCP](https://github.com/jlowin/fastmcp) (Python) over the
 REST API documented in [`../docs/api/`](../docs/api).
@@ -119,7 +119,7 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 ## Tools
 
 **Account & usage**
-- `whoami` — the authenticated user (email, tier, billing_enabled)
+- `whoami` — the authenticated user (email, tier, quota)
 - `get_usage` — quota, used, available bytes + tier
 
 **Folders**
@@ -155,9 +155,6 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 
 **Moderation**
 - `report_content(target_id, target_type?, reason?, kind?, detail?)`
-
-**Billing**
-- `list_plans()`, `get_subscription()`, `get_referral()`
 
 ## Notes & limits
 
