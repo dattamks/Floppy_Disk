@@ -2,7 +2,7 @@
 
 Exposes the Floppy Disk cloud-storage API as MCP tools so MCP-aware clients
 (Claude Code, n8n, Codex/OpenAI, etc.) can do everything a user does: manage
-folders and files, upload and download media, share links, run channels, read
+folders and files, upload and download media, share links, read
 notifications, and check billing.
 
 Auth: set FLOPPY_API_KEY (a Bearer API key) and optionally FLOPPY_API_BASE_URL
@@ -96,8 +96,27 @@ def delete_folder(folder_id: str) -> dict:
 
 @mcp.tool
 def restore_folder(folder_id: str) -> dict:
-    """Restore a trashed folder."""
+    """Restore a trashed folder (and everything trashed with it)."""
     return client().post(f"storage/folders/{folder_id}/restore")
+
+
+@mcp.tool
+def rename_folder(folder_id: str, name: str) -> dict:
+    """Rename a folder. Auto-suffixes " (n)" if the name is taken by a sibling."""
+    return client().patch(f"storage/folders/{folder_id}", json={"name": name})
+
+
+@mcp.tool
+def move_folder(folder_id: str, parent_id: Optional[str] = None) -> dict:
+    """Move a folder under parent_id (omit/None = root). Rejects moving it into
+    itself or its own subtree."""
+    return client().patch(f"storage/folders/{folder_id}", json={"parent": parent_id})
+
+
+@mcp.tool
+def purge_folder(folder_id: str) -> dict:
+    """Permanently delete a trashed folder and its whole subtree. Cannot be undone."""
+    return client().post(f"storage/folders/{folder_id}/purge")
 
 
 @mcp.tool
@@ -132,6 +151,18 @@ def restore_file(file_id: str) -> dict:
 def purge_file(file_id: str) -> dict:
     """Permanently delete a trashed file (releases quota). Cannot be undone."""
     return client().post(f"storage/files/{file_id}/purge")
+
+
+@mcp.tool
+def rename_file(file_id: str, name: str) -> dict:
+    """Rename a file. Auto-suffixes " (n)" (extension preserved) on a collision."""
+    return client().patch(f"storage/files/{file_id}", json={"name": name})
+
+
+@mcp.tool
+def move_file(file_id: str, folder_id: Optional[str] = None) -> dict:
+    """Move a file into folder_id (omit/None = root)."""
+    return client().patch(f"storage/files/{file_id}", json={"folder": folder_id})
 
 
 @mcp.tool
@@ -255,14 +286,13 @@ def download_file(file_id: str, dest_path: str) -> dict:
 # ---------------------------------------------------------------------------
 @mcp.tool
 def get_video_playback(file_id: str) -> dict:
-    """Get a playback descriptor for a video (direct URL or HLS manifest)."""
+    """Get a direct URL to play an owned video inline.
+
+    Returns {mode: "direct", url, poster?, duration_seconds?}. Video is
+    transcoded to a browser-playable MP4 server-side (self-hosted FFmpeg); a
+    409 with code "processing" means the transcode hasn't finished yet.
+    """
     return client().post(f"storage/files/{file_id}/play")
-
-
-@mcp.tool
-def promote_video_to_stream(file_id: str) -> dict:
-    """Promote a video to Cloudflare Stream (HD/HLS). 503 if Stream isn't configured."""
-    return client().post(f"storage/files/{file_id}/promote")
 
 
 # ---------------------------------------------------------------------------
@@ -300,52 +330,6 @@ def revoke_share_link(share_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Channels
-# ---------------------------------------------------------------------------
-@mcp.tool
-def list_channels(mine: bool = False) -> list:
-    """List channels. Pass mine=true for channels you own; otherwise discover public ones."""
-    params = {"mine": 1} if mine else None
-    return client().get("channels/", params=params)
-
-
-@mcp.tool
-def create_channel(handle: str, name: str, description: str = "", is_public: bool = True) -> dict:
-    """Create a channel you own. handle is a unique @-style slug."""
-    return client().post(
-        "channels/",
-        json={"handle": handle, "name": name, "description": description, "is_public": is_public},
-    )
-
-
-@mcp.tool
-def subscribe_channel(channel_id: str) -> dict:
-    """Subscribe to a channel."""
-    return client().post(f"channels/{channel_id}/subscribe")
-
-
-@mcp.tool
-def unsubscribe_channel(channel_id: str) -> dict:
-    """Unsubscribe from a channel."""
-    return client().delete(f"channels/{channel_id}/subscribe")
-
-
-@mcp.tool
-def list_channel_posts(channel_id: str) -> list:
-    """List a channel's posts."""
-    return client().get(f"channels/{channel_id}/posts")
-
-
-@mcp.tool
-def create_channel_post(channel_id: str, file_id: str, caption: str = "") -> dict:
-    """Post a file to a channel (owner/admin only)."""
-    return client().post(
-        f"channels/{channel_id}/posts",
-        json={"file": file_id, "caption": caption},
-    )
-
-
-# ---------------------------------------------------------------------------
 # Notifications
 # ---------------------------------------------------------------------------
 @mcp.tool
@@ -379,9 +363,9 @@ def report_content(
 ) -> dict:
     """Flag or report content.
 
-    target_type: file | channel | post. reason: copyright | inappropriate | csam
-    | other (copyright requires `detail`). kind='report' reversibly isolates a
-    file target pending review; kind='flag' is lightweight with no auto-action.
+    target_type: file. reason: copyright | inappropriate | csam | other
+    (copyright requires `detail`). kind='report' reversibly isolates a file
+    target pending review; kind='flag' is lightweight with no auto-action.
     """
     return client().post(
         "moderation/reports",

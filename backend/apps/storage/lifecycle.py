@@ -21,14 +21,41 @@ def retention_for(user) -> timedelta:
     return RETENTION_FREE if user.tier == user.Tier.FREE else RETENTION_PAID
 
 
+def _release_object(obj: StorageObject) -> None:
+    """Decrement a blob's ref_count; hard-delete the row + bytes when it hits 0."""
+    if obj is None:
+        return
+    StorageObject.objects.filter(pk=obj.pk).update(ref_count=models.F("ref_count") - 1)
+    obj.refresh_from_db()
+    if obj.ref_count <= 0:
+        region, key = obj.region, obj.object_key
+        obj.delete()
+        try:  # best-effort blob delete after the row is gone
+            get_storage_service().delete_object(region=region, object_key=key)
+        except Exception:  # noqa: BLE001 - storage cleanup must not block the purge
+            pass
+
+
 @transaction.atomic
 def purge_file(file: File) -> None:
     """
-    Permanently remove a File: release its committed quota, decrement the
-    StorageObject ref_count, and hard-delete the blob when nothing references it.
+    Permanently remove a File: release its committed quota and every blob it
+    references — the original plus any transcoded video rendition and poster —
+    hard-deleting each blob once nothing else references it.
     """
-    file = File.objects.select_for_update().get(pk=file.pk)
-    obj = file.storage_object
+    file = File.objects.select_for_update().select_related(
+        "storage_object", "playable_object", "poster_object"
+    ).get(pk=file.pk)
+    main = file.storage_object
+
+    # Distinct derived blobs (transcoded MP4 + poster), skipping any that alias
+    # the original so we never double-decrement one object.
+    extras = []
+    seen = {main.pk} if main is not None else set()
+    for o in (file.playable_object, file.poster_object):
+        if o is not None and o.pk not in seen:
+            extras.append(o)
+            seen.add(o.pk)
 
     # Release committed usage only for files that were actually committed (ready).
     if file.status == File.Status.READY and file.size_bytes:
@@ -39,21 +66,33 @@ def purge_file(file: File) -> None:
     # Delete the File row first so it no longer PROTECTs the StorageObject.
     file.delete()
 
-    file_region = None
-    file_key = None
-    if obj is not None:
-        StorageObject.objects.filter(pk=obj.pk).update(ref_count=models.F("ref_count") - 1)
-        obj.refresh_from_db()
-        if obj.ref_count <= 0:
-            file_region, file_key = obj.region, obj.object_key
-            obj.delete()
+    _release_object(main)
+    for obj in extras:
+        _release_object(obj)
 
-    # Best-effort blob delete after the row is gone.
-    if file_key:
-        try:
-            get_storage_service().delete_object(region=file_region, object_key=file_key)
-        except Exception:  # noqa: BLE001 - storage cleanup must not block the purge
-            pass
+
+@transaction.atomic
+def purge_folder(folder) -> None:
+    """Permanently remove a folder and its whole subtree.
+
+    Every file under the folder (at any depth) is purged (quota released, blobs
+    removed); the folders themselves are then hard-deleted. Used for "delete
+    permanently" from trash.
+    """
+    from .models import Folder
+
+    # Collect the folder + all descendant folder ids (breadth-first).
+    ids = [folder.pk]
+    frontier = [folder.pk]
+    while frontier:
+        kids = list(Folder.objects.filter(parent_id__in=frontier).values_list("pk", flat=True))
+        ids.extend(kids)
+        frontier = kids
+
+    # Purge files first (File.folder is SET_NULL, so they must go before folders).
+    for f in File.objects.filter(folder_id__in=ids):
+        purge_file(f)
+    Folder.objects.filter(pk__in=ids).delete()
 
 
 def purge_expired_trash() -> int:

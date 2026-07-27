@@ -16,8 +16,6 @@ from apps.common.models import TimeStampedModel
 class Notification(TimeStampedModel):
     class Type(models.TextChoices):
         SYSTEM = "system", "System"
-        CHANNEL_CREATED = "channel_created", "Channel created"
-        CHANNEL_POST = "channel_post", "New channel post"
         QUOTA = "quota", "Quota"
         SECURITY = "security", "Security"
 

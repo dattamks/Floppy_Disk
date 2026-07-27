@@ -2,6 +2,7 @@
 from rest_framework import serializers
 
 from .models import File, Folder
+from .services.base import get_storage_service
 
 
 class FolderSerializer(serializers.ModelSerializer):
@@ -38,10 +39,22 @@ class FolderCreateSerializer(serializers.ModelSerializer):
 
 
 class FileSerializer(serializers.ModelSerializer):
+    poster_url = serializers.SerializerMethodField()
+
     class Meta:
         model = File
-        fields = ["id", "name", "folder", "kind", "size_bytes", "status", "created_at"]
+        fields = [
+            "id", "name", "folder", "kind", "size_bytes", "status", "created_at",
+            "poster_url", "duration_seconds",
+        ]
         read_only_fields = fields
+
+    def get_poster_url(self, obj):
+        # Video poster frame (generated during transcode), for grid thumbnails.
+        if obj.poster_object_id:
+            p = obj.poster_object
+            return get_storage_service().presign_download(region=p.region, object_key=p.object_key)
+        return None
 
 
 class UploadInitiateSerializer(serializers.Serializer):

@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.ctxMenuView is set.
@@ -14,14 +15,15 @@ export default function ContextMenu(V) {
         style={{ position: 'fixed', inset: '0', zIndex: '70' }}
       />{' '}
       <div
+        data-testid="ctx-menu"
         style={{
           position: 'fixed',
           left: `${V.ctxMenuView.x}px`,
           top: `${V.ctxMenuView.y}px`,
           zIndex: '71',
           width: '188px',
-          background: '#FFFFFF',
-          border: '1px solid #E5E7EC',
+          background: theme.white,
+          border: `1px solid ${theme.border}`,
           borderRadius: '12px',
           boxShadow: '0 12px 32px rgba(16,24,40,0.18)',
           padding: '6px',
@@ -30,7 +32,7 @@ export default function ContextMenu(V) {
         <div
           style={{
             fontSize: '11px',
-            color: '#9AA1AC',
+            color: theme.textFaint,
             padding: '6px 10px 4px',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -51,14 +53,14 @@ export default function ContextMenu(V) {
               width: '100%',
               textAlign: 'left',
               fontSize: '13px',
-              color: it.danger ? '#E5484D' : '#15171C',
+              color: it.danger ? theme.danger : theme.text,
               background: 'none',
               border: 'none',
               borderRadius: '8px',
               padding: '8px 10px',
               cursor: 'pointer',
             }}
-            {...hov({ background: '#F1F2F5' })}
+            {...hov({ background: theme.surface })}
           >
             {it.label}
           </button>

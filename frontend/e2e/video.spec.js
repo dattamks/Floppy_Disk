@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { blockExternal, registerNewUser } from './helpers.js';
 
-test.beforeEach(async ({ page }) => { await blockExternal(page); });
+test.beforeEach(async ({ page }) => {
+  await blockExternal(page);
+});
 
 test('an uploaded video yields a real playback descriptor', async ({ page }) => {
   await registerNewUser(page);
@@ -11,10 +13,12 @@ test('an uploaded video yields a real playback descriptor', async ({ page }) => 
   const [complete] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/complete')),
     page.locator('input[type="file"]').setInputFiles({
-      name: 'clip.mp4', mimeType: 'video/mp4', buffer: Buffer.from('fake mp4 bytes'),
+      name: 'clip.mp4',
+      mimeType: 'video/mp4',
+      buffer: Buffer.from('fake mp4 bytes'),
     }),
   ]);
-  const file = (await complete.json());
+  const file = await complete.json();
   expect(file.kind).toBe('video');
 
   // Ask the backend for a playback descriptor via the app's own session.
@@ -28,9 +32,8 @@ test('an uploaded video yields a real playback descriptor', async ({ page }) => 
   }, file.id);
 
   expect(desc.status).toBe(200);
-  expect(desc.body.mode).toBe('r2');          // private video streams from R2
-  // Registered users are paid-by-default (billing deferred) -> HD.
-  // The free-tier SD cap is covered by the backend unit tests.
-  expect(desc.body.max_resolution).toBe('hd');
+  // Basic inline playback: a direct URL, no streaming-platform tiering.
+  expect(desc.body.mode).toBe('direct');
   expect(desc.body.url).toBeTruthy();
+  expect(desc.body.max_resolution).toBeUndefined();
 });

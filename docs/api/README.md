@@ -26,7 +26,7 @@ Unauthenticated endpoints: `register`, `login`, `csrf`, `password-reset*`,
 `verify-email`, `public/share/*`, the Stream/Razorpay webhooks, and `health`.
 
 ## Conventions
-- **IDs** are UUIDs, except channel `handle` and share `token` (strings).
+- **IDs** are UUIDs, except share `token` (a string).
 - **Sizes** are bytes; **money** is paise (₹1 = 100 paise).
 - **Errors**: `{ "detail": "…", "code": "…" }`. `detail` may be a string or a
   list (field validation). `code` appears on typed errors (`quota_exceeded`,
@@ -95,9 +95,13 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 ### Video — `/api/v1/storage`
 | Method | Path | Summary |
 |---|---|---|
-| POST | `/files/{id}/play` | Playback descriptor (`r2` direct / `hls`) |
-| POST | `/files/{id}/promote` | Promote to Stream (HD/HLS) — 503 if unconfigured |
-| POST | `/stream/webhook` | Stream processing callback (idempotent) |
+| POST | `/files/{id}/play` | Direct URL to play your own video inline (`mode: direct`, plus `poster`/`duration_seconds`) |
+
+> Videos are transcoded to a browser-playable MP4 **server-side with FFmpeg**
+> (self-hosted, no third-party streaming) and served over the Range endpoint;
+> `play` returns `409 {code: processing}` while a transcode is running.
+> **Channels** and the old **Cloudflare Stream** integration were removed in the
+> Drive-focus pivot — see [`../deactivated-features.md`](../deactivated-features.md).
 
 ### Sharing — `/api/v1/storage` & `/api/v1/public`
 | Method | Path | Summary |
@@ -109,13 +113,6 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | POST | `/public/share/{token}` | Unlock a password-protected link |
 | GET | `/public/share/{token}/download` | Download the bytes (no account; `?password=` for locked links) |
 
-### Channels — `/api/v1/channels`
-| Method | Path | Summary |
-|---|---|---|
-| GET / POST | `/` | Discover (`?mine=1`) / create |
-| POST / DELETE | `/{id}/subscribe` | Subscribe / unsubscribe |
-| POST | `/{id}/members/{user_id}/promote` | Promote to admin (owner only) |
-| GET / POST | `/{id}/posts` | List / post (owner+admin only) |
 
 ### Moderation — `/api/v1/moderation`
 | Method | Path | Summary |
@@ -139,6 +136,12 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | GET | `/` | List + `unread_count` |
 | POST | `/{id}/read` | Mark one read |
 | POST | `/read-all` | Mark all read |
+
+### Legal — `/api/v1/legal`
+| Method | Path | Summary |
+|---|---|---|
+| GET | `/` | Policy versions + grievance officer contact (public) |
+| POST | `/grievance` | File a grievance (IT Rules 2021 redressal); returns a ticket |
 
 ### Ops
 | Method | Path | Summary |

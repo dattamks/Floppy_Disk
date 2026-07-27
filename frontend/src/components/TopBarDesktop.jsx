@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from AppShell.
@@ -12,8 +13,8 @@ export default function TopBarDesktop(V) {
           display: 'flex',
           alignItems: 'center',
           gap: '9px',
-          background: '#F1F2F5',
-          border: '1px solid #E5E7EC',
+          background: theme.surface,
+          border: `1px solid ${theme.border}`,
           borderRadius: '10px',
           padding: '9px 13px',
           maxWidth: '380px',
@@ -21,18 +22,23 @@ export default function TopBarDesktop(V) {
       >
         {' '}
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-          <circle cx="11" cy="11" r="7" stroke="#8A909B" strokeWidth="1.8" />
-          <path d="M20 20l-4.3-4.3" stroke="#8A909B" strokeWidth="1.8" strokeLinecap="round" />
+          <circle cx="11" cy="11" r="7" stroke={theme.textMuted2} strokeWidth="1.8" />
+          <path
+            d="M20 20l-4.3-4.3"
+            stroke={theme.textMuted2}
+            strokeWidth="1.8"
+            strokeLinecap="round"
+          />
         </svg>{' '}
         <input
           value={V.searchQuery}
           onInput={V.setSearch}
-          placeholder="Search files, folders, channels"
+          placeholder="Search files and folders"
           style={{
             background: 'none',
             border: 'none',
             outline: 'none',
-            color: '#15171C',
+            color: theme.text,
             fontSize: '13.5px',
             fontFamily: "'IBM Plex Sans',sans-serif",
             width: '100%',
@@ -46,7 +52,7 @@ export default function TopBarDesktop(V) {
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
-                color: '#9AA1AC',
+                color: theme.textFaint,
                 display: 'flex',
                 padding: '0',
               }}
@@ -70,9 +76,9 @@ export default function TopBarDesktop(V) {
           display: 'flex',
           alignItems: 'center',
           gap: '7px',
-          background: '#FFFFFF',
-          color: '#15171C',
-          border: '1px solid #E5E7EC',
+          background: theme.white,
+          color: theme.text,
+          border: `1px solid ${theme.border}`,
           borderRadius: '10px',
           padding: '10px 14px',
           fontSize: '13.5px',
@@ -80,15 +86,20 @@ export default function TopBarDesktop(V) {
           cursor: 'pointer',
           fontFamily: "'IBM Plex Sans',sans-serif",
         }}
-        {...hov({ background: '#F1F2F5' })}
+        {...hov({ background: theme.surface })}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
           <path
             d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
-            stroke="#656B76"
+            stroke={theme.textMuted}
             strokeWidth="1.7"
           />
-          <path d="M12 11v4M10 13h4" stroke="#656B76" strokeWidth="1.7" strokeLinecap="round" />
+          <path
+            d="M12 11v4M10 13h4"
+            stroke={theme.textMuted}
+            strokeWidth="1.7"
+            strokeLinecap="round"
+          />
         </svg>
         New folder
       </button>{' '}
@@ -98,8 +109,8 @@ export default function TopBarDesktop(V) {
           display: 'flex',
           alignItems: 'center',
           gap: '7px',
-          background: '#5145E5',
-          color: '#fff',
+          background: theme.brand,
+          color: theme.white,
           border: 'none',
           borderRadius: '10px',
           padding: '10px 16px',
@@ -108,12 +119,12 @@ export default function TopBarDesktop(V) {
           cursor: 'pointer',
           fontFamily: "'IBM Plex Sans',sans-serif",
         }}
-        {...hov({ background: '#4238CC' })}
+        {...hov({ background: theme.brandDark })}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
           <path
             d="M12 16V4M7 9l5-5 5 5M4 20h16"
-            stroke="#fff"
+            stroke={theme.white}
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -127,14 +138,14 @@ export default function TopBarDesktop(V) {
           width: '34px',
           height: '34px',
           borderRadius: '50%',
-          background: '#5145E5',
+          background: theme.brand,
           border: 'none',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: '13px',
           fontWeight: '600',
-          color: '#fff',
+          color: theme.white,
           fontFamily: "'Space Grotesk',sans-serif",
           cursor: 'pointer',
         }}

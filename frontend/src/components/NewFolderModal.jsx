@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.isNewFolderModal is set.
@@ -14,7 +15,7 @@ export default function NewFolderModal(V) {
         </span>
         <button
           onClick={V.closeModal}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#8A909B' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted2 }}
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
             <path
@@ -31,8 +32,8 @@ export default function NewFolderModal(V) {
         onInput={V.setNewFolderName}
         placeholder="Folder name"
         style={{
-          background: '#F1F2F5',
-          border: '1px solid #E5E7EC',
+          background: theme.surface,
+          border: `1px solid ${theme.border}`,
           borderRadius: '9px',
           padding: '11px 13px',
           fontSize: '13.5px',
@@ -43,8 +44,8 @@ export default function NewFolderModal(V) {
       <button
         onClick={V.createFolder}
         style={{
-          background: '#5145E5',
-          color: '#fff',
+          background: theme.brand,
+          color: theme.white,
           border: 'none',
           borderRadius: '10px',
           padding: '12px',

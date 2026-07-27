@@ -1,15 +1,201 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 import FileCard from './FileCard';
-import ContinueWatchingCard from './ContinueWatchingCard';
+import FileRow from './FileRow';
 import TopBarDesktop from './TopBarDesktop';
 import Sidebar from './Sidebar';
 import Breadcrumb from './Breadcrumb';
 import TopBarMobile from './TopBarMobile';
 import MobileTabBar from './MobileTabBar';
-import ChannelsScreen from './ChannelsScreen';
 import TrashScreen from './TrashScreen';
+// DEACTIVATED (Drive-focus pivot): ContinueWatchingCard (video streaming) —
+// see src/deactivated/ and docs/deactivated-features.md.
 import EmptyState from './EmptyState';
+
+// Bulk-selection action bar, shown when one or more items are selected.
+function SelectionBar(V) {
+  const action = (onClick, label, danger) => (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '6px 13px',
+        fontSize: '12.5px',
+        fontWeight: '600',
+        cursor: 'pointer',
+        borderRadius: '8px',
+        border: `1px solid ${danger ? theme.dangerBorder2 : theme.border}`,
+        background: danger ? theme.dangerBgSoft : theme.white,
+        color: danger ? theme.danger : theme.text,
+        fontFamily: "'IBM Plex Sans',sans-serif",
+      }}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '9px 14px',
+        borderRadius: '11px',
+        background: theme.brandBg,
+        border: `1px solid ${theme.brandBorder}`,
+      }}
+    >
+      <span style={{ fontSize: '13px', fontWeight: '600', color: theme.brand }}>
+        {V.selectionCount} selected
+      </span>
+      <div style={{ flex: '1' }} />
+      {action(V.onBulkMove, 'Move')}
+      {action(V.onBulkDownload, 'Download')}
+      {action(V.onBulkTrash, 'Trash', true)}
+      {action(V.onClearSelection, 'Clear')}
+    </div>
+  );
+}
+
+// Type filter chips shown while searching.
+function SearchFilters(V) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
+      {(V.searchTypeChips || []).map((c, i) => (
+        <button
+          key={i}
+          onClick={c.onClick}
+          style={{
+            padding: '5px 13px',
+            fontSize: '12.5px',
+            fontWeight: c.active ? '600' : '500',
+            cursor: 'pointer',
+            borderRadius: '999px',
+            border: `1px solid ${c.active ? theme.brand : theme.border}`,
+            background: c.active ? theme.brandBg : theme.white,
+            color: c.active ? theme.brand : theme.textMuted,
+            fontFamily: "'IBM Plex Sans',sans-serif",
+          }}
+        >
+          {c.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Sort + grid/list controls shown above a file listing.
+function ListToolbar(V) {
+  const seg = (active) => ({
+    padding: '5px 11px',
+    fontSize: '12.5px',
+    fontWeight: active ? '600' : '500',
+    cursor: 'pointer',
+    border: 'none',
+    borderRadius: '7px',
+    background: active ? theme.white : 'transparent',
+    color: active ? theme.text : theme.textMuted,
+    boxShadow: active ? '0 1px 2px rgba(16,24,40,0.10)' : 'none',
+    fontFamily: "'IBM Plex Sans',sans-serif",
+  });
+  const iconBtn = (active) => ({
+    width: '30px',
+    height: '28px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    border: 'none',
+    borderRadius: '7px',
+    background: active ? theme.white : 'transparent',
+    color: active ? theme.brand : theme.textMuted,
+    boxShadow: active ? '0 1px 2px rgba(16,24,40,0.10)' : 'none',
+  });
+  const group = {
+    display: 'flex',
+    gap: '2px',
+    padding: '3px',
+    borderRadius: '9px',
+    background: theme.surface2,
+    border: `1px solid ${theme.border}`,
+  };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <span style={{ fontSize: '12px', color: theme.textFaint }}>Sort</span>
+      <div style={group}>
+        <button onClick={V.setSortName} style={seg(V.sortByName)}>
+          Name
+        </button>
+        <button onClick={V.setSortSize} style={seg(V.sortBySize)}>
+          Size
+        </button>
+      </div>
+      <div style={{ flex: '1' }} />
+      <div style={group}>
+        <button
+          onClick={V.setGridView}
+          aria-label="Grid view"
+          title="Grid view"
+          style={iconBtn(V.isGridView)}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <rect
+              x="3"
+              y="3"
+              width="7"
+              height="7"
+              rx="1.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+            <rect
+              x="14"
+              y="3"
+              width="7"
+              height="7"
+              rx="1.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+            <rect
+              x="3"
+              y="14"
+              width="7"
+              height="7"
+              rx="1.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+            <rect
+              x="14"
+              y="14"
+              width="7"
+              height="7"
+              rx="1.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+          </svg>
+        </button>
+        <button
+          onClick={V.setListView}
+          aria-label="List view"
+          title="List view"
+          style={iconBtn(V.isListView)}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M4 6h16M4 12h16M4 18h16"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // Extracted from the design view; renders when V.isApp is set.
 export default function AppShell(V) {
@@ -26,8 +212,8 @@ export default function AppShell(V) {
             alignItems: 'center',
             gap: '12px',
             padding: '0 18px',
-            borderBottom: '1px solid #E5E7EC',
-            background: '#FFFFFF',
+            borderBottom: `1px solid ${theme.border}`,
+            background: theme.white,
           }}
         >
           {' '}
@@ -57,18 +243,18 @@ export default function AppShell(V) {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '9px',
-                    background: '#FFFFFF',
-                    border: '1px solid #E5E7EC',
+                    background: theme.white,
+                    border: `1px solid ${theme.border}`,
                     borderRadius: '10px',
                     padding: '10px 13px',
                   }}
                 >
                   {' '}
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                    <circle cx="11" cy="11" r="7" stroke="#8A909B" strokeWidth="1.8" />
+                    <circle cx="11" cy="11" r="7" stroke={theme.textMuted2} strokeWidth="1.8" />
                     <path
                       d="M20 20l-4.3-4.3"
-                      stroke="#8A909B"
+                      stroke={theme.textMuted2}
                       strokeWidth="1.8"
                       strokeLinecap="round"
                     />
@@ -76,12 +262,12 @@ export default function AppShell(V) {
                   <input
                     value={V.searchQuery}
                     onInput={V.setSearch}
-                    placeholder="Search files, folders, channels"
+                    placeholder="Search files and folders"
                     style={{
                       background: 'none',
                       border: 'none',
                       outline: 'none',
-                      color: '#15171C',
+                      color: theme.text,
                       fontSize: '13.5px',
                       fontFamily: "'IBM Plex Sans',sans-serif",
                       width: '100%',
@@ -95,7 +281,7 @@ export default function AppShell(V) {
                           background: 'none',
                           border: 'none',
                           cursor: 'pointer',
-                          color: '#9AA1AC',
+                          color: theme.textFaint,
                           display: 'flex',
                           padding: '0',
                         }}
@@ -114,15 +300,16 @@ export default function AppShell(V) {
                 </div>{' '}
               </React.Fragment>
             ) : null}{' '}
-            {Breadcrumb(V)} {ChannelsScreen(V)}{' '}
-            {V.notChannelsView ? (
+            {Breadcrumb(V)} {TrashScreen(V)} {V.selectionActive ? SelectionBar(V) : null}{' '}
+            {V.showSearchFilters ? SearchFilters(V) : null}{' '}
+            {V.showListToolbar ? ListToolbar(V) : null}{' '}
+            {V.hasFiles ? (
               <React.Fragment>
                 {' '}
-                {V.showSearchChannels ? (
-                  <React.Fragment>
-                    {' '}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
-                      {' '}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
+                  {' '}
+                  {V.showGridLabel ? (
+                    <React.Fragment>
                       <span
                         style={{
                           fontFamily: "'Space Grotesk',sans-serif",
@@ -130,158 +317,35 @@ export default function AppShell(V) {
                           fontSize: '15px',
                         }}
                       >
-                        Channels
-                      </span>{' '}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-                        {' '}
-                        {(V.searchChannelResults || []).map((ch, $index) => (
-                          <React.Fragment key={$index}>
-                            {' '}
-                            <div
-                              style={{
-                                width: '168px',
-                                background: '#FFFFFF',
-                                border: '1px solid #E5E7EC',
-                                borderRadius: '14px',
-                                padding: '14px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: 'center',
-                                gap: '8px',
-                              }}
-                            >
-                              {' '}
-                              <div
-                                style={{
-                                  width: '44px',
-                                  height: '44px',
-                                  borderRadius: '50%',
-                                  background: ch.color,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  color: '#fff',
-                                  fontFamily: "'Space Grotesk',sans-serif",
-                                  fontWeight: '700',
-                                  fontSize: '15px',
-                                }}
-                              >
-                                {ch.initials}
-                              </div>{' '}
-                              <span
-                                style={{
-                                  fontSize: '13px',
-                                  fontWeight: '600',
-                                  textAlign: 'center',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                  maxWidth: '100%',
-                                }}
-                              >
-                                {ch.name}
-                              </span>{' '}
-                              <span style={{ fontSize: '10.5px', color: '#9AA1AC' }}>
-                                {ch.subs} subscribers
-                              </span>{' '}
-                              <button
-                                onClick={ch.onToggle}
-                                style={{
-                                  width: '100%',
-                                  border: `1px solid ${ch.subBorder}`,
-                                  background: ch.subBg,
-                                  color: ch.subColor,
-                                  borderRadius: '8px',
-                                  padding: '6px',
-                                  fontSize: '12px',
-                                  fontWeight: '600',
-                                  cursor: 'pointer',
-                                  fontFamily: "'IBM Plex Sans',sans-serif",
-                                }}
-                              >
-                                {ch.subLabel}
-                              </button>{' '}
-                            </div>{' '}
-                          </React.Fragment>
-                        ))}{' '}
-                      </div>{' '}
-                    </div>{' '}
-                  </React.Fragment>
-                ) : null}{' '}
-                {V.showCarousel ? (
-                  <React.Fragment>
-                    {' '}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
+                        {V.gridLabel}
+                      </span>
+                    </React.Fragment>
+                  ) : null}{' '}
+                  {V.isListView ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       {' '}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span
-                          style={{
-                            fontFamily: "'Space Grotesk',sans-serif",
-                            fontWeight: '600',
-                            fontSize: '15px',
-                          }}
-                        >
-                          Continue watching
-                        </span>
-                        <span style={{ fontSize: '11px', color: '#9AA1AC' }}>
-                          — swipe to browse
-                        </span>
-                      </div>{' '}
-                      <div
-                        className="fd-carousel"
-                        style={{
-                          display: 'flex',
-                          gap: '13px',
-                          overflowX: 'auto',
-                          paddingBottom: '4px',
-                          scrollSnapType: 'x mandatory',
-                        }}
-                      >
-                        {' '}
-                        {(V.carouselItems || []).map((c, $index) => (
-                          <ContinueWatchingCard key={$index} V={V} c={c} />
-                        ))}{' '}
-                      </div>{' '}
-                    </div>{' '}
-                  </React.Fragment>
-                ) : null}{' '}
-                {TrashScreen(V)}{' '}
-                {V.hasFiles ? (
-                  <React.Fragment>
-                    {' '}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '11px' }}>
+                      {(V.visibleFiles || []).map((file, $index) => (
+                        <FileRow key={$index} V={V} file={file} />
+                      ))}{' '}
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(auto-fill, minmax(${V.d.gridMin}px, 1fr))`,
+                        gap: `${V.d.cardGap}px`,
+                      }}
+                    >
                       {' '}
-                      {V.showGridLabel ? (
-                        <React.Fragment>
-                          <span
-                            style={{
-                              fontFamily: "'Space Grotesk',sans-serif",
-                              fontWeight: '600',
-                              fontSize: '15px',
-                            }}
-                          >
-                            {V.gridLabel}
-                          </span>
-                        </React.Fragment>
-                      ) : null}{' '}
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: `repeat(auto-fill, minmax(${V.d.gridMin}px, 1fr))`,
-                          gap: `${V.d.cardGap}px`,
-                        }}
-                      >
-                        {' '}
-                        {(V.visibleFiles || []).map((file, $index) => (
-                          <FileCard key={$index} V={V} file={file} />
-                        ))}{' '}
-                      </div>{' '}
-                    </div>{' '}
-                  </React.Fragment>
-                ) : null}{' '}
-                {EmptyState(V)}{' '}
+                      {(V.visibleFiles || []).map((file, $index) => (
+                        <FileCard key={$index} V={V} file={file} />
+                      ))}{' '}
+                    </div>
+                  )}{' '}
+                </div>{' '}
               </React.Fragment>
             ) : null}{' '}
+            {EmptyState(V)}{' '}
           </div>{' '}
         </div>{' '}
         {MobileTabBar(V)}{' '}

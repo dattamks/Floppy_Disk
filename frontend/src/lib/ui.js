@@ -16,6 +16,16 @@ export const fmtStorage = (gb) => {
 
 export const TIER_LABELS = { free: 'Free', paid_2tb: '2 TB', paid_5tb: '5 TB' };
 
+// Seconds -> "M:SS" (or "H:MM:SS"). Returns '' for missing/invalid input.
+export const fmtDuration = (secs) => {
+  if (secs == null || isNaN(secs) || secs < 0) return '';
+  const s = Math.floor(secs % 60);
+  const m = Math.floor((secs / 60) % 60);
+  const h = Math.floor(secs / 3600);
+  const pad = (n) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+};
+
 export const kindOf = (mime) =>
   mime.startsWith('video')
     ? 'video'
@@ -24,6 +34,48 @@ export const kindOf = (mime) =>
       : mime.startsWith('audio')
         ? 'audio'
         : 'doc';
+
+// Lowercased file extension (no dot), or '' if none.
+export const extOf = (name = '') => {
+  const m = /\.([^.\/\\]+)$/.exec(name || '');
+  return m ? m[1].toLowerCase() : '';
+};
+
+// Finer-grained "how should we preview this" kind, from the name + coarse kind.
+// One of: video | image | audio | pdf | markdown | json | yaml | text | doc.
+export const previewKindOf = (name, kind) => {
+  const ext = extOf(name);
+  if (kind === 'video' || ['mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v'].includes(ext)) return 'video';
+  if (kind === 'image' || ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext))
+    return 'image';
+  if (kind === 'audio' || ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'].includes(ext)) return 'audio';
+  if (ext === 'pdf') return 'pdf';
+  if (['md', 'markdown'].includes(ext)) return 'markdown';
+  if (ext === 'json') return 'json';
+  if (['yaml', 'yml'].includes(ext)) return 'yaml';
+  if (
+    [
+      'txt',
+      'log',
+      'csv',
+      'xml',
+      'ini',
+      'conf',
+      'env',
+      'js',
+      'jsx',
+      'ts',
+      'tsx',
+      'py',
+      'sh',
+      'css',
+      'html',
+      'sql',
+    ].includes(ext)
+  )
+    return 'text';
+  return 'doc';
+};
 
 // Inline hover styling helper: swaps style props on enter, restores on leave.
 export const hov = (styles) => ({

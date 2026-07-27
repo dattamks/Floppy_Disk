@@ -41,7 +41,6 @@ LOCAL_APPS = [
     "apps.accounts",
     "apps.storage",
     "apps.sharing",
-    "apps.channels",
     "apps.billing",
     "apps.moderation",
     "apps.notifications",
@@ -163,27 +162,36 @@ R2_SECRET_ACCESS_KEY = env("R2_SECRET_ACCESS_KEY", default="")
 R2_ENDPOINT_URL = env("R2_ENDPOINT_URL", default="")
 # Region -> bucket name map for data residency (per-region dedup). JSON in env.
 R2_REGION_BUCKETS = env.json("R2_REGION_BUCKETS", default={})
-CLOUDFLARE_STREAM_ACCOUNT_ID = env("CLOUDFLARE_STREAM_ACCOUNT_ID", default="")
-CLOUDFLARE_STREAM_API_TOKEN = env("CLOUDFLARE_STREAM_API_TOKEN", default="")
 
-# Automatic fallback: when the Cloudflare env vars are missing, serve media from
-# a local media folder and deliver video directly (no Stream/HD). An explicit
-# STORAGE_SERVICE / VIDEO_SERVICE env var still overrides these defaults.
+# Automatic fallback: when the R2 env vars are missing, serve media from a local
+# media folder. An explicit STORAGE_SERVICE env var still overrides the default.
 R2_CONFIGURED = bool(R2_ENDPOINT_URL and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_REGION_BUCKETS)
-CLOUDFLARE_STREAM_ENABLED = bool(CLOUDFLARE_STREAM_ACCOUNT_ID and CLOUDFLARE_STREAM_API_TOKEN)
 
 STORAGE_SERVICE = env(
     "STORAGE_SERVICE",
     default="apps.storage.services.r2.R2StorageService" if R2_CONFIGURED
     else "apps.storage.services.local.LocalStorageService",
 )
-VIDEO_SERVICE = env(
-    "VIDEO_SERVICE",
-    default="apps.storage.services.video.CloudflareStreamService" if CLOUDFLARE_STREAM_ENABLED
-    else "apps.storage.services.video.FakeVideoService",
-)
 # Local media folder used by LocalStorageService when R2 isn't configured.
 DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(BASE_DIR / "media"))
+
+# --- Video transcoding (self-hosted, FFmpeg — no third-party streaming) -----
+# Uploaded videos are normalized to a browser-playable H.264/AAC MP4 with
+# FFmpeg and served over the local Range endpoint. FFMPEG_BINARY/FFPROBE_BINARY
+# override the binary locations; otherwise they're found on PATH (the Docker
+# image installs ffmpeg) or via the optional `static-ffmpeg` pip package.
+FFMPEG_BINARY = env("FFMPEG_BINARY", default="")
+FFPROBE_BINARY = env("FFPROBE_BINARY", default="")
+# Use the real transcoder when an ffmpeg binary is available; else a no-op fake
+# (keeps dev/test hermetic). An explicit MEDIA_TRANSCODER env var overrides.
+import shutil as _shutil  # noqa: E402
+
+FFMPEG_AVAILABLE = bool(FFMPEG_BINARY or _shutil.which("ffmpeg"))
+MEDIA_TRANSCODER = env(
+    "MEDIA_TRANSCODER",
+    default="apps.storage.services.transcode.FFmpegTranscoder" if FFMPEG_AVAILABLE
+    else "apps.storage.services.transcode.FakeTranscoder",
+)
 
 # --- Payments (Razorpay behind PaymentGateway abstraction) ------------------
 # Master switch: when disabled, billing is deferred — new signups are granted the
@@ -236,6 +244,15 @@ CSRF_TRUSTED_ORIGINS = env.list(
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Floppy Disk <no-reply@floppy.disk>")
 # Base URL of the web app, used to build verification / reset links in emails.
 FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173")
+
+# --- Legal / compliance ------------------------------------------------------
+# Grievance Officer contact (India IT Rules 2021). Set real values in prod.
+GRIEVANCE_OFFICER_NAME = env("GRIEVANCE_OFFICER_NAME", default="")
+GRIEVANCE_OFFICER_EMAIL = env("GRIEVANCE_OFFICER_EMAIL", default="grievance@floppy.disk")
+GRIEVANCE_OFFICER_ADDRESS = env("GRIEVANCE_OFFICER_ADDRESS", default="")
+# Current policy versions surfaced to clients + recorded on consent.
+TOS_VERSION = env("TOS_VERSION", default="2026-01-01")
+PRIVACY_VERSION = env("PRIVACY_VERSION", default="2026-01-01")
 
 # --- Sentry (optional) ------------------------------------------------------
 SENTRY_DSN = env("SENTRY_DSN", default="")

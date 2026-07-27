@@ -24,9 +24,14 @@ SCAN_SERVICE = "apps.moderation.services.fake.FakeScanService"
 # Payments: fake gateway (instant activation) in dev/tests.
 PAYMENT_GATEWAY = "apps.billing.gateways.fake.FakePaymentGateway"
 
-# Video: fake Stream service in dev/tests.
-VIDEO_SERVICE = "apps.storage.services.video.FakeVideoService"
-CLOUDFLARE_STREAM_ENABLED = True  # exercise the promote/HLS path with the fake service
+# Video: no-binary fake transcoder in tests (real FFmpeg runs in production).
+MEDIA_TRANSCODER = "apps.storage.services.transcode.FakeTranscoder"
+
+# Run Celery tasks inline (no broker) so the transcode task executes in tests.
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_BROKER_URL = "memory://"
+CELERY_RESULT_BACKEND = "cache+memory://"
 
 # Search: portable substring search in dev/tests (Postgres FTS in production).
 SEARCH_SERVICE = "apps.search.services.basic.BasicSearchService"

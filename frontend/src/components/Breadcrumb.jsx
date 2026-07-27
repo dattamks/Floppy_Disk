@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from AppShell.
@@ -28,13 +29,13 @@ export default function Breadcrumb(V) {
             </button>{' '}
             {(V.breadcrumbCrumbs || []).map((cr, $index) => (
               <React.Fragment key={$index}>
-                <span style={{ color: '#B4B9C2', fontSize: '18px' }}>/</span>
+                <span style={{ color: theme.textFainter, fontSize: '18px' }}>/</span>
                 <button
                   onClick={cr.onClick}
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#15171C',
+                    color: theme.text,
                     fontWeight: '700',
                     cursor: 'pointer',
                     padding: '0',

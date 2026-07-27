@@ -21,7 +21,7 @@ info:
     bypasses CSRF.
 
     ## Conventions
-    - IDs are UUIDs unless noted (channel handles and share tokens are strings).
+    - IDs are UUIDs unless noted (share tokens are strings).
     - Sizes are bytes. Money is paise (₹1 = 100).
     - List endpoints return arrays; a few wrap results in an object (noted per path).
     - Errors use `{ "detail": "...", "code": "..." }` (code is present on typed errors).
@@ -36,7 +36,6 @@ tags:
   - name: Upload
   - name: Video
   - name: Sharing
-  - name: Channels
   - name: Moderation
   - name: Billing
   - name: Notifications
@@ -110,30 +109,11 @@ components:
         revoked: { type: boolean }
         target_name: { type: string }
         created_at: { type: string, format: date-time }
-    Channel:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        name: { type: string }
-        handle: { type: string }
-        description: { type: string }
-        is_public: { type: boolean }
-        subscriber_count: { type: integer }
-        role: { type: [string, "null"], enum: [owner, admin, subscriber, null] }
-        created_at: { type: string, format: date-time }
-    ChannelPost:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        channel: { type: string, format: uuid }
-        caption: { type: string }
-        file: { type: [string, "null"], format: uuid }
-        created_at: { type: string, format: date-time }
     Notification:
       type: object
       properties:
         id: { type: string, format: uuid }
-        type: { type: string, enum: [system, channel_created, channel_post, quota, security] }
+        type: { type: string, enum: [system, quota, security] }
         title: { type: string }
         body: { type: string }
         data: { type: object }
@@ -161,11 +141,6 @@ components:
       schema: { type: string, format: uuid }
     FolderId:
       name: folder_id
-      in: path
-      required: true
-      schema: { type: string, format: uuid }
-    ChannelId:
-      name: channel_id
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -340,6 +315,13 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string }, parent: { type: string, format: uuid } } } } } }
       responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Folder" } } } }, "400": { $ref: "#/components/responses/ValidationError" } }
   /storage/folders/{folder_id}:
+    patch:
+      tags: [Storage]
+      summary: Rename and/or move a folder
+      description: "Set `name` to rename, `parent` (uuid or null) to move. Names are auto-suffixed \" (n)\" to stay unique among active siblings. Moving a folder into itself or its own subtree is rejected (400)."
+      parameters: [{ $ref: "#/components/parameters/FolderId" }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string }, parent: { type: [string, "null"], format: uuid } } } } } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Folder" } } } }, "400": { $ref: "#/components/responses/ValidationError" }, "404": { $ref: "#/components/responses/NotFound" } }
     delete:
       tags: [Storage]
       summary: Soft-delete a folder (to trash)
@@ -351,6 +333,13 @@ paths:
       summary: Restore a folder from trash
       parameters: [{ $ref: "#/components/parameters/FolderId" }]
       responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Folder" } } } }, "404": { $ref: "#/components/responses/NotFound" } }
+  /storage/folders/{folder_id}/purge:
+    post:
+      tags: [Storage]
+      summary: Permanently delete a trashed folder (and its whole subtree)
+      description: Hard-deletes the folder plus every subfolder and file under it; purged files release their quota. The folder must already be in trash.
+      parameters: [{ $ref: "#/components/parameters/FolderId" }]
+      responses: { "204": { $ref: "#/components/responses/NoContent" }, "404": { $ref: "#/components/responses/NotFound" } }
   /storage/camera-backup:
     get:
       tags: [Storage]
@@ -363,6 +352,13 @@ paths:
       parameters: [{ name: folder, in: query, schema: { type: string, format: uuid } }]
       responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/File" } } } } } }
   /storage/files/{file_id}:
+    patch:
+      tags: [Storage]
+      summary: Rename and/or move a file
+      description: "Set `name` to rename, `folder` (uuid or null) to move between folders. Names are auto-suffixed \" (n)\" (extension preserved) to stay unique in the destination."
+      parameters: [{ $ref: "#/components/parameters/FileId" }]
+      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string }, folder: { type: [string, "null"], format: uuid } } } } } }
+      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/File" } } } }, "400": { $ref: "#/components/responses/ValidationError" }, "404": { $ref: "#/components/responses/NotFound" } }
     delete:
       tags: [Storage]
       summary: Soft-delete a file (to trash; still counts to quota)
@@ -500,8 +496,8 @@ paths:
   /storage/files/{file_id}/play:
     post:
       tags: [Video]
-      summary: Get a playback descriptor
-      description: "Private video streams direct from storage (mode r2); promoted video plays HLS (mode hls). Free tier is SD-capped."
+      summary: Get a direct URL to play an owned video inline
+      description: "Self-hosted inline playback. Uploaded videos are transcoded to a browser-playable H.264/AAC MP4 with FFmpeg on our own servers (no third-party streaming) and served over the Range endpoint. A 409 with code `processing` means the transcode is still running."
       parameters: [{ $ref: "#/components/parameters/FileId" }]
       responses:
         "200":
@@ -511,28 +507,12 @@ paths:
               schema:
                 type: object
                 properties:
-                  mode: { type: string, enum: [r2, hls] }
-                  url: { type: string }
-                  max_resolution: { type: string, enum: [sd, hd] }
-                  stream_uid: { type: string }
+                  mode: { type: string, enum: [direct] }
+                  url: { type: string, description: URL of the playable MP4 rendition (Range-served). }
+                  poster: { type: string, description: Poster-frame JPEG URL (if generated). }
+                  duration_seconds: { type: number, description: Probed duration (if known). }
         "404": { $ref: "#/components/responses/NotFound" }
-        "409": { description: Still processing. }
-  /storage/files/{file_id}/promote:
-    post:
-      tags: [Video]
-      summary: Promote a video to Cloudflare Stream (HD/HLS)
-      parameters: [{ $ref: "#/components/parameters/FileId" }]
-      responses:
-        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { stream_uid: { type: string }, hls_url: { type: string } } } } } }
-        "404": { $ref: "#/components/responses/NotFound" }
-        "503": { description: "Stream not configured (`stream_unavailable`) — playback stays direct.", content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
-  /storage/stream/webhook:
-    post:
-      tags: [Video]
-      summary: Cloudflare Stream processing-complete callback (idempotent)
-      security: []
-      requestBody: { content: { application/json: { schema: { type: object, properties: { uid: { type: string }, status: { type: string } } } } } }
-      responses: { "200": { description: "{ processed: bool }" }, "400": { description: Bad payload. } }
+        "409": { description: "Still processing (code: processing) or not ready." }
 
   # ---------------------------------------------------------------- Sharing
   /storage/files/{file_id}/share:
@@ -607,50 +587,6 @@ paths:
         "404": { description: Unknown token / nothing to download. }
         "410": { description: Expired or revoked. }
 
-  # ---------------------------------------------------------------- Channels
-  /channels/:
-    get:
-      tags: [Channels]
-      summary: Discover public channels (or `?mine=1` for my memberships)
-      parameters: [{ name: mine, in: query, schema: { type: boolean } }]
-      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Channel" } } } } } }
-    post:
-      tags: [Channels]
-      summary: Create a channel (creator becomes owner)
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, handle], properties: { name: { type: string }, handle: { type: string }, description: { type: string }, is_public: { type: boolean, default: true } } } } } }
-      responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Channel" } } } }, "400": { $ref: "#/components/responses/ValidationError" } }
-  /channels/{channel_id}/subscribe:
-    post:
-      tags: [Channels]
-      summary: Subscribe
-      parameters: [{ $ref: "#/components/parameters/ChannelId" }]
-      responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Channel" } } } }, "403": { description: Invite-only. }, "404": { $ref: "#/components/responses/NotFound" } }
-    delete:
-      tags: [Channels]
-      summary: Unsubscribe (owner cannot)
-      parameters: [{ $ref: "#/components/parameters/ChannelId" }]
-      responses: { "204": { $ref: "#/components/responses/NoContent" }, "400": { description: Owner cannot unsubscribe. }, "404": { $ref: "#/components/responses/NotFound" } }
-  /channels/{channel_id}/members/{user_id}/promote:
-    post:
-      tags: [Channels]
-      summary: Promote a subscriber to admin (owner only)
-      parameters:
-        - { $ref: "#/components/parameters/ChannelId" }
-        - { name: user_id, in: path, required: true, schema: { type: string, format: uuid } }
-      responses: { "200": { description: "{ role: admin }" }, "403": { description: Owner only. }, "404": { $ref: "#/components/responses/NotFound" } }
-  /channels/{channel_id}/posts:
-    get:
-      tags: [Channels]
-      summary: List posts (public channel or member)
-      parameters: [{ $ref: "#/components/parameters/ChannelId" }]
-      responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ChannelPost" } } } } }, "403": { description: Private. }, "404": { $ref: "#/components/responses/NotFound" } }
-    post:
-      tags: [Channels]
-      summary: Post (owner/admin only)
-      parameters: [{ $ref: "#/components/parameters/ChannelId" }]
-      requestBody: { content: { application/json: { schema: { type: object, properties: { caption: { type: string }, file: { type: string, format: uuid } } } } } }
-      responses: { "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/ChannelPost" } } } }, "403": { description: Owner/admin only. } }
-
   # ---------------------------------------------------------------- Moderation
   /moderation/reports:
     post:
@@ -665,7 +601,7 @@ paths:
               required: [kind, target_type, target_id]
               properties:
                 kind: { type: string, enum: [flag, report] }
-                target_type: { type: string, enum: [file, channel, post] }
+                target_type: { type: string, enum: [file] }
                 target_id: { type: string, format: uuid }
                 reason: { type: string, enum: [copyright, inappropriate, csam, other], default: other }
                 detail: { type: string, description: Required for copyright reports. }
@@ -749,6 +685,49 @@ paths:
       tags: [Notifications]
       summary: Mark all read
       responses: { "204": { $ref: "#/components/responses/NoContent" } }
+
+  # ---------------------------------------------------------------- Legal
+  /legal/:
+    get:
+      tags: [Ops]
+      summary: Policy versions + grievance officer contact (public)
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  policies:
+                    type: object
+                    properties:
+                      tos: { type: object, properties: { version: { type: string } } }
+                      privacy: { type: object, properties: { version: { type: string } } }
+                  grievance_officer:
+                    type: object
+                    properties: { name: { type: string }, email: { type: string }, address: { type: string } }
+                  note: { type: string }
+  /legal/grievance:
+    post:
+      tags: [Ops]
+      summary: File a grievance (IT Rules 2021 redressal)
+      security: []
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [subject, body], properties: { subject: { type: string }, body: { type: string }, email: { type: string } } } } } }
+      responses:
+        "201":
+          description: Received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticket: { type: string, format: uuid }
+                  status: { type: string }
+                  acknowledgement: { type: string }
+                  grievance_officer_email: { type: string }
+        "400": { $ref: "#/components/responses/ValidationError" }
 
   # ---------------------------------------------------------------- Ops
   /health/:

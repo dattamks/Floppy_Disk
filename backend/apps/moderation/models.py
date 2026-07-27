@@ -20,8 +20,6 @@ class ContentReport(TimeStampedModel):
 
     class TargetType(models.TextChoices):
         FILE = "file", "File"
-        CHANNEL = "channel", "Channel"
-        POST = "post", "Channel post"
 
     class Reason(models.TextChoices):
         COPYRIGHT = "copyright", "Copyright / IP"

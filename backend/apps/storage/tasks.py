@@ -14,3 +14,10 @@ def release_expired_reservations_task():
     """Release expired upload reservations (reserve-then-commit cleanup)."""
     from .quota import release_expired
     return release_expired()
+
+
+@shared_task
+def transcode_video_task(file_id):
+    """Probe + transcode an uploaded video to a browser-playable MP4 (FFmpeg)."""
+    from .video_processing import process_video
+    return process_video(file_id)

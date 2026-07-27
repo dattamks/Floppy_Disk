@@ -1,4 +1,5 @@
 import React from 'react';
+import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.isShareModal is set.
@@ -36,10 +37,10 @@ export default function ShareModal(V) {
               marginLeft: '8px',
               fontSize: '11px',
               padding: '4px 8px',
-              border: '1px solid #E5E7EC',
+              border: `1px solid ${theme.border}`,
               borderRadius: '6px',
               maxWidth: '170px',
-              color: '#5145E5',
+              color: theme.brand,
             }}
           />
         ) : null}
@@ -49,7 +50,7 @@ export default function ShareModal(V) {
             background: 'none',
             border: 'none',
             cursor: 'pointer',
-            color: '#8A909B',
+            color: theme.textMuted2,
             flex: '0 0 auto',
           }}
         >
@@ -73,8 +74,8 @@ export default function ShareModal(V) {
             flexDirection: 'column',
             alignItems: 'center',
             gap: '7px',
-            background: '#F7F8FA',
-            border: '1px solid #E5E7EC',
+            background: theme.surface2,
+            border: `1px solid ${theme.border}`,
             borderRadius: '11px',
             padding: '13px 6px',
             cursor: 'pointer',
@@ -84,19 +85,19 @@ export default function ShareModal(V) {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path
               d="M7 18a4 4 0 0 1 0-8 5 5 0 0 1 9.6-1.5A3.5 3.5 0 0 1 18 18H7Z"
-              stroke="#5145E5"
+              stroke={theme.brand}
               strokeWidth="1.6"
               strokeLinejoin="round"
             />
             <path
               d="M12 11v5m0-5l-2 2m2-2l2 2"
-              stroke="#5145E5"
+              stroke={theme.brand}
               strokeWidth="1.6"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           </svg>
-          <span style={{ fontSize: '11px', fontWeight: '500', color: '#15171C' }}>
+          <span style={{ fontSize: '11px', fontWeight: '500', color: theme.text }}>
             Save to cloud
           </span>
         </button>{' '}
@@ -108,8 +109,8 @@ export default function ShareModal(V) {
             flexDirection: 'column',
             alignItems: 'center',
             gap: '7px',
-            background: '#F7F8FA',
-            border: '1px solid #E5E7EC',
+            background: theme.surface2,
+            border: `1px solid ${theme.border}`,
             borderRadius: '11px',
             padding: '13px 6px',
             cursor: 'pointer',
@@ -119,13 +120,13 @@ export default function ShareModal(V) {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path
               d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14"
-              stroke="#5145E5"
+              stroke={theme.brand}
               strokeWidth="1.6"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           </svg>
-          <span style={{ fontSize: '11px', fontWeight: '500', color: '#15171C' }}>Download</span>
+          <span style={{ fontSize: '11px', fontWeight: '500', color: theme.text }}>Download</span>
         </button>{' '}
         <button
           onClick={V.copyLink}
@@ -135,8 +136,8 @@ export default function ShareModal(V) {
             flexDirection: 'column',
             alignItems: 'center',
             gap: '7px',
-            background: '#F7F8FA',
-            border: '1px solid #E5E7EC',
+            background: theme.surface2,
+            border: `1px solid ${theme.border}`,
             borderRadius: '11px',
             padding: '13px 6px',
             cursor: 'pointer',
@@ -146,13 +147,13 @@ export default function ShareModal(V) {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path
               d="M9 15l6-6M10.5 6.5l1-1a4 4 0 0 1 6 6l-1 1M13.5 17.5l-1 1a4 4 0 0 1-6-6l1-1"
-              stroke="#5145E5"
+              stroke={theme.brand}
               strokeWidth="1.6"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
           </svg>
-          <span style={{ fontSize: '11px', fontWeight: '500', color: '#15171C' }}>
+          <span style={{ fontSize: '11px', fontWeight: '500', color: theme.text }}>
             {V.copyLabel}
           </span>
         </button>{' '}
@@ -162,12 +163,12 @@ export default function ShareModal(V) {
           style={{
             flex: '1',
             minWidth: '0',
-            background: '#F1F2F5',
-            border: '1px solid #E5E7EC',
+            background: theme.surface,
+            border: `1px solid ${theme.border}`,
             borderRadius: '9px',
             padding: '10px 12px',
             fontSize: '12px',
-            color: '#656B76',
+            color: theme.textMuted,
             fontFamily: 'monospace',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -179,8 +180,8 @@ export default function ShareModal(V) {
         <button
           onClick={V.copyLink}
           style={{
-            background: '#5145E5',
-            color: '#fff',
+            background: theme.brand,
+            color: theme.white,
             border: 'none',
             borderRadius: '9px',
             padding: '0 16px',
@@ -268,12 +269,12 @@ export default function ShareModal(V) {
         onKeyDown={V.addEmail}
         placeholder="Add people by email, press Enter"
         style={{
-          background: '#F1F2F5',
-          border: '1px solid #E5E7EC',
+          background: theme.surface,
+          border: `1px solid ${theme.border}`,
           borderRadius: '9px',
           padding: '10px 12px',
           fontSize: '12.5px',
-          color: '#15171C',
+          color: theme.text,
           outline: 'none',
           fontFamily: "'IBM Plex Sans',sans-serif",
         }}
@@ -283,8 +284,8 @@ export default function ShareModal(V) {
           <React.Fragment key={$index}>
             <div
               style={{
-                background: '#EEF0F4',
-                border: '1px solid #E5E7EC',
+                background: theme.appBg2,
+                border: `1px solid ${theme.border}`,
                 borderRadius: '20px',
                 padding: '5px 7px 5px 11px',
                 fontSize: '11.5px',
@@ -299,7 +300,7 @@ export default function ShareModal(V) {
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#9AA1AC',
+                  color: theme.textFaint,
                   cursor: 'pointer',
                   display: 'flex',
                   padding: '2px',
@@ -321,8 +322,8 @@ export default function ShareModal(V) {
       <button
         onClick={V.closeModal}
         style={{
-          background: '#5145E5',
-          color: '#fff',
+          background: theme.brand,
+          color: theme.white,
           border: 'none',
           borderRadius: '10px',
           padding: '11px',
@@ -330,7 +331,7 @@ export default function ShareModal(V) {
           fontWeight: '600',
           cursor: 'pointer',
         }}
-        {...hov({ background: '#4238CC' })}
+        {...hov({ background: theme.brandDark })}
       >
         Done
       </button>{' '}

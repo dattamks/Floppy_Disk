@@ -1,12 +1,16 @@
 import { test, expect } from '@playwright/test';
 import { blockExternal, registerNewUser } from './helpers.js';
 
-test.beforeEach(async ({ page }) => { await blockExternal(page); });
+test.beforeEach(async ({ page }) => {
+  await blockExternal(page);
+});
 
 async function uploadFile(page, name) {
   await page.getByRole('button', { name: 'Upload' }).click();
   await page.locator('input[type="file"]').setInputFiles({
-    name, mimeType: 'text/plain', buffer: Buffer.from('trash test bytes'),
+    name,
+    mimeType: 'text/plain',
+    buffer: Buffer.from('trash test bytes'),
   });
   await expect(page.getByText(name)).toBeVisible();
 }

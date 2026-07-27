@@ -66,9 +66,16 @@ export const api = {
   listFolders: (parent) => request(`/storage/folders${parent ? `?parent=${parent}` : ''}`),
   createFolder: (name, parent) =>
     request('/storage/folders', { method: 'POST', body: parent ? { name, parent } : { name } }),
+  updateFolder: (id, patch) => request(`/storage/folders/${id}`, { method: 'PATCH', body: patch }),
+  deleteFolder: (id) => request(`/storage/folders/${id}`, { method: 'DELETE' }),
+  restoreFolder: (id) => request(`/storage/folders/${id}/restore`, { method: 'POST' }),
+  purgeFolder: (id) => request(`/storage/folders/${id}/purge`, { method: 'POST' }),
   listFiles: (folder) => request(`/storage/files${folder ? `?folder=${folder}` : ''}`),
   usage: () => request('/storage/usage'),
   trash: () => request('/storage/trash'),
+  updateFile: (id, patch) => request(`/storage/files/${id}`, { method: 'PATCH', body: patch }),
+  updateFileContent: (id, content) =>
+    request(`/storage/files/${id}/content`, { method: 'PUT', body: { content } }),
   deleteFile: (id) => request(`/storage/files/${id}`, { method: 'DELETE' }),
   fileDownload: (id) => request(`/storage/files/${id}/download`),
   restoreFile: (id) => request(`/storage/files/${id}/restore`, { method: 'POST' }),
@@ -100,12 +107,6 @@ export const api = {
     }
   },
 
-  // Channels
-  listChannels: (mine) => request(`/channels/${mine ? '?mine=1' : ''}`),
-  createChannel: (payload) => request('/channels/', { method: 'POST', body: payload }),
-  subscribeChannel: (id) => request(`/channels/${id}/subscribe`, { method: 'POST' }),
-  unsubscribeChannel: (id) => request(`/channels/${id}/subscribe`, { method: 'DELETE' }),
-
   // Moderation
   report: (payload) => request('/moderation/reports', { method: 'POST', body: payload }),
 
@@ -118,9 +119,9 @@ export const api = {
 
   // Video
   play: (fileId) => request(`/storage/files/${fileId}/play`, { method: 'POST' }),
-  promoteVideo: (fileId) => request(`/storage/files/${fileId}/promote`, { method: 'POST' }),
 
   // Account / compliance (DPDPA)
+  updateSettings: (patch) => request('/auth/account/settings', { method: 'PATCH', body: patch }),
   deleteAccount: () => request('/auth/account/delete', { method: 'POST' }),
   exportData: () => request('/auth/account/export', { method: 'POST' }),
   logConsent: (policy, version) =>

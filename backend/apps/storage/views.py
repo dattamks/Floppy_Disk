@@ -15,8 +15,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .lifecycle import purge_file
+import hashlib
+
+from django.db import transaction
+
+from .lifecycle import _release_object, purge_file, purge_folder
 from .models import File, Folder, StorageObject, StorageReservation
+from .naming import unique_name
 from .quota import FileTooLarge, QuotaExceeded, available_bytes, commit, reserve
 from .serializers import (
     FileSerializer,
@@ -68,20 +73,115 @@ class FolderListCreateView(APIView):
     def post(self, request):
         serializer = FolderCreateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
-        folder = serializer.save(owner=request.user)
+        parent = serializer.validated_data.get("parent")
+        name = unique_name(
+            serializer.validated_data["name"], _active_folder_names(request.user, parent)
+        )
+        folder = serializer.save(owner=request.user, name=name)
         return Response(FolderSerializer(folder).data, status=status.HTTP_201_CREATED)
+
+
+def _active_folder_names(user, parent, exclude_id=None):
+    qs = Folder.objects.filter(owner=user, parent=parent, deleted_at__isnull=True)
+    if exclude_id is not None:
+        qs = qs.exclude(pk=exclude_id)
+    return set(qs.values_list("name", flat=True))
+
+
+def _active_file_names(user, folder, exclude_id=None):
+    qs = File.objects.filter(owner=user, folder=folder, deleted_at__isnull=True)
+    if exclude_id is not None:
+        qs = qs.exclude(pk=exclude_id)
+    return set(qs.values_list("name", flat=True))
+
+
+def _is_self_or_descendant(candidate_parent, folder):
+    """True if moving `folder` under `candidate_parent` would create a cycle."""
+    node = candidate_parent
+    while node is not None:
+        if node.pk == folder.pk:
+            return True
+        node = node.parent
+    return False
+
+
+def _subtree_folder_ids(folder):
+    """The folder's id plus every descendant folder id (breadth-first)."""
+    ids = [folder.pk]
+    frontier = [folder.pk]
+    while frontier:
+        kids = list(Folder.objects.filter(parent_id__in=frontier).values_list("pk", flat=True))
+        ids.extend(kids)
+        frontier = kids
+    return ids
 
 
 class FolderDetailView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def patch(self, request, folder_id):
+        """Rename and/or move a folder (Drive-style). Auto-suffixes on collision."""
+        try:
+            folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=True)
+        except Folder.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        fields = []
+        if "parent" in request.data:
+            parent_id = request.data["parent"] or None
+            parent = None
+            if parent_id:
+                parent = Folder.objects.filter(
+                    pk=parent_id, owner=request.user, deleted_at__isnull=True
+                ).first()
+                if parent is None:
+                    return Response({"detail": "Invalid destination folder."},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                if _is_self_or_descendant(parent, folder):
+                    return Response({"detail": "Cannot move a folder into itself or a subfolder."},
+                                    status=status.HTTP_400_BAD_REQUEST)
+            folder.parent = parent
+            fields.append("parent")
+
+        if "name" in request.data:
+            name = (request.data.get("name") or "").strip()
+            if not name:
+                return Response({"detail": "Folder name cannot be empty."},
+                                status=status.HTTP_400_BAD_REQUEST)
+            folder.name = name
+            fields.append("name")
+
+        if not fields:
+            return Response(FolderSerializer(folder).data)
+
+        # Keep the name unique among active siblings at the (possibly new) parent.
+        folder.name = unique_name(
+            folder.name, _active_folder_names(request.user, folder.parent, exclude_id=folder.pk)
+        )
+        if "name" not in fields:
+            fields.append("name")
+        folder.save(update_fields=[*fields, "updated_at"])
+        return Response(FolderSerializer(folder).data)
 
     def delete(self, request, folder_id):
         try:
             folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=True)
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        folder.deleted_at = timezone.now()
-        folder.save(update_fields=["deleted_at", "updated_at"])
+        now = timezone.now()
+        # Cascade: soft-delete the whole subtree, tagging each currently-active
+        # descendant with this folder's id so it restores together (and stays
+        # hidden from the top-level Trash view).
+        descendant_ids = _subtree_folder_ids(folder)[1:]  # excludes the folder itself
+        Folder.objects.filter(pk__in=descendant_ids, deleted_at__isnull=True).update(
+            deleted_at=now, trashed_root=folder.pk, updated_at=now
+        )
+        File.objects.filter(
+            folder_id__in=[folder.pk, *descendant_ids], deleted_at__isnull=True
+        ).update(deleted_at=now, trashed_root=folder.pk, updated_at=now)
+        folder.deleted_at = now
+        folder.trashed_root = None  # this is the root of the trash action
+        folder.save(update_fields=["deleted_at", "trashed_root", "updated_at"])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -148,6 +248,70 @@ class FileDownloadView(APIView):
         return Response({"download_url": url, "name": file.name, "size_bytes": file.size_bytes})
 
 
+class FileContentView(APIView):
+    """Replace a (text) file's content in place — edit-in-place saving."""
+
+    permission_classes = [IsAuthenticated]
+    MAX_BYTES = 5 * 1024 * 1024  # inline text editing cap
+
+    @transaction.atomic
+    def put(self, request, file_id):
+        file = (
+            File.objects.select_for_update()
+            .select_related("storage_object")
+            .filter(pk=file_id, owner=request.user, deleted_at__isnull=True,
+                    is_quarantined=False, is_frozen=False)
+            .first()
+        )
+        if file is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        storage = get_storage_service()
+        if not hasattr(storage, "save_bytes"):
+            return Response({"detail": "Editing is not supported on this backend."},
+                            status=status.HTTP_501_NOT_IMPLEMENTED)
+
+        data = str(request.data.get("content", "")).encode("utf-8")
+        if len(data) > self.MAX_BYTES:
+            return Response({"detail": "File too large to edit inline.", "code": "file_too_large"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        old = file.storage_object
+        old_size = file.size_bytes or 0
+        new_size = len(data)
+        delta = new_size - old_size
+        if delta > 0 and delta > available_bytes(request.user):
+            return Response({"detail": "Not enough storage.", "code": "quota_exceeded"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        region = request.user.storage_region
+        content_hash = hashlib.sha256(data).hexdigest()
+        # New content addressed at a sibling key so releasing the old blob can't
+        # clobber the new one.
+        key = f"{_object_key(request.user.id, file.id)}.{content_hash[:12]}"
+        obj, _created = StorageObject.objects.get_or_create(
+            content_hash=content_hash, region=region,
+            defaults={"size_bytes": new_size, "status": StorageObject.Status.READY, "object_key": key},
+        )
+        storage.save_bytes(region=region, object_key=obj.object_key, data=data)
+
+        if old and obj.pk == old.pk:
+            return Response(FileSerializer(file).data)  # content unchanged
+
+        StorageObject.objects.filter(pk=obj.pk).update(ref_count=F("ref_count") + 1)
+        file.storage_object = obj
+        file.size_bytes = new_size
+        file.save(update_fields=["storage_object", "size_bytes", "updated_at"])
+        if old:
+            _release_object(old)
+        if delta:
+            from django.contrib.auth import get_user_model
+
+            get_user_model().objects.filter(pk=request.user.pk).update(
+                storage_used_bytes=F("storage_used_bytes") + delta
+            )
+        return Response(FileSerializer(file).data)
+
+
 class FileListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -156,7 +320,7 @@ class FileListView(APIView):
         qs = File.objects.filter(
             owner=request.user, deleted_at__isnull=True, is_quarantined=False,
             is_frozen=False, folder=folder,
-        ).order_by("-created_at")
+        ).select_related("poster_object").order_by("-created_at")
         return Response(FileSerializer(qs, many=True).data)
 
 
@@ -178,6 +342,46 @@ class UsageView(APIView):
 class FileDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def patch(self, request, file_id):
+        """Rename and/or move a file between folders. Auto-suffixes on collision."""
+        try:
+            file = File.objects.get(pk=file_id, owner=request.user, deleted_at__isnull=True)
+        except File.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        fields = []
+        if "folder" in request.data:
+            folder_id = request.data["folder"] or None
+            folder = None
+            if folder_id:
+                folder = Folder.objects.filter(
+                    pk=folder_id, owner=request.user, deleted_at__isnull=True
+                ).first()
+                if folder is None:
+                    return Response({"detail": "Invalid destination folder."},
+                                    status=status.HTTP_400_BAD_REQUEST)
+            file.folder = folder
+            fields.append("folder")
+
+        if "name" in request.data:
+            name = (request.data.get("name") or "").strip()
+            if not name:
+                return Response({"detail": "File name cannot be empty."},
+                                status=status.HTTP_400_BAD_REQUEST)
+            file.name = name
+            fields.append("name")
+
+        if not fields:
+            return Response(FileSerializer(file).data)
+
+        file.name = unique_name(
+            file.name, _active_file_names(request.user, file.folder, exclude_id=file.pk)
+        )
+        if "name" not in fields:
+            fields.append("name")
+        file.save(update_fields=[*fields, "updated_at"])
+        return Response(FileSerializer(file).data)
+
     def delete(self, request, file_id):
         """Soft-delete (move to trash). Still counts toward quota until purged."""
         try:
@@ -198,7 +402,9 @@ class FileRestoreView(APIView):
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         file.deleted_at = None
-        file.save(update_fields=["deleted_at", "updated_at"])
+        # If a live file now occupies the old name here, restore under a variant.
+        file.name = unique_name(file.name, _active_file_names(request.user, file.folder, exclude_id=file.pk))
+        file.save(update_fields=["deleted_at", "name", "updated_at"])
         return Response(FileSerializer(file).data)
 
 
@@ -215,6 +421,19 @@ class FilePurgeView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class FolderPurgeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, folder_id):
+        """Permanently delete a trashed folder and everything under it."""
+        try:
+            folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=False)
+        except Folder.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        purge_folder(folder)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class FolderRestoreView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -223,8 +442,21 @@ class FolderRestoreView(APIView):
             folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=False)
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        # Restore everything trashed together with this folder (but NOT items the
+        # user had independently trashed earlier — those have a different/no root).
+        now = timezone.now()
+        Folder.objects.filter(owner=request.user, trashed_root=folder.pk).update(
+            deleted_at=None, trashed_root=None, updated_at=now
+        )
+        File.objects.filter(owner=request.user, trashed_root=folder.pk).update(
+            deleted_at=None, trashed_root=None, updated_at=now
+        )
         folder.deleted_at = None
-        folder.save(update_fields=["deleted_at", "updated_at"])
+        # If a live folder now occupies the old name here, restore under a variant.
+        folder.name = unique_name(
+            folder.name, _active_folder_names(request.user, folder.parent, exclude_id=folder.pk)
+        )
+        folder.save(update_fields=["deleted_at", "name", "updated_at"])
         return Response(FolderSerializer(folder).data)
 
 
@@ -232,8 +464,14 @@ class TrashView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        folders = Folder.objects.filter(owner=request.user, deleted_at__isnull=False).order_by("-deleted_at")
-        files = File.objects.filter(owner=request.user, deleted_at__isnull=False).order_by("-deleted_at")
+        # Only top-level trashed items — children trashed via an ancestor folder
+        # (trashed_root set) come back with that folder, not on their own.
+        folders = Folder.objects.filter(
+            owner=request.user, deleted_at__isnull=False, trashed_root__isnull=True
+        ).order_by("-deleted_at")
+        files = File.objects.filter(
+            owner=request.user, deleted_at__isnull=False, trashed_root__isnull=True
+        ).order_by("-deleted_at")
         return Response({
             "folders": FolderSerializer(folders, many=True).data,
             "files": FileSerializer(files, many=True).data,
@@ -248,9 +486,10 @@ class UploadInitiateView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        name = unique_name(data["name"], _active_file_names(request.user, data.get("folder")))
         file = File.objects.create(
             owner=request.user,
-            name=data["name"],
+            name=name,
             folder=data.get("folder"),
             kind=data["kind"],
             size_bytes=data["size_bytes"],
@@ -362,12 +601,20 @@ class UploadCompleteView(APIView):
 
         file.storage_object = obj
         file.size_bytes = size_bytes
-        file.status = File.Status.READY  # scan hook (ClamAV) runs before this in a later slice
+        # Videos go `processing` while a self-hosted FFmpeg transcode produces a
+        # browser-playable MP4 rendition + poster; everything else is ready now.
+        is_video = file.kind == File.Kind.VIDEO
+        file.status = File.Status.PROCESSING if is_video else File.Status.READY
         file.save(update_fields=["storage_object", "size_bytes", "status", "updated_at"])
 
         res = file.reservations.filter(status=StorageReservation.Status.ACTIVE).first()
         if res:
             commit(res)
+
+        if is_video:
+            from .tasks import transcode_video_task
+            transcode_video_task.delay(str(file.id))
+            file.refresh_from_db()  # eager task (dev/tests) may already have finished
 
         from apps.analytics.track import track
         track("upload_complete", user=request.user, kind=file.kind, size_bytes=file.size_bytes)
@@ -398,8 +645,13 @@ class DevBlobView(APIView):
 
     @staticmethod
     def _content_type(object_key):
-        # object_key is "<user_id>/<file_id>"; guess the type from the File's name.
         import mimetypes
+        # Rendition keys carry their own extension (….play.mp4, ….poster.jpg).
+        ctype, _ = mimetypes.guess_type(object_key)
+        if ctype:
+            return ctype
+        # Original uploads are keyed by "<user_id>/<file_id>" (no extension);
+        # guess from the File's name instead.
         try:
             file_id = object_key.split("/")[-1]
             f = File.objects.filter(pk=file_id).only("name").first()
