@@ -22,15 +22,30 @@ def user(db):
 
 def test_backup_settings_default_and_update(user):
     c = _client(user)
-    assert c.get("/api/v1/auth/account/settings").json() == {
-        "auto_backup_enabled": False, "backup_wifi_only": True,
-    }
+    got = c.get("/api/v1/auth/account/settings").json()
+    assert got["auto_backup_enabled"] is False
+    assert got["backup_wifi_only"] is True
     resp = c.patch("/api/v1/auth/account/settings",
                    {"auto_backup_enabled": True, "backup_wifi_only": False}, format="json")
     assert resp.status_code == 200
     user.refresh_from_db()
     assert user.auto_backup_enabled is True
     assert user.backup_wifi_only is False
+
+
+def test_profile_and_2fa_settings_persist(user):
+    c = _client(user)
+    resp = c.patch("/api/v1/auth/account/settings",
+                   {"display_name": "  Aiden Rivera  ", "two_factor_enabled": True}, format="json")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["display_name"] == "Aiden Rivera"  # trimmed
+    assert body["two_factor_enabled"] is True
+    user.refresh_from_db()
+    assert user.display_name == "Aiden Rivera"
+    assert user.two_factor_enabled is True
+    # And /me reflects the persisted 2FA flag.
+    assert c.get("/api/v1/auth/me").json()["two_factor_enabled"] is True
 
 
 def test_camera_backup_folder_is_created_once(user):

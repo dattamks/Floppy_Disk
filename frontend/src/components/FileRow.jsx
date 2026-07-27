@@ -22,10 +22,41 @@ export default function FileRow({ V, file }) {
         padding: '9px 12px',
         borderRadius: '9px',
         cursor: 'pointer',
-        background: file.isDragOver ? theme.brandBg : theme.white,
-        border: `1px solid ${file.isDragOver ? theme.brand : theme.border}`,
+        background: file.selected || file.isDragOver ? theme.brandBg : theme.white,
+        border: `1px solid ${file.selected || file.isDragOver ? theme.brand : theme.border}`,
       }}
     >
+      {file.selectable ? (
+        <button
+          onClick={file.onToggleSelect}
+          aria-label={file.selected ? 'Deselect' : 'Select'}
+          style={{
+            width: '20px',
+            height: '20px',
+            flex: '0 0 auto',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: file.selected ? theme.brand : theme.white,
+            border: `1px solid ${file.selected ? theme.brand : theme.border}`,
+            color: '#fff',
+          }}
+        >
+          {file.selected ? (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M5 12l4 4 10-10"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          ) : null}
+        </button>
+      ) : null}
       <div
         style={{
           width: '30px',

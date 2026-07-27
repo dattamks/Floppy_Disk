@@ -17,7 +17,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "email", "email_verified", "display_name", "storage_region",
-                  "status", "tier", "quota_bytes", "billing_enabled"]
+                  "status", "tier", "quota_bytes", "billing_enabled", "two_factor_enabled"]
         read_only_fields = fields
 
     def get_billing_enabled(self, obj):

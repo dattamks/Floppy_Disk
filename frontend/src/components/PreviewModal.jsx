@@ -37,18 +37,71 @@ function Body(V) {
   }
   const k = V.previewKind;
   if (k === 'image') {
-    return (
-      <img
-        src={V.previewUrl}
-        alt={f.name}
+    const arrow = (onClick, side, glyph) => (
+      <button
+        onClick={onClick}
+        aria-label={side === 'left' ? 'Previous image' : 'Next image'}
         style={{
-          width: '100%',
-          maxHeight: '360px',
-          objectFit: 'contain',
-          borderRadius: '11px',
-          background: theme.surface4,
+          position: 'absolute',
+          top: '50%',
+          [side]: '10px',
+          transform: 'translateY(-50%)',
+          width: '34px',
+          height: '34px',
+          borderRadius: '50%',
+          border: 'none',
+          cursor: 'pointer',
+          background: 'rgba(10,12,20,0.55)',
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
         }}
-      />
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path
+            d={glyph}
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
+    );
+    return (
+      <div style={{ position: 'relative' }}>
+        <img
+          src={V.previewUrl}
+          alt={f.name}
+          style={{
+            width: '100%',
+            maxHeight: '360px',
+            objectFit: 'contain',
+            borderRadius: '11px',
+            background: theme.surface4,
+          }}
+        />
+        {V.previewHasPrev ? arrow(V.previewPrev, 'left', 'M15 6l-6 6 6 6') : null}
+        {V.previewHasNext ? arrow(V.previewNext, 'right', 'M9 6l6 6-6 6') : null}
+        {V.previewCounter ? (
+          <span
+            style={{
+              position: 'absolute',
+              bottom: '10px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(10,12,20,0.66)',
+              color: '#fff',
+              fontSize: '11px',
+              borderRadius: '999px',
+              padding: '2px 9px',
+            }}
+          >
+            {V.previewCounter}
+          </span>
+        ) : null}
+      </div>
     );
   }
   if (k === 'pdf') {

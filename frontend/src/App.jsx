@@ -53,6 +53,9 @@ export default class App extends React.Component {
     // Drag-and-drop move.
     draggingId: null,
     dragOverId: null,
+    // Bulk selection.
+    selectedIds: [],
+    moveBulk: false,
     settingsTab: 'profile',
     verifyType: 'email',
     verifyCode: '',
@@ -415,6 +418,7 @@ export default class App extends React.Component {
       emailVerified: !!user.email_verified,
       profileName: user.display_name || this.state.profileName,
       billingEnabled: !!user.billing_enabled,
+      twofa: !!user.two_factor_enabled,
     });
     this.loadStorage();
     this.loadUsage();
@@ -519,13 +523,14 @@ export default class App extends React.Component {
       searchQuery: '',
       drawerOpen: false,
       mobileSearchOpen: false,
+      selectedIds: [],
     });
   }
   navToAll() {
     this.go('all');
   }
   navToFolder(id) {
-    this.setState({ filterKey: 'all', currentFolderId: id, searchQuery: '' });
+    this.setState({ filterKey: 'all', currentFolderId: id, searchQuery: '', selectedIds: [] });
   }
   navToShared() {
     this.go('shared');
@@ -618,7 +623,13 @@ export default class App extends React.Component {
     this.setState({ profileBio: e.target.value });
   }
   saveProfile() {
-    this.toast('Profile saved');
+    api
+      .updateSettings({ display_name: (this.state.profileName || '').trim() })
+      .then((s) => {
+        if (s && s.display_name != null) this.setState({ profileName: s.display_name });
+        this.toast('Profile saved');
+      })
+      .catch((err) => this.toast(firstError(err, 'Could not save profile')));
   }
   toastPhoto() {
     this.toast('Photo picker opened');
@@ -636,7 +647,15 @@ export default class App extends React.Component {
     this.toast('Signed out of all other sessions');
   }
   toggle2fa() {
-    this.setState((s) => ({ twofa: !s.twofa }));
+    const next = !this.state.twofa;
+    this.setState({ twofa: next }); // optimistic
+    api
+      .updateSettings({ two_factor_enabled: next })
+      .then(() => this.toast(next ? 'Two-factor enabled' : 'Two-factor disabled'))
+      .catch((err) => {
+        this.setState({ twofa: !next }); // revert
+        this.toast(firstError(err, 'Could not update 2FA'));
+      });
   }
   setPwCurrent(e) {
     this.setState({ pwCurrent: e.target.value });
@@ -839,7 +858,12 @@ export default class App extends React.Component {
   }
   openFile(file) {
     if (file.kind === 'folder') {
-      this.setState({ currentFolderId: file.id, filterKey: 'all', searchQuery: '' });
+      this.setState({
+        currentFolderId: file.id,
+        filterKey: 'all',
+        searchQuery: '',
+        selectedIds: [],
+      });
       return;
     }
     if (file.kind === 'video') {
@@ -909,6 +933,22 @@ export default class App extends React.Component {
     }
   }
 
+  // Images in the active image's folder (for gallery prev/next), name-sorted.
+  _galleryImages() {
+    const st = this.state;
+    const active = st.files.find((f) => f.id === st.activeFileId);
+    if (!active) return [];
+    return st.files
+      .filter((f) => !f.trashed && f.kind === 'image' && f.parentId === active.parentId)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
+  previewStep(dir) {
+    const list = this._galleryImages();
+    const idx = list.findIndex((f) => f.id === this.state.activeFileId);
+    const nextItem = list[idx + dir];
+    if (nextItem) this.openFile(nextItem);
+  }
+
   // --- Rename (files & folders) ---------------------------------------------
   openRename(file) {
     this.closeCtxMenu();
@@ -963,7 +1003,13 @@ export default class App extends React.Component {
     this.setState({ moveDestId: id });
   }
   submitMove() {
-    this.doMove(this.state.moveTargetId, this.state.moveDestId);
+    const { moveBulk, moveDestId, selectedIds, moveTargetId } = this.state;
+    if (moveBulk) {
+      [...selectedIds].forEach((id) => this.doMove(id, moveDestId));
+      this.setState({ modal: null, moveBulk: false, selectedIds: [] });
+      return;
+    }
+    this.doMove(moveTargetId, moveDestId);
     this.setState({ modal: null });
   }
   // Shared move for both the Move dialog and drag-and-drop.
@@ -1028,6 +1074,50 @@ export default class App extends React.Component {
     const dragging = this.state.draggingId;
     this.setState({ draggingId: null, dragOverId: null });
     if (dragging) this.doMove(dragging, folder.id);
+  }
+
+  // --- Bulk selection --------------------------------------------------------
+  toggleSelect(id, e) {
+    if (e) e.stopPropagation();
+    this.setState((s) => ({
+      selectedIds: s.selectedIds.includes(id)
+        ? s.selectedIds.filter((x) => x !== id)
+        : [...s.selectedIds, id],
+    }));
+  }
+  clearSelection() {
+    if (this.state.selectedIds.length) this.setState({ selectedIds: [] });
+  }
+  bulkTrash() {
+    const ids = [...this.state.selectedIds];
+    ids.forEach((id) => {
+      const f = this.state.files.find((x) => x.id === id);
+      if (f && f.real) {
+        const call = f.kind === 'folder' ? api.deleteFolder(id) : api.deleteFile(id);
+        call.catch(() => {});
+      }
+    });
+    this.setState((s) => ({
+      files: s.files.map((x) => (ids.includes(x.id) ? { ...x, trashed: true } : x)),
+      selectedIds: [],
+    }));
+    this.toast(`Moved ${ids.length} to trash`);
+  }
+  bulkDownload() {
+    const ids = this.state.selectedIds;
+    this.state.files
+      .filter((f) => ids.includes(f.id) && f.kind !== 'folder')
+      .forEach((f) => this.downloadFile(f));
+    this.setState({ selectedIds: [] });
+  }
+  openBulkMove() {
+    this.setState({
+      modal: 'move',
+      moveBulk: true,
+      moveTargetId: null,
+      moveIsFolder: false,
+      moveDestId: null,
+    });
   }
 
   // --- Share-link management -------------------------------------------------
@@ -1510,20 +1600,23 @@ export default class App extends React.Component {
   // indented by depth, excluding the item being moved and (for a folder) its
   // own subtree — those would create a cycle.
   moveDestOptions() {
-    const { files, moveTargetId, moveIsFolder } = this.state;
+    const { files, moveTargetId, moveIsFolder, moveBulk, selectedIds } = this.state;
     const excluded = new Set();
-    if (moveTargetId) {
+    const excludeSubtree = (fid) => {
+      excluded.add(fid);
+      files.forEach((f) => {
+        if (f.kind === 'folder' && !f.trashed && f.parentId === fid) excludeSubtree(f.id);
+      });
+    };
+    if (moveBulk) {
+      selectedIds.forEach((id) => {
+        const f = files.find((x) => x.id === id);
+        if (f && f.kind === 'folder') excludeSubtree(id);
+        else excluded.add(id);
+      });
+    } else if (moveTargetId) {
       excluded.add(moveTargetId);
-      if (moveIsFolder) {
-        const addKids = (pid) =>
-          files.forEach((f) => {
-            if (f.kind === 'folder' && !f.trashed && f.parentId === pid) {
-              excluded.add(f.id);
-              addKids(f.id);
-            }
-          });
-        addKids(moveTargetId);
-      }
+      if (moveIsFolder) excludeSubtree(moveTargetId);
     }
     const opts = [{ id: null, name: 'My Files', depth: 0 }];
     const walk = (parentId, depth) => {
@@ -1644,6 +1737,10 @@ export default class App extends React.Component {
         onDragOver: (e) => this.onDragOverFolder(f, e),
         onDragLeave: () => this.onDragLeaveFolder(f),
         onDrop: (e) => this.onDropFolder(f, e),
+        // Bulk selection.
+        selectable: !f.trashed,
+        selected: st.selectedIds.includes(f.id),
+        onToggleSelect: (e) => this.toggleSelect(f.id, e),
       };
     };
 
@@ -1909,6 +2006,13 @@ export default class App extends React.Component {
       carouselItems,
       showGridLabel: showCarousel,
       gridLabel: 'Files & folders',
+      // Bulk selection.
+      selectionActive: st.selectedIds.length > 0,
+      selectionCount: st.selectedIds.length,
+      onClearSelection: () => this.clearSelection(),
+      onBulkMove: () => this.openBulkMove(),
+      onBulkDownload: () => this.bulkDownload(),
+      onBulkTrash: () => this.bulkTrash(),
       // Search type filters (shown while searching).
       showSearchFilters: searchActive,
       searchTypeChips: [
@@ -2002,6 +2106,21 @@ export default class App extends React.Component {
       previewKind: st.previewKind,
       previewUrl: st.previewUrl,
       previewText: st.previewText,
+      // Image gallery navigation (prev/next among images in the same folder).
+      ...(() => {
+        if (st.previewKind !== 'image' || !activeFile) return {};
+        const imgs = files
+          .filter((f) => !f.trashed && f.kind === 'image' && f.parentId === activeFile.parentId)
+          .sort((a, b) => a.name.localeCompare(b.name));
+        const idx = imgs.findIndex((f) => f.id === activeFileId);
+        return {
+          previewHasPrev: idx > 0,
+          previewHasNext: idx >= 0 && idx < imgs.length - 1,
+          previewCounter: imgs.length > 1 ? `${idx + 1} / ${imgs.length}` : '',
+        };
+      })(),
+      previewPrev: () => this.previewStep(-1),
+      previewNext: () => this.previewStep(1),
       previewLoading: st.previewLoading,
       previewError: st.previewError,
       previewHtml: st.previewKind === 'markdown' ? renderMarkdown(st.previewText || '') : '',
@@ -2027,7 +2146,9 @@ export default class App extends React.Component {
       moveDestId: st.moveDestId,
       setMoveDest: (id) => this.setMoveDest(id),
       submitMove: () => this.submitMove(),
-      moveTargetName: (st.files.find((f) => f.id === st.moveTargetId) || {}).name || '',
+      moveTargetName: st.moveBulk
+        ? `${st.selectedIds.length} item${st.selectedIds.length === 1 ? '' : 's'}`
+        : (st.files.find((f) => f.id === st.moveTargetId) || {}).name || '',
       moveDestOptions: this.moveDestOptions().map((o) => ({
         ...o,
         active: o.id === st.moveDestId,

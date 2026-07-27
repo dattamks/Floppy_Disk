@@ -92,6 +92,7 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     # Device backup settings (PRD 5.10).
     auto_backup_enabled = models.BooleanField(default=False)
     backup_wifi_only = models.BooleanField(default=True)
+    two_factor_enabled = models.BooleanField(default=False)
 
     tier = models.CharField(max_length=10, choices=Tier.choices, default=Tier.FREE)
     # Denormalized quota counters (PRD 5.3). quota_bytes is the effective limit

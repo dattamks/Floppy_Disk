@@ -18,8 +18,8 @@ export default function FileCard({ V, file }) {
         onDrop={file.isDropTarget ? file.onDrop : undefined}
         style={{
           position: 'relative',
-          background: file.isDragOver ? theme.brandBg : theme.white,
-          border: `1px solid ${file.isDragOver ? theme.brand : theme.border}`,
+          background: file.selected || file.isDragOver ? theme.brandBg : theme.white,
+          border: `1px solid ${file.selected || file.isDragOver ? theme.brand : theme.border}`,
           borderRadius: '15px',
           padding: '11px',
           cursor: 'pointer',
@@ -36,6 +36,40 @@ export default function FileCard({ V, file }) {
         })}
       >
         {' '}
+        {file.selectable ? (
+          <button
+            onClick={file.onToggleSelect}
+            aria-label={file.selected ? 'Deselect' : 'Select'}
+            style={{
+              position: 'absolute',
+              top: '8px',
+              left: '8px',
+              width: '22px',
+              height: '22px',
+              borderRadius: '6px',
+              zIndex: 2,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: file.selected ? theme.brand : 'rgba(255,255,255,0.92)',
+              border: `1px solid ${file.selected ? theme.brand : theme.border}`,
+              color: '#fff',
+            }}
+          >
+            {file.selected ? (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M5 12l4 4 10-10"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            ) : null}
+          </button>
+        ) : null}{' '}
         <button
           onClick={file.onCtxMenu}
           aria-label="More actions"

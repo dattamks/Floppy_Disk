@@ -119,6 +119,7 @@ export const api = {
   play: (fileId) => request(`/storage/files/${fileId}/play`, { method: 'POST' }),
 
   // Account / compliance (DPDPA)
+  updateSettings: (patch) => request('/auth/account/settings', { method: 'PATCH', body: patch }),
   deleteAccount: () => request('/auth/account/delete', { method: 'POST' }),
   exportData: () => request('/auth/account/export', { method: 'POST' }),
   logConsent: (policy, version) =>

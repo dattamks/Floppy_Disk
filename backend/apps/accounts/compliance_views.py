@@ -49,7 +49,9 @@ class ConsentView(APIView):
 class AccountSettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
-    FIELDS = ("auto_backup_enabled", "backup_wifi_only")
+    BOOL_FIELDS = ("auto_backup_enabled", "backup_wifi_only", "two_factor_enabled")
+    STRING_FIELDS = ("display_name",)
+    FIELDS = STRING_FIELDS + BOOL_FIELDS
 
     def get(self, request):
         u = request.user
@@ -58,9 +60,13 @@ class AccountSettingsView(APIView):
     def patch(self, request):
         u = request.user
         changed = []
-        for f in self.FIELDS:
+        for f in self.BOOL_FIELDS:
             if f in request.data:
                 setattr(u, f, bool(request.data[f]))
+                changed.append(f)
+        for f in self.STRING_FIELDS:
+            if f in request.data:
+                setattr(u, f, str(request.data[f]).strip()[:120])
                 changed.append(f)
         if changed:
             u.save(update_fields=[*changed, "updated_at"])

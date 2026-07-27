@@ -13,6 +13,50 @@ import TrashScreen from './TrashScreen';
 // see src/deactivated/ and docs/deactivated-features.md.
 import EmptyState from './EmptyState';
 
+// Bulk-selection action bar, shown when one or more items are selected.
+function SelectionBar(V) {
+  const action = (onClick, label, danger) => (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '6px 13px',
+        fontSize: '12.5px',
+        fontWeight: '600',
+        cursor: 'pointer',
+        borderRadius: '8px',
+        border: `1px solid ${danger ? theme.dangerBorder2 : theme.border}`,
+        background: danger ? theme.dangerBgSoft : theme.white,
+        color: danger ? theme.danger : theme.text,
+        fontFamily: "'IBM Plex Sans',sans-serif",
+      }}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '9px 14px',
+        borderRadius: '11px',
+        background: theme.brandBg,
+        border: `1px solid ${theme.brandBorder}`,
+      }}
+    >
+      <span style={{ fontSize: '13px', fontWeight: '600', color: theme.brand }}>
+        {V.selectionCount} selected
+      </span>
+      <div style={{ flex: '1' }} />
+      {action(V.onBulkMove, 'Move')}
+      {action(V.onBulkDownload, 'Download')}
+      {action(V.onBulkTrash, 'Trash', true)}
+      {action(V.onClearSelection, 'Clear')}
+    </div>
+  );
+}
+
 // Type filter chips shown while searching.
 function SearchFilters(V) {
   return (
@@ -256,7 +300,8 @@ export default function AppShell(V) {
                 </div>{' '}
               </React.Fragment>
             ) : null}{' '}
-            {Breadcrumb(V)} {TrashScreen(V)} {V.showSearchFilters ? SearchFilters(V) : null}{' '}
+            {Breadcrumb(V)} {TrashScreen(V)} {V.selectionActive ? SelectionBar(V) : null}{' '}
+            {V.showSearchFilters ? SearchFilters(V) : null}{' '}
             {V.showListToolbar ? ListToolbar(V) : null}{' '}
             {V.hasFiles ? (
               <React.Fragment>
