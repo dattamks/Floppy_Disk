@@ -81,6 +81,28 @@ def test_bonus_is_capped_at_1tb(referrer):
     assert resp.status_code == 400  # at cap
 
 
+def test_capped_attempt_still_records_relationship(referrer):
+    """A capped attempt records referred_by (and burns the one-shot), so the
+    referee can't then farm a grant off a different, non-capped code."""
+    n = CAP_BYTES // GRANT_BYTES
+    for _ in range(n):
+        ReferralBonus.objects.create(user=referrer, bytes=GRANT_BYTES,
+                                     expires_at=timezone.now() + timedelta(days=180))
+    newbie = User.objects.create_user(email="burned@floppy.disk", password="hunter2pass")
+
+    c = _client(newbie)
+    assert c.post("/api/v1/billing/referral/apply",
+                  {"code": referrer.referral_code}, format="json").status_code == 400
+    newbie.refresh_from_db()
+    assert newbie.referred_by_id == referrer.id  # relationship persisted despite the cap
+
+    # A second, non-capped referrer's code is now rejected — one shot is spent.
+    fresh = User.objects.create_user(email="fresh@floppy.disk", password="hunter2pass")
+    assert c.post("/api/v1/billing/referral/apply",
+                  {"code": fresh.referral_code}, format="json").status_code == 400
+    assert ReferralBonus.objects.filter(user=fresh).count() == 0
+
+
 def test_expired_bonuses_do_not_count(referrer):
     ReferralBonus.objects.create(user=referrer, bytes=GRANT_BYTES,
                                  expires_at=timezone.now() - timedelta(days=1))
