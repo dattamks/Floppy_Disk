@@ -29,6 +29,7 @@ export default class App extends React.Component {
     sortBy: 'name', // 'name' | 'size'
     viewMode: 'grid', // 'grid' | 'list'
     searchQuery: '',
+    searchType: 'all', // all | folder | image | video | doc | audio
     mobileSearchOpen: false,
     drawerOpen: false,
     modal: null,
@@ -49,6 +50,9 @@ export default class App extends React.Component {
     // Share-link management.
     linksList: [],
     linksLoading: false,
+    // Drag-and-drop move.
+    draggingId: null,
+    dragOverId: null,
     settingsTab: 'profile',
     verifyType: 'email',
     verifyCode: '',
@@ -535,6 +539,9 @@ export default class App extends React.Component {
   setSortBy(key) {
     this.setState({ sortBy: key });
   }
+  setSearchType(t) {
+    this.setState({ searchType: t });
+  }
   setViewMode(mode) {
     this.setState({ viewMode: mode });
   }
@@ -570,7 +577,7 @@ export default class App extends React.Component {
   }
   clearSearch() {
     clearTimeout(this._searchT);
-    this.setState({ searchQuery: '', discoverResults: [] });
+    this.setState({ searchQuery: '', discoverResults: [], searchType: 'all' });
   }
   toggleMobileSearch() {
     this.setState((s) => ({ mobileSearchOpen: !s.mobileSearchOpen }));
@@ -956,27 +963,71 @@ export default class App extends React.Component {
     this.setState({ moveDestId: id });
   }
   submitMove() {
-    const { moveTargetId, moveIsFolder, moveDestId } = this.state;
-    const item = this.state.files.find((f) => f.id === moveTargetId);
+    this.doMove(this.state.moveTargetId, this.state.moveDestId);
+    this.setState({ modal: null });
+  }
+  // Shared move for both the Move dialog and drag-and-drop.
+  doMove(id, destId) {
+    const item = this.state.files.find((f) => f.id === id);
+    if (!item || id === destId) return;
+    if (item.parentId === destId) return; // already there
+    const isFolder = item.kind === 'folder';
+    if (isFolder) {
+      const dest = this.state.files.find((f) => f.id === destId);
+      if (destId === id || (dest && this._isDescendantOf(dest, id, this.state.files))) {
+        this.toast("Can't move a folder into itself");
+        return;
+      }
+    }
     const apply = (finalName) => {
       this.setState((s) => ({
         files: s.files.map((f) =>
-          f.id === moveTargetId ? { ...f, parentId: moveDestId, name: finalName || f.name } : f
+          f.id === id ? { ...f, parentId: destId, name: finalName || f.name } : f
         ),
-        modal: null,
       }));
       this.toast('Moved');
     };
-    if (item && item.real) {
-      const call = moveIsFolder
-        ? api.updateFolder(moveTargetId, { parent: moveDestId })
-        : api.updateFile(moveTargetId, { folder: moveDestId });
+    if (item.real) {
+      const call = isFolder
+        ? api.updateFolder(id, { parent: destId })
+        : api.updateFile(id, { folder: destId });
       call
         .then((r) => apply(r && r.name))
         .catch((err) => this.toast(firstError(err, 'Could not move')));
     } else {
       apply();
     }
+  }
+
+  // --- Drag-and-drop move ----------------------------------------------------
+  onDragStartItem(file, e) {
+    this.setState({ draggingId: file.id });
+    if (e && e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      try {
+        e.dataTransfer.setData('text/plain', file.id);
+      } catch (err) {}
+    }
+  }
+  onDragEnd() {
+    this.setState({ draggingId: null, dragOverId: null });
+  }
+  onDragOverFolder(folder, e) {
+    const dragging = this.state.draggingId;
+    if (!dragging || dragging === folder.id) return;
+    // Disallow dropping a folder into its own subtree.
+    if (this._isDescendantOf(folder, dragging, this.state.files)) return;
+    if (e) e.preventDefault(); // allow the drop
+    if (this.state.dragOverId !== folder.id) this.setState({ dragOverId: folder.id });
+  }
+  onDragLeaveFolder(folder) {
+    if (this.state.dragOverId === folder.id) this.setState({ dragOverId: null });
+  }
+  onDropFolder(folder, e) {
+    if (e) e.preventDefault();
+    const dragging = this.state.draggingId;
+    this.setState({ draggingId: null, dragOverId: null });
+    if (dragging) this.doMove(dragging, folder.id);
   }
 
   // --- Share-link management -------------------------------------------------
@@ -1584,6 +1635,15 @@ export default class App extends React.Component {
         onDeleteForever: (e) => this.deleteForever(f.id, e),
         onCtxMenu: (e) => this.openCtxMenu(f, e),
         onDownload: () => this.downloadFile(f),
+        // Drag-and-drop move: any non-trashed item drags; folders are drop targets.
+        draggable: !f.trashed,
+        onDragStart: (e) => this.onDragStartItem(f, e),
+        onDragEnd: () => this.onDragEnd(),
+        isDropTarget: isFolder && !f.trashed,
+        isDragOver: st.dragOverId === f.id,
+        onDragOver: (e) => this.onDragOverFolder(f, e),
+        onDragLeave: () => this.onDragLeaveFolder(f),
+        onDrop: (e) => this.onDropFolder(f, e),
       };
     };
 
@@ -1603,7 +1663,13 @@ export default class App extends React.Component {
       const local = nonTrashed.filter((f) => f.name.toLowerCase().includes(q));
       const localIds = new Set(local.map((f) => f.id));
       const extra = (discoverResults || []).filter((r) => !localIds.has(r.id));
-      rawList = sortListing([...local, ...extra]);
+      let results = [...local, ...extra];
+      if (st.searchType !== 'all') {
+        results = results.filter((f) =>
+          st.searchType === 'folder' ? f.kind === 'folder' : f.kind === st.searchType
+        );
+      }
+      rawList = sortListing(results);
       sectionTitle = 'Results for "' + searchQuery.trim() + '"';
     } else if (filterKey === 'all') {
       rawList = nonTrashed.filter((f) => f.parentId === currentFolderId);
@@ -1843,6 +1909,20 @@ export default class App extends React.Component {
       carouselItems,
       showGridLabel: showCarousel,
       gridLabel: 'Files & folders',
+      // Search type filters (shown while searching).
+      showSearchFilters: searchActive,
+      searchTypeChips: [
+        { label: 'All', key: 'all' },
+        { label: 'Folders', key: 'folder' },
+        { label: 'Images', key: 'image' },
+        { label: 'Videos', key: 'video' },
+        { label: 'Docs', key: 'doc' },
+        { label: 'Audio', key: 'audio' },
+      ].map((c) => ({
+        ...c,
+        active: st.searchType === c.key,
+        onClick: () => this.setSearchType(c.key),
+      })),
       // Sort + view controls (shown above a non-trash listing that has items).
       showListToolbar: !isEmpty && !af('trash'),
       sortByName: st.sortBy === 'name',

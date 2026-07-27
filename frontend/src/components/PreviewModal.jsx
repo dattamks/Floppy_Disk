@@ -1,5 +1,6 @@
 import React from 'react';
 import { theme } from '../lib/theme';
+import { highlightJson, highlightYaml } from '../lib/highlight';
 
 // Inline viewers for a file's own content: image, PDF, audio, Markdown, JSON,
 // YAML, and plain text/code. Real uploads fetch a same-origin URL (and text
@@ -112,6 +113,30 @@ function Body(V) {
     );
   }
   if (k === 'json' || k === 'yaml' || k === 'text') {
+    const html =
+      k === 'json'
+        ? highlightJson(V.previewCode)
+        : k === 'yaml'
+          ? highlightYaml(V.previewCode)
+          : null;
+    if (html) {
+      return (
+        <React.Fragment>
+          <style>{`
+            .code-hl .tok-key{color:${theme.brand};}
+            .code-hl .tok-str{color:${theme.teal};}
+            .code-hl .tok-num{color:${theme.violet};}
+            .code-hl .tok-kw{color:${theme.danger};}
+            .code-hl .tok-comment{color:${theme.textFaint};font-style:italic;}
+          `}</style>
+          <pre
+            className="code-hl"
+            style={codeBoxStyle}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        </React.Fragment>
+      );
+    }
     return <pre style={codeBoxStyle}>{V.previewCode}</pre>;
   }
   // Generic: no inline viewer for this type — offer download.

@@ -10,10 +10,16 @@ export default function FileCard({ V, file }) {
       <div
         onClick={file.onOpen}
         onContextMenu={file.onCtxMenu}
+        draggable={file.draggable}
+        onDragStart={file.onDragStart}
+        onDragEnd={file.onDragEnd}
+        onDragOver={file.isDropTarget ? file.onDragOver : undefined}
+        onDragLeave={file.isDropTarget ? file.onDragLeave : undefined}
+        onDrop={file.isDropTarget ? file.onDrop : undefined}
         style={{
           position: 'relative',
-          background: theme.white,
-          border: `1px solid ${theme.border}`,
+          background: file.isDragOver ? theme.brandBg : theme.white,
+          border: `1px solid ${file.isDragOver ? theme.brand : theme.border}`,
           borderRadius: '15px',
           padding: '11px',
           cursor: 'pointer',

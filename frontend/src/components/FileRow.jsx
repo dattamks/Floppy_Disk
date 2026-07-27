@@ -8,6 +8,12 @@ export default function FileRow({ V, file }) {
     <div
       onClick={file.onOpen}
       onContextMenu={file.onCtxMenu}
+      draggable={file.draggable}
+      onDragStart={file.onDragStart}
+      onDragEnd={file.onDragEnd}
+      onDragOver={file.isDropTarget ? file.onDragOver : undefined}
+      onDragLeave={file.isDropTarget ? file.onDragLeave : undefined}
+      onDrop={file.isDropTarget ? file.onDrop : undefined}
       {...hov({ background: theme.surface })}
       style={{
         display: 'flex',
@@ -16,8 +22,8 @@ export default function FileRow({ V, file }) {
         padding: '9px 12px',
         borderRadius: '9px',
         cursor: 'pointer',
-        background: theme.white,
-        border: `1px solid ${theme.border}`,
+        background: file.isDragOver ? theme.brandBg : theme.white,
+        border: `1px solid ${file.isDragOver ? theme.brand : theme.border}`,
       }}
     >
       <div

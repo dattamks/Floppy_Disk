@@ -13,6 +13,33 @@ import TrashScreen from './TrashScreen';
 // see src/deactivated/ and docs/deactivated-features.md.
 import EmptyState from './EmptyState';
 
+// Type filter chips shown while searching.
+function SearchFilters(V) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '7px' }}>
+      {(V.searchTypeChips || []).map((c, i) => (
+        <button
+          key={i}
+          onClick={c.onClick}
+          style={{
+            padding: '5px 13px',
+            fontSize: '12.5px',
+            fontWeight: c.active ? '600' : '500',
+            cursor: 'pointer',
+            borderRadius: '999px',
+            border: `1px solid ${c.active ? theme.brand : theme.border}`,
+            background: c.active ? theme.brandBg : theme.white,
+            color: c.active ? theme.brand : theme.textMuted,
+            fontFamily: "'IBM Plex Sans',sans-serif",
+          }}
+        >
+          {c.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // Sort + grid/list controls shown above a file listing.
 function ListToolbar(V) {
   const seg = (active) => ({
@@ -229,7 +256,8 @@ export default function AppShell(V) {
                 </div>{' '}
               </React.Fragment>
             ) : null}{' '}
-            {Breadcrumb(V)} {TrashScreen(V)} {V.showListToolbar ? ListToolbar(V) : null}{' '}
+            {Breadcrumb(V)} {TrashScreen(V)} {V.showSearchFilters ? SearchFilters(V) : null}{' '}
+            {V.showListToolbar ? ListToolbar(V) : null}{' '}
             {V.hasFiles ? (
               <React.Fragment>
                 {' '}
