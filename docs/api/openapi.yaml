@@ -37,7 +37,6 @@ tags:
   - name: Video
   - name: Sharing
   - name: Moderation
-  - name: Billing
   - name: Notifications
   - name: Ops
 
@@ -79,7 +78,6 @@ components:
         status: { type: string, enum: [active, dormant, suspended, deleted] }
         tier: { type: string, enum: [free, paid_2tb, paid_5tb] }
         quota_bytes: { type: integer }
-        billing_enabled: { type: boolean, description: Whether Razorpay billing is active. }
     Folder:
       type: object
       properties:
@@ -298,8 +296,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  quota_bytes: { type: integer, description: Effective (base + active referral bonuses). }
-                  base_quota_bytes: { type: integer }
+                  quota_bytes: { type: integer, description: The account's storage quota. }
                   used_bytes: { type: integer }
                   available_bytes: { type: integer }
                   tier: { type: string }
@@ -606,58 +603,6 @@ paths:
                 reason: { type: string, enum: [copyright, inappropriate, csam, other], default: other }
                 detail: { type: string, description: Required for copyright reports. }
       responses: { "201": { description: Recorded. }, "400": { $ref: "#/components/responses/ValidationError" }, "429": { description: Rate limited (10/hour). } }
-
-  # ---------------------------------------------------------------- Billing
-  /billing/plans:
-    get:
-      tags: [Billing]
-      summary: List plans
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties: { code: { type: string }, name: { type: string }, price_paise: { type: integer }, quota_bytes: { type: integer } }
-  /billing/subscribe:
-    post:
-      tags: [Billing]
-      summary: Subscribe to a paid plan (upgrades tier + quota)
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [plan], properties: { plan: { type: string, enum: [paid_2tb, paid_5tb] }, annual: { type: boolean } } } } } }
-      responses:
-        "201": { description: Subscribed, content: { application/json: { schema: { type: object, properties: { plan: { type: string }, status: { type: string }, tier: { type: string }, quota_bytes: { type: integer }, current_period_end: { type: string, format: date-time } } } } } }
-        "400": { description: Unknown/non-purchasable plan. }
-  /billing/subscription:
-    get:
-      tags: [Billing]
-      summary: Current subscription
-      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { plan: { type: string }, status: { type: [string, "null"] }, current_period_end: { type: [string, "null"], format: date-time } } } } } } }
-  /billing/cancel:
-    post:
-      tags: [Billing]
-      summary: Cancel (retains access to period end)
-      responses: { "200": { description: Cancelled. }, "400": { description: No active subscription. } }
-  /billing/webhook:
-    post:
-      tags: [Billing]
-      summary: Razorpay webhook (idempotent; HMAC-verified)
-      security: []
-      parameters: [{ name: X-Razorpay-Signature, in: header, schema: { type: string } }]
-      responses: { "200": { description: "{ processed: bool }" }, "400": { description: Invalid signature. } }
-  /billing/referral:
-    get:
-      tags: [Billing]
-      summary: My referral code + stats
-      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { code: { type: string }, referrals_count: { type: integer }, bonus_bytes_active: { type: integer }, bonus_bytes_cap: { type: integer } } } } } } }
-  /billing/referral/apply:
-    post:
-      tags: [Billing]
-      summary: Apply a referral code (grants the referrer 50GB)
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string } } } } } }
-      responses: { "201": { description: "{ granted_bytes }" }, "400": { description: Invalid/self/duplicate/capped. } }
 
   # ---------------------------------------------------------------- Notifications
   /notifications/:

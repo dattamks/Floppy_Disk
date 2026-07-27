@@ -56,7 +56,31 @@ at `frontend/src/deactivated/ContinueWatchingCard.jsx` and is unwired. To
 re-enable, move it back into `src/components/`, restore its usage in
 `AppShell`, and feed it watched-progress data.
 
+## Billing, subscriptions & referrals — removed
+
+The paid-tier billing surface was **removed entirely** — the product is now a
+single-tier storage app with no subscriptions, payments, or referrals.
+
+- **Backend:** deleted the `apps/billing` app (plans, subscribe/cancel, the
+  Razorpay/`PaymentGateway` gateways + webhook, `Subscription`/`WebhookEvent`/
+  `ReferralBonus` models, the referral program, and the expiry-anchored
+  subscription **freeze lifecycle**). Removed the billing URL mount and the
+  freeze Celery-beat task.
+- **Quota:** an account's limit is now its plain `quota_bytes` (the old
+  `effective_quota` referral-bonus stacking is gone). New signups receive the
+  standard allowance directly (`DEFAULT_QUOTA_BYTES`, 2 TB) instead of via
+  billing entitlements — no account is downgraded. Dropped the
+  `RAZORPAY_ENABLED` / `PAYMENT_GATEWAY` / `DEFAULT_SIGNUP_PLAN` settings and
+  the `billing_enabled` user field.
+- **Frontend:** removed the billing API-client methods, the "Upgrade storage"
+  CTA, and `upgradeStorage` / `billingEnabled` state.
+- **MCP:** removed the billing tools (`list_plans`, `get_subscription`,
+  `get_referral`).
+- **Vestigial (kept, inert):** `User.tier` (new users are `paid_2tb` for the
+  larger per-file cap), `User.referral_code` / `referred_by`, and `File.is_frozen`
+  remain as columns but nothing sets or gates on them anymore.
+
 ## What was NOT touched
-Everything Drive-core: auth, storage (folders/files/upload/quota/dedup), trash,
-sharing (incl. public download), search, billing, notifications, moderation
+Everything else Drive-core: auth, storage (folders/files/upload/quota/dedup),
+trash, sharing (incl. public download), search, notifications, moderation
 (file reports), analytics, device backup, and the legal surface.

@@ -19,8 +19,6 @@ backend/
 │   │   └── providers/      # AuthProvider interface + DjangoAuthProvider (Phase 1)
 │   ├── storage/            # StorageObject/File/Folder (+ StorageService → R2)
 │   ├── sharing/            # ShareLink / SharePermission / copy-on-share
-│   ├── channels/           # Channel / membership / posts
-│   ├── billing/            # Subscription/Invoice/ReferralBonus (+ PaymentGateway → Razorpay)
 │   ├── moderation/         # ContentReport/Flag/CSAMIncident, quarantine
 │   ├── notifications/      # Notification + Celery dispatch
 │   ├── analytics/          # AnalyticsEvent (JSONB, partitioned)
@@ -34,8 +32,8 @@ backend/
 ## Architecture notes
 
 - **Service abstractions** decouple the app from vendors so migrations are config-only:
-  `AuthProvider` (Django auth → Cognito), `StorageService` (R2 → S3), `PaymentGateway`
-  (Razorpay → Stripe), `SearchService` (Postgres FTS → OpenSearch). Each is chosen via a
+  `AuthProvider` (Django auth → Cognito), `StorageService` (R2 → S3),
+  `SearchService` (Postgres FTS → OpenSearch). Each is chosen via a
   settings string and instantiated through a `get_*()` helper.
 - **Auth is Phase 1 = email/password**; phone/OTP + social are Phase 2 (fields exist but inert).
 - **Foundation pass:** models exist for accounts only; other apps are registered skeletons.

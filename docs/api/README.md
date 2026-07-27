@@ -57,7 +57,7 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | POST | `/register` | – | Email/password signup (18+); logs in |
 | POST | `/login` | – | Log in |
 | POST | `/logout` | ✓ | Log out |
-| GET | `/me` | ✓ | Current user (incl. `tier`, `billing_enabled`) |
+| GET | `/me` | ✓ | Current user (incl. `tier`, `quota_bytes`) |
 | GET | `/csrf` | – | Prime the CSRF cookie |
 | POST | `/password-reset` | – | Request reset (no enumeration) |
 | POST | `/password-reset/confirm` | – | Confirm reset |
@@ -76,7 +76,7 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 ### Storage — `/api/v1/storage`
 | Method | Path | Summary |
 |---|---|---|
-| GET | `/usage` | Usage + effective quota (incl. referral bonuses) |
+| GET | `/usage` | Usage + storage quota |
 | GET / POST | `/folders` | List (by `?parent=`) / create |
 | DELETE | `/folders/{id}` | Soft-delete folder |
 | POST | `/folders/{id}/restore` | Restore folder |
@@ -118,17 +118,6 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | Method | Path | Summary |
 |---|---|---|
 | POST | `/reports` | Flag / Report (Report isolates a file) |
-
-### Billing — `/api/v1/billing`
-| Method | Path | Summary |
-|---|---|---|
-| GET | `/plans` | Plan catalog |
-| POST | `/subscribe` | Subscribe (upgrades tier + quota) |
-| GET | `/subscription` | Current subscription |
-| POST | `/cancel` | Cancel (access to period end) |
-| POST | `/webhook` | Razorpay webhook (idempotent) |
-| GET | `/referral` | My referral code + stats |
-| POST | `/referral/apply` | Apply a code (referrer gets 50GB) |
 
 ### Notifications — `/api/v1/notifications`
 | Method | Path | Summary |

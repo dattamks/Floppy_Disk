@@ -1,8 +1,8 @@
 # Floppy Disk
 
 A **Google-Drive-style cloud storage app** — upload, organize, preview, and
-share your files and folders, with self-hosted video playback. India-first, with
-a free tier and paid subscription tiers.
+share your files and folders, with self-hosted video playback. India-first,
+single storage tier (no subscriptions).
 
 > **Product focus:** Floppy Disk is a file-storage product. The earlier
 > "media platform" features were dropped in the Drive-focus pivot — **Channels**
@@ -27,7 +27,7 @@ a free tier and paid subscription tiers.
 │   ├── e2e/              # Playwright end-to-end specs
 │   └── package.json, vite.config.js, playwright.config.js, vitest.config.js
 ├── backend/               # Django + DRF API + Celery workers
-│   └── apps/              # accounts, storage, sharing, billing, moderation,
+│   └── apps/              # accounts, storage, sharing, moderation,
 │                          # notifications, search, analytics, common
 ├── mcp/                   # Python FastMCP server wrapping the REST API
 ├── .github/workflows/ci.yml   # backend + frontend + MCP CI
@@ -41,7 +41,8 @@ a free tier and paid subscription tiers.
 ## Features
 
 Built test-first (pytest) with the frontend wired and Playwright end-to-end
-coverage. **165 backend tests · 15 Playwright E2E · 11 Vitest unit — all green.**
+coverage. **161 backend tests · 18 Vitest unit — all green**, plus Playwright
+E2E specs for the main flows.
 
 | Area | Endpoints (under `/api/v1/`) | Highlights |
 |---|---|---|
@@ -53,23 +54,21 @@ coverage. **165 backend tests · 15 Playwright E2E · 11 Vitest unit — all gre
 | **Video** | `storage/files/{id}/play` | **self-hosted** FFmpeg transcode → browser-playable MP4 + poster, served over HTTP Range (no third-party streaming) |
 | **Sharing** | `storage/files/{id}/share`, `storage/shares`, `public/share/{token}` | public token links, expiry, paid password gate, **link management** (list/revoke) |
 | **Moderation** | `moderation/reports` | malware scan on upload (quarantine), Flag/Report |
-| **Billing** | `billing/{plans,subscribe,cancel,webhook}` | tier+quota upgrades, idempotent webhooks, expiry-anchored freeze lifecycle |
-| **Referrals** | `billing/referral{,/apply}` | 50GB/referral, 1TB cap, 180d expiry, effective quota |
 | **Notifications** | `notifications/…/{read,read-all}` | in-app notifications, unread counts |
 | **Search** | `storage/search`, `storage/files/{id}/discoverable` | own + discoverable content; Postgres FTS (prod), portable (dev) |
 | **Compliance** | `auth/account/{delete,export,consent,settings}` | DPDPA soft→hard delete (legal hold), export, consent, backup settings |
 | **Device backup** | `storage/camera-backup` | Camera Backup folder, quota-pause notify |
 
-Rate limits (DRF scoped throttles) on login/register/password-reset/report/share-unlock.
-Scheduled (Celery beat): trash purge, expired-reservation release, subscription
-freeze lifecycle, and 30-day account hard-delete.
+Rate limits (DRF scoped throttles) on login/register/password-reset/report/
+share-unlock/verify-email/grievance.
+Scheduled (Celery beat): trash purge, expired-reservation release, and 30-day
+account hard-delete.
 
 Service boundaries are abstracted for the vendor migration: `AuthProvider`
-(Cognito), `StorageService` (R2/S3), `PaymentGateway` (Razorpay/Stripe),
-`SearchService` (Postgres FTS/OpenSearch), `ScanService` (ClamAV), and
-`MediaTranscoder` (FFmpeg). Dev/test use in-process fakes (`LocalStorageService`,
-`FakePaymentGateway`, `FakeScanService`, `FakeTranscoder`) so the whole stack
-runs without external credentials.
+(Cognito), `StorageService` (R2/S3), `SearchService` (Postgres FTS/OpenSearch),
+`ScanService` (ClamAV), and `MediaTranscoder` (FFmpeg). Dev/test use in-process
+fakes (`LocalStorageService`, `FakeScanService`, `FakeTranscoder`) so the whole
+stack runs without external credentials.
 
 ## Self-hosted video
 
@@ -108,7 +107,7 @@ npm run test:e2e     # Playwright E2E (boots backend on SQLite + Vite, drives Ch
 
 `mcp/` is a Python [FastMCP](https://github.com/jlowin/fastmcp) server exposing
 the REST API as MCP tools (folders, files, rename/move, upload/download,
-sharing, video playback, notifications, billing) for MCP-aware clients. See
+sharing, video playback, notifications) for MCP-aware clients. See
 [`mcp/README.md`](mcp/README.md).
 
 ## Stack
@@ -117,7 +116,6 @@ sharing, video playback, notifications, billing) for MCP-aware clients. See
 - **Storage:** Cloudflare R2 (S3-compatible) in prod; local disk in dev
 - **Video:** self-hosted FFmpeg transcoding + HTTP Range delivery
 - **Auth:** email/password via Django auth behind an `AuthProvider` abstraction
-- **Payments:** Razorpay behind a `PaymentGateway` abstraction
 - **CI:** GitHub Actions — backend pytest, frontend build + unit + E2E, MCP smoke
 
 See `docs/PRD-02-Backend-Platform.md` for the full specification.
