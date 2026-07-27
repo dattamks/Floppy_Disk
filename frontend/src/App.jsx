@@ -26,6 +26,8 @@ export default class App extends React.Component {
     vw: typeof window !== 'undefined' ? window.innerWidth : 1200,
     currentFolderId: null,
     filterKey: 'all',
+    sortBy: 'name', // 'name' | 'size'
+    viewMode: 'grid', // 'grid' | 'list'
     searchQuery: '',
     mobileSearchOpen: false,
     drawerOpen: false,
@@ -530,6 +532,12 @@ export default class App extends React.Component {
   navToTrash() {
     this.go('trash');
   }
+  setSortBy(key) {
+    this.setState({ sortBy: key });
+  }
+  setViewMode(mode) {
+    this.setState({ viewMode: mode });
+  }
 
   setSearch(e) {
     const v = e.target.value;
@@ -731,6 +739,7 @@ export default class App extends React.Component {
               kind: f.kind,
               parentId: f.folder || null,
               size: humanSize(f.size_bytes),
+              sizeBytes: f.size_bytes,
               modified: '',
               shared: false,
               starred: false,
@@ -1209,6 +1218,7 @@ export default class App extends React.Component {
           kind: file.kind,
           parentId: file.folder || null,
           size: humanSize(file.size_bytes),
+          sizeBytes: file.size_bytes,
           modified: 'Just now',
           shared: false,
           starred: false,
@@ -1577,6 +1587,14 @@ export default class App extends React.Component {
       };
     };
 
+    // Sort comparator (folders always first, then the chosen key).
+    const folderFirst = (a, b) => (a.kind === 'folder' ? 0 : 1) - (b.kind === 'folder' ? 0 : 1);
+    const byKey =
+      st.sortBy === 'size'
+        ? (a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0) || a.name.localeCompare(b.name)
+        : (a, b) => a.name.localeCompare(b.name);
+    const sortListing = (list) => list.sort((a, b) => folderFirst(a, b) || byKey(a, b));
+
     let rawList,
       sectionTitle,
       currentFolderName = null,
@@ -1585,7 +1603,7 @@ export default class App extends React.Component {
       const local = nonTrashed.filter((f) => f.name.toLowerCase().includes(q));
       const localIds = new Set(local.map((f) => f.id));
       const extra = (discoverResults || []).filter((r) => !localIds.has(r.id));
-      rawList = [...local, ...extra];
+      rawList = sortListing([...local, ...extra]);
       sectionTitle = 'Results for "' + searchQuery.trim() + '"';
     } else if (filterKey === 'all') {
       rawList = nonTrashed.filter((f) => f.parentId === currentFolderId);
@@ -1593,13 +1611,9 @@ export default class App extends React.Component {
       currentFolderName = cf ? cf.name : null;
       sectionTitle = currentFolderName || 'My Files';
       showBreadcrumb = true;
-      rawList.sort(
-        (a, b) =>
-          (a.kind === 'folder' ? 0 : 1) - (b.kind === 'folder' ? 0 : 1) ||
-          a.name.localeCompare(b.name)
-      );
+      sortListing(rawList);
     } else if (filterKey === 'shared') {
-      rawList = nonTrashed.filter((f) => f.shared);
+      rawList = sortListing(nonTrashed.filter((f) => f.shared));
       sectionTitle = 'Shared with me';
     } else if (filterKey === 'recent') {
       rawList = nonTrashed
@@ -1829,6 +1843,16 @@ export default class App extends React.Component {
       carouselItems,
       showGridLabel: showCarousel,
       gridLabel: 'Files & folders',
+      // Sort + view controls (shown above a non-trash listing that has items).
+      showListToolbar: !isEmpty && !af('trash'),
+      sortByName: st.sortBy === 'name',
+      sortBySize: st.sortBy === 'size',
+      setSortName: () => this.setSortBy('name'),
+      setSortSize: () => this.setSortBy('size'),
+      isGridView: st.viewMode === 'grid',
+      isListView: st.viewMode === 'list',
+      setGridView: () => this.setViewMode('grid'),
+      setListView: () => this.setViewMode('list'),
       sharedCount: nonTrashed.filter((f) => f.shared).length,
       trashCount: files.filter((f) => f.trashed).length,
       navToAll: () => this.navToAll(),

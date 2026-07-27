@@ -2,6 +2,7 @@ import React from 'react';
 import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 import FileCard from './FileCard';
+import FileRow from './FileRow';
 import TopBarDesktop from './TopBarDesktop';
 import Sidebar from './Sidebar';
 import Breadcrumb from './Breadcrumb';
@@ -11,6 +12,119 @@ import TrashScreen from './TrashScreen';
 // DEACTIVATED (Drive-focus pivot): ContinueWatchingCard (video streaming) —
 // see src/deactivated/ and docs/deactivated-features.md.
 import EmptyState from './EmptyState';
+
+// Sort + grid/list controls shown above a file listing.
+function ListToolbar(V) {
+  const seg = (active) => ({
+    padding: '5px 11px',
+    fontSize: '12.5px',
+    fontWeight: active ? '600' : '500',
+    cursor: 'pointer',
+    border: 'none',
+    borderRadius: '7px',
+    background: active ? theme.white : 'transparent',
+    color: active ? theme.text : theme.textMuted,
+    boxShadow: active ? '0 1px 2px rgba(16,24,40,0.10)' : 'none',
+    fontFamily: "'IBM Plex Sans',sans-serif",
+  });
+  const iconBtn = (active) => ({
+    width: '30px',
+    height: '28px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    border: 'none',
+    borderRadius: '7px',
+    background: active ? theme.white : 'transparent',
+    color: active ? theme.brand : theme.textMuted,
+    boxShadow: active ? '0 1px 2px rgba(16,24,40,0.10)' : 'none',
+  });
+  const group = {
+    display: 'flex',
+    gap: '2px',
+    padding: '3px',
+    borderRadius: '9px',
+    background: theme.surface2,
+    border: `1px solid ${theme.border}`,
+  };
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <span style={{ fontSize: '12px', color: theme.textFaint }}>Sort</span>
+      <div style={group}>
+        <button onClick={V.setSortName} style={seg(V.sortByName)}>
+          Name
+        </button>
+        <button onClick={V.setSortSize} style={seg(V.sortBySize)}>
+          Size
+        </button>
+      </div>
+      <div style={{ flex: '1' }} />
+      <div style={group}>
+        <button
+          onClick={V.setGridView}
+          aria-label="Grid view"
+          title="Grid view"
+          style={iconBtn(V.isGridView)}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <rect
+              x="3"
+              y="3"
+              width="7"
+              height="7"
+              rx="1.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+            <rect
+              x="14"
+              y="3"
+              width="7"
+              height="7"
+              rx="1.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+            <rect
+              x="3"
+              y="14"
+              width="7"
+              height="7"
+              rx="1.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+            <rect
+              x="14"
+              y="14"
+              width="7"
+              height="7"
+              rx="1.5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            />
+          </svg>
+        </button>
+        <button
+          onClick={V.setListView}
+          aria-label="List view"
+          title="List view"
+          style={iconBtn(V.isListView)}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M4 6h16M4 12h16M4 18h16"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // Extracted from the design view; renders when V.isApp is set.
 export default function AppShell(V) {
@@ -115,7 +229,7 @@ export default function AppShell(V) {
                 </div>{' '}
               </React.Fragment>
             ) : null}{' '}
-            {Breadcrumb(V)} {TrashScreen(V)}{' '}
+            {Breadcrumb(V)} {TrashScreen(V)} {V.showListToolbar ? ListToolbar(V) : null}{' '}
             {V.hasFiles ? (
               <React.Fragment>
                 {' '}
@@ -134,18 +248,27 @@ export default function AppShell(V) {
                       </span>
                     </React.Fragment>
                   ) : null}{' '}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: `repeat(auto-fill, minmax(${V.d.gridMin}px, 1fr))`,
-                      gap: `${V.d.cardGap}px`,
-                    }}
-                  >
-                    {' '}
-                    {(V.visibleFiles || []).map((file, $index) => (
-                      <FileCard key={$index} V={V} file={file} />
-                    ))}{' '}
-                  </div>{' '}
+                  {V.isListView ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {' '}
+                      {(V.visibleFiles || []).map((file, $index) => (
+                        <FileRow key={$index} V={V} file={file} />
+                      ))}{' '}
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: `repeat(auto-fill, minmax(${V.d.gridMin}px, 1fr))`,
+                        gap: `${V.d.cardGap}px`,
+                      }}
+                    >
+                      {' '}
+                      {(V.visibleFiles || []).map((file, $index) => (
+                        <FileCard key={$index} V={V} file={file} />
+                      ))}{' '}
+                    </div>
+                  )}{' '}
                 </div>{' '}
               </React.Fragment>
             ) : null}{' '}
