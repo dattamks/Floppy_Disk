@@ -22,14 +22,23 @@ def retention_for(user) -> timedelta:
 
 
 def _release_object(obj: StorageObject) -> None:
-    """Decrement a blob's ref_count; hard-delete the row + bytes when it hits 0."""
+    """Decrement a blob's ref_count; hard-delete the row + bytes when it hits 0.
+
+    The row is locked for the whole decrement-read-delete so two concurrent
+    releases of files sharing one blob can't both read a stale count (double
+    delete / negative ref_count) or race the delete. Callers run inside an
+    atomic block, which `select_for_update` requires.
+    """
     if obj is None:
         return
-    StorageObject.objects.filter(pk=obj.pk).update(ref_count=models.F("ref_count") - 1)
-    obj.refresh_from_db()
-    if obj.ref_count <= 0:
-        region, key = obj.region, obj.object_key
-        obj.delete()
+    locked = StorageObject.objects.select_for_update().filter(pk=obj.pk).first()
+    if locked is None:
+        return  # already released by a concurrent purge
+    StorageObject.objects.filter(pk=locked.pk).update(ref_count=models.F("ref_count") - 1)
+    locked.refresh_from_db()
+    if locked.ref_count <= 0:
+        region, key = locked.region, locked.object_key
+        locked.delete()
         try:  # best-effort blob delete after the row is gone
             get_storage_service().delete_object(region=region, object_key=key)
         except Exception:  # noqa: BLE001 - storage cleanup must not block the purge

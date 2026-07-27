@@ -50,6 +50,22 @@ def test_cannot_play_another_users_video(client, user):
     assert client.post(f"/api/v1/storage/files/{foreign.id}/play").status_code == 404
 
 
+def test_frozen_video_is_not_playable(client, user):
+    """A frozen (lapsed-subscription) video cannot be viewed/played."""
+    f = _video(user)
+    File.objects.filter(pk=f.id).update(is_frozen=True)
+    assert client.post(f"/api/v1/storage/files/{f.id}/play").status_code == 404
+
+
+def test_frozen_file_is_still_downloadable(client, user):
+    """Freeze blocks viewing/sharing but the owner can still download (PRD 5.3)."""
+    f = _video(user, name="clip.mp4")
+    File.objects.filter(pk=f.id).update(is_frozen=True)
+    resp = client.get(f"/api/v1/storage/files/{f.id}/download")
+    assert resp.status_code == 200, resp.content
+    assert resp.json()["download_url"]
+
+
 def test_play_requires_video_kind(client, user):
     obj = StorageObject.objects.create(content_hash="b" * 64, region=user.storage_region,
                                        size_bytes=10, ref_count=1, status=StorageObject.Status.READY)

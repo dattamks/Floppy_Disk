@@ -105,6 +105,21 @@ def test_cannot_purge_a_non_trashed_file(client, user):
     assert resp.status_code == 404  # must be in trash first
 
 
+def test_cannot_restore_a_cascaded_subfolder_directly(client, user):
+    """A subfolder trashed via its ancestor must not be restorable on its own
+    (which would orphan it under a still-trashed parent)."""
+    from apps.storage.models import Folder
+
+    parent = Folder.objects.create(owner=user, name="Parent")
+    sub = Folder.objects.create(owner=user, name="Sub", parent=parent)
+    client.delete(f"/api/v1/storage/folders/{parent.id}")
+
+    sub.refresh_from_db()
+    assert sub.trashed_root == parent.id  # cascaded
+    # Restoring the subfolder by id is refused; it comes back with the parent.
+    assert client.post(f"/api/v1/storage/folders/{sub.id}/restore").status_code == 404
+
+
 def test_purge_expired_trash_job_respects_retention(user):
     from datetime import timedelta
 

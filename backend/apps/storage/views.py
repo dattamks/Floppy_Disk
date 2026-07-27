@@ -235,9 +235,12 @@ class FileDownloadView(APIView):
 
     def get(self, request, file_id):
         try:
+            # Frozen files (lapsed subscription) stay downloadable by design —
+            # the freeze blocks viewing/sharing, not the owner getting their
+            # bytes out (PRD 5.3). Quarantined files remain blocked.
             file = File.objects.select_related("storage_object").get(
                 pk=file_id, owner=request.user, deleted_at__isnull=True,
-                is_quarantined=False, is_frozen=False,
+                is_quarantined=False,
             )
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -439,7 +442,14 @@ class FolderRestoreView(APIView):
 
     def post(self, request, folder_id):
         try:
-            folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=False)
+            # Only a top-level trashed folder can be restored on its own; a
+            # subfolder trashed as part of an ancestor (trashed_root set) is
+            # hidden from Trash and must come back with that ancestor, never
+            # independently (which would orphan it under a still-trashed parent).
+            folder = Folder.objects.get(
+                pk=folder_id, owner=request.user,
+                deleted_at__isnull=False, trashed_root__isnull=True,
+            )
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         # Restore everything trashed together with this folder (but NOT items the
