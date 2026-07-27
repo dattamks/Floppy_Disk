@@ -158,6 +158,41 @@ def test_purge_folder_removes_subtree_and_releases_quota(client, user):
     assert user.storage_used_bytes == 0  # quota released for both files
 
 
+def test_trashing_a_folder_cascades_and_hides_children_from_trash(client, user):
+    from apps.storage.models import Folder
+
+    parent = _folder(user, "Docs")
+    sub = _folder(user, "Sub", parent=parent)
+    f = _file(user, "inside.txt", folder=parent)
+
+    client.delete(f"/api/v1/storage/folders/{parent.id}")
+    # Whole subtree is soft-deleted.
+    assert Folder.objects.get(pk=sub.pk).deleted_at is not None
+    assert File.objects.get(pk=f.pk).deleted_at is not None
+    # Trash lists only the top-level folder, not its cascaded children.
+    trash = client.get("/api/v1/storage/trash").json()
+    assert [x["name"] for x in trash["folders"]] == ["Docs"]
+    assert "inside.txt" not in [x["name"] for x in trash["files"]]
+
+
+def test_restoring_a_folder_brings_back_its_cascaded_contents_only(client, user):
+    from apps.storage.models import Folder
+
+    parent = _folder(user, "Box")
+    child = _file(user, "kept.txt", folder=parent)
+    solo = _file(user, "separate.txt", folder=parent)
+    # The user independently trashes one file BEFORE trashing the folder.
+    client.delete(f"/api/v1/storage/files/{solo.id}")
+    client.delete(f"/api/v1/storage/folders/{parent.id}")
+
+    client.post(f"/api/v1/storage/folders/{parent.id}/restore")
+    # The folder and its cascaded child come back...
+    assert Folder.objects.get(pk=parent.pk).deleted_at is None
+    assert File.objects.get(pk=child.pk).deleted_at is None
+    # ...but the independently-trashed file stays in the trash.
+    assert File.objects.get(pk=solo.pk).deleted_at is not None
+
+
 def test_cannot_purge_a_non_trashed_folder(client, user):
     f = _folder(user, "Live")
     assert client.post(f"/api/v1/storage/folders/{f.id}/purge").status_code == 404

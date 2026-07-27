@@ -97,6 +97,23 @@ def test_play_409_while_processing(client, user, settings, tmp_path):
     assert resp.json()["code"] == "processing"
 
 
+def test_purging_a_video_releases_its_rendition_blobs(client, user, settings, tmp_path):
+    """Purge must release the original AND the transcoded MP4 + poster objects."""
+    from apps.storage.lifecycle import purge_file
+
+    settings.DEV_STORAGE_DIR = str(tmp_path)
+    file_id, _ = _upload(client, "home-movie.mkv")
+    f = File.objects.select_related("storage_object", "playable_object", "poster_object").get(pk=file_id)
+    obj_ids = {f.storage_object_id, f.playable_object_id, f.poster_object_id}
+    obj_ids.discard(None)
+    assert len(obj_ids) == 3  # original + rendition + poster, all distinct
+    assert StorageObject.objects.filter(pk__in=obj_ids).count() == 3
+
+    purge_file(f)
+    # No orphaned blobs left behind.
+    assert StorageObject.objects.filter(pk__in=obj_ids).count() == 0
+
+
 def test_transcode_falls_back_to_original_when_bytes_missing(user):
     """process_video is defensive: missing blob bytes -> serve the original, ready."""
     from apps.storage.video_processing import process_video

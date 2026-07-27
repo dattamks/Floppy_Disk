@@ -124,11 +124,13 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 
 **Folders**
 - `list_folders(parent_id?)`, `create_folder(name, parent_id?)`
-- `delete_folder(folder_id)`, `restore_folder(folder_id)`
+- `rename_folder(folder_id, name)`, `move_folder(folder_id, parent_id?)`
+- `delete_folder(folder_id)`, `restore_folder(folder_id)`, `purge_folder(folder_id)`
 - `get_camera_backup_folder()`
 
 **Files**
 - `list_files(folder_id?)`, `delete_file`, `restore_file`, `purge_file`
+- `rename_file(file_id, name)`, `move_file(file_id, folder_id?)`
 - `set_file_discoverable(file_id, discoverable, mature?)`
 - `list_trash()`, `search_files(query)`
 

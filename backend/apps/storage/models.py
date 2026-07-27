@@ -55,6 +55,10 @@ class Folder(TimeStampedModel):
     name = models.CharField(max_length=255)
     parent = models.ForeignKey("self", null=True, blank=True, on_delete=models.CASCADE, related_name="children")
     deleted_at = models.DateTimeField(null=True, blank=True)
+    # When set, this item was trashed as part of trashing an ancestor folder
+    # (that folder's id). Such items are hidden from the top-level Trash view and
+    # restored together with that ancestor — never on their own.
+    trashed_root = models.UUIDField(null=True, blank=True, db_index=True)
 
     class Meta:
         db_table = "storage_folder"
@@ -88,6 +92,9 @@ class File(TimeStampedModel):
     kind = models.CharField(max_length=8, choices=Kind.choices, default=Kind.FILE)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
     deleted_at = models.DateTimeField(null=True, blank=True)
+    # Set when this file was trashed by trashing its ancestor folder (that
+    # folder's id): hidden from the Trash view, restored with the folder.
+    trashed_root = models.UUIDField(null=True, blank=True, db_index=True)
     # Reversible isolation: set by a failed malware scan or a Report (PRD 5.7).
     is_quarantined = models.BooleanField(default=False)
     # Self-hosted video playback: a browser-playable H.264/AAC MP4 rendition

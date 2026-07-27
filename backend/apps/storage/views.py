@@ -101,6 +101,17 @@ def _is_self_or_descendant(candidate_parent, folder):
     return False
 
 
+def _subtree_folder_ids(folder):
+    """The folder's id plus every descendant folder id (breadth-first)."""
+    ids = [folder.pk]
+    frontier = [folder.pk]
+    while frontier:
+        kids = list(Folder.objects.filter(parent_id__in=frontier).values_list("pk", flat=True))
+        ids.extend(kids)
+        frontier = kids
+    return ids
+
+
 class FolderDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -153,8 +164,20 @@ class FolderDetailView(APIView):
             folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=True)
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        folder.deleted_at = timezone.now()
-        folder.save(update_fields=["deleted_at", "updated_at"])
+        now = timezone.now()
+        # Cascade: soft-delete the whole subtree, tagging each currently-active
+        # descendant with this folder's id so it restores together (and stays
+        # hidden from the top-level Trash view).
+        descendant_ids = _subtree_folder_ids(folder)[1:]  # excludes the folder itself
+        Folder.objects.filter(pk__in=descendant_ids, deleted_at__isnull=True).update(
+            deleted_at=now, trashed_root=folder.pk, updated_at=now
+        )
+        File.objects.filter(
+            folder_id__in=[folder.pk, *descendant_ids], deleted_at__isnull=True
+        ).update(deleted_at=now, trashed_root=folder.pk, updated_at=now)
+        folder.deleted_at = now
+        folder.trashed_root = None  # this is the root of the trash action
+        folder.save(update_fields=["deleted_at", "trashed_root", "updated_at"])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -351,6 +374,15 @@ class FolderRestoreView(APIView):
             folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=False)
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        # Restore everything trashed together with this folder (but NOT items the
+        # user had independently trashed earlier — those have a different/no root).
+        now = timezone.now()
+        Folder.objects.filter(owner=request.user, trashed_root=folder.pk).update(
+            deleted_at=None, trashed_root=None, updated_at=now
+        )
+        File.objects.filter(owner=request.user, trashed_root=folder.pk).update(
+            deleted_at=None, trashed_root=None, updated_at=now
+        )
         folder.deleted_at = None
         # If a live folder now occupies the old name here, restore under a variant.
         folder.name = unique_name(
@@ -364,8 +396,14 @@ class TrashView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        folders = Folder.objects.filter(owner=request.user, deleted_at__isnull=False).order_by("-deleted_at")
-        files = File.objects.filter(owner=request.user, deleted_at__isnull=False).order_by("-deleted_at")
+        # Only top-level trashed items — children trashed via an ancestor folder
+        # (trashed_root set) come back with that folder, not on their own.
+        folders = Folder.objects.filter(
+            owner=request.user, deleted_at__isnull=False, trashed_root__isnull=True
+        ).order_by("-deleted_at")
+        files = File.objects.filter(
+            owner=request.user, deleted_at__isnull=False, trashed_root__isnull=True
+        ).order_by("-deleted_at")
         return Response({
             "folders": FolderSerializer(folders, many=True).data,
             "files": FileSerializer(files, many=True).data,

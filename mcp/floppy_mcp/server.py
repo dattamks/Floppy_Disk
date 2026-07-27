@@ -96,8 +96,27 @@ def delete_folder(folder_id: str) -> dict:
 
 @mcp.tool
 def restore_folder(folder_id: str) -> dict:
-    """Restore a trashed folder."""
+    """Restore a trashed folder (and everything trashed with it)."""
     return client().post(f"storage/folders/{folder_id}/restore")
+
+
+@mcp.tool
+def rename_folder(folder_id: str, name: str) -> dict:
+    """Rename a folder. Auto-suffixes " (n)" if the name is taken by a sibling."""
+    return client().patch(f"storage/folders/{folder_id}", json={"name": name})
+
+
+@mcp.tool
+def move_folder(folder_id: str, parent_id: Optional[str] = None) -> dict:
+    """Move a folder under parent_id (omit/None = root). Rejects moving it into
+    itself or its own subtree."""
+    return client().patch(f"storage/folders/{folder_id}", json={"parent": parent_id})
+
+
+@mcp.tool
+def purge_folder(folder_id: str) -> dict:
+    """Permanently delete a trashed folder and its whole subtree. Cannot be undone."""
+    return client().post(f"storage/folders/{folder_id}/purge")
 
 
 @mcp.tool
@@ -132,6 +151,18 @@ def restore_file(file_id: str) -> dict:
 def purge_file(file_id: str) -> dict:
     """Permanently delete a trashed file (releases quota). Cannot be undone."""
     return client().post(f"storage/files/{file_id}/purge")
+
+
+@mcp.tool
+def rename_file(file_id: str, name: str) -> dict:
+    """Rename a file. Auto-suffixes " (n)" (extension preserved) on a collision."""
+    return client().patch(f"storage/files/{file_id}", json={"name": name})
+
+
+@mcp.tool
+def move_file(file_id: str, folder_id: Optional[str] = None) -> dict:
+    """Move a file into folder_id (omit/None = root)."""
+    return client().patch(f"storage/files/{file_id}", json={"folder": folder_id})
 
 
 @mcp.tool
