@@ -27,5 +27,8 @@ def notify_many(users, *, type: str, title: str, body: str = "", data: dict | No
     ]
     if not objs:
         return 0
-    Notification.objects.bulk_create(objs)
+    try:
+        Notification.objects.bulk_create(objs)
+    except Exception:  # noqa: BLE001 - best-effort; never block the triggering action
+        return 0
     return len(objs)

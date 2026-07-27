@@ -42,12 +42,24 @@ def _ranged_file_response(request, path, content_type):
 
     file_size = path.stat().st_size
     range_header = request.headers.get("Range", "")
-    m = re.match(r"bytes=(\d+)-(\d*)", range_header)
-    if m:
-        start = int(m.group(1))
-        end = int(m.group(2)) if m.group(2) else file_size - 1
-        end = min(end, file_size - 1)
-        start = min(start, end)
+    # Accept both `bytes=start-[end]` and the suffix form `bytes=-N` (last N bytes).
+    m = re.match(r"bytes=(\d*)-(\d*)", range_header)
+    if m and (m.group(1) or m.group(2)):
+        if m.group(1) == "":
+            # Suffix range: the final N bytes.
+            n = int(m.group(2))
+            start = max(0, file_size - n) if n else file_size
+            end = file_size - 1
+        else:
+            start = int(m.group(1))
+            end = int(m.group(2)) if m.group(2) else file_size - 1
+            end = min(end, file_size - 1)
+        # Unsatisfiable (start past EOF, empty file, or zero-length suffix) -> 416.
+        if start > end or start >= file_size:
+            resp = HttpResponse(status=416, content_type=content_type)
+            resp["Content-Range"] = f"bytes */{file_size}"
+            resp["Accept-Ranges"] = "bytes"
+            return resp
         with open(path, "rb") as fh:
             fh.seek(start)
             chunk = fh.read(end - start + 1)

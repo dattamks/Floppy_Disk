@@ -43,6 +43,20 @@ def test_mark_one_read_decrements_unread(owner_client, owner):
     assert owner_client.get("/api/v1/notifications/").json()["unread_count"] == 0
 
 
+def test_mark_read_is_idempotent(owner_client, owner):
+    """Re-marking an already-read notification is a no-op success, not a 404."""
+    _notify(owner)
+    nid = owner_client.get("/api/v1/notifications/").json()["results"][0]["id"]
+    assert owner_client.post(f"/api/v1/notifications/{nid}/read").status_code == 204
+    # Second call (already read) still succeeds.
+    assert owner_client.post(f"/api/v1/notifications/{nid}/read").status_code == 204
+
+
+def test_mark_read_unknown_is_404(owner_client, owner):
+    import uuid
+    assert owner_client.post(f"/api/v1/notifications/{uuid.uuid4()}/read").status_code == 404
+
+
 def test_mark_all_read(owner_client, owner):
     _notify(owner, "a")
     _notify(owner, "b")

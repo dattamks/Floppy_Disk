@@ -9,11 +9,15 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import zipfile
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 from apps.storage.lifecycle import purge_file
 from apps.storage.models import File, Folder
@@ -39,9 +43,17 @@ def hard_delete_expired_accounts(*, now) -> int:
     for user in qs:
         if has_legal_hold(user):
             continue
-        for f in list(File.objects.filter(owner=user)):
-            purge_file(f)
-        user.delete()  # cascades folders, memberships, notifications, etc.
+        # Each account is purged atomically so a mid-loop failure can't leave one
+        # half-deleted (some blobs gone, user row still present) and doesn't abort
+        # the whole batch — the rest of the accounts still get processed.
+        try:
+            with transaction.atomic():
+                for f in list(File.objects.filter(owner=user)):
+                    purge_file(f)
+                user.delete()  # cascades folders, memberships, notifications, etc.
+        except Exception:  # noqa: BLE001 - isolate one bad account from the batch
+            logger.exception("Hard-delete failed for account %s", user.pk)
+            continue
         deleted += 1
     return deleted
 

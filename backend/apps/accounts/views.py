@@ -127,6 +127,7 @@ class PasswordResetRequestView(APIView):
 
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
+    throttle_scope = "password_reset"  # token-guessing must be rate-limited too
 
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
@@ -143,6 +144,7 @@ class PasswordResetConfirmView(APIView):
 
 class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
+    throttle_scope = "verify_email"  # rate-limit token guessing
 
     def post(self, request):
         serializer = VerifyEmailSerializer(data=request.data)

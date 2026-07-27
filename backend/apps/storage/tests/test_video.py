@@ -108,3 +108,14 @@ def test_local_media_delivery_supports_range(client, user, settings, tmp_path):
     assert partial.status_code == 206
     assert partial["Content-Range"] == f"bytes 0-9/{len(payload)}"
     assert partial.content == payload[:10]
+
+    # Suffix range: the last 10 bytes.
+    suffix = client.get(url, HTTP_RANGE="bytes=-10")
+    assert suffix.status_code == 206
+    assert suffix.content == payload[-10:]
+    assert suffix["Content-Range"] == f"bytes {len(payload) - 10}-{len(payload) - 1}/{len(payload)}"
+
+    # Unsatisfiable range (start past EOF) -> 416, not a bogus 206.
+    bad = client.get(url, HTTP_RANGE=f"bytes={len(payload)}-{len(payload) + 5}")
+    assert bad.status_code == 416
+    assert bad["Content-Range"] == f"bytes */{len(payload)}"

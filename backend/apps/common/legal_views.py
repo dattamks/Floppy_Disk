@@ -36,6 +36,7 @@ class LegalInfoView(APIView):
 
 class GrievanceCreateView(APIView):
     permission_classes = [AllowAny]
+    throttle_scope = "grievance"  # unauthenticated write — bound it against spam/DoS
 
     def post(self, request):
         subject = (request.data.get("subject") or "").strip()
