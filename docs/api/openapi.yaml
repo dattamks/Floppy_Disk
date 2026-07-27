@@ -333,6 +333,13 @@ paths:
       summary: Restore a folder from trash
       parameters: [{ $ref: "#/components/parameters/FolderId" }]
       responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Folder" } } } }, "404": { $ref: "#/components/responses/NotFound" } }
+  /storage/folders/{folder_id}/purge:
+    post:
+      tags: [Storage]
+      summary: Permanently delete a trashed folder (and its whole subtree)
+      description: Hard-deletes the folder plus every subfolder and file under it; purged files release their quota. The folder must already be in trash.
+      parameters: [{ $ref: "#/components/parameters/FolderId" }]
+      responses: { "204": { $ref: "#/components/responses/NoContent" }, "404": { $ref: "#/components/responses/NotFound" } }
   /storage/camera-backup:
     get:
       tags: [Storage]

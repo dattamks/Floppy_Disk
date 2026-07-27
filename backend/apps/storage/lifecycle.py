@@ -56,6 +56,30 @@ def purge_file(file: File) -> None:
             pass
 
 
+@transaction.atomic
+def purge_folder(folder) -> None:
+    """Permanently remove a folder and its whole subtree.
+
+    Every file under the folder (at any depth) is purged (quota released, blobs
+    removed); the folders themselves are then hard-deleted. Used for "delete
+    permanently" from trash.
+    """
+    from .models import Folder
+
+    # Collect the folder + all descendant folder ids (breadth-first).
+    ids = [folder.pk]
+    frontier = [folder.pk]
+    while frontier:
+        kids = list(Folder.objects.filter(parent_id__in=frontier).values_list("pk", flat=True))
+        ids.extend(kids)
+        frontier = kids
+
+    # Purge files first (File.folder is SET_NULL, so they must go before folders).
+    for f in File.objects.filter(folder_id__in=ids):
+        purge_file(f)
+    Folder.objects.filter(pk__in=ids).delete()
+
+
 def purge_expired_trash() -> int:
     """Daily job: hard-delete trashed files past their tier retention. Returns count."""
     now = timezone.now()

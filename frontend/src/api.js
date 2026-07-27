@@ -69,6 +69,7 @@ export const api = {
   updateFolder: (id, patch) => request(`/storage/folders/${id}`, { method: 'PATCH', body: patch }),
   deleteFolder: (id) => request(`/storage/folders/${id}`, { method: 'DELETE' }),
   restoreFolder: (id) => request(`/storage/folders/${id}/restore`, { method: 'POST' }),
+  purgeFolder: (id) => request(`/storage/folders/${id}/purge`, { method: 'POST' }),
   listFiles: (folder) => request(`/storage/files${folder ? `?folder=${folder}` : ''}`),
   usage: () => request('/storage/usage'),
   trash: () => request('/storage/trash'),

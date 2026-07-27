@@ -15,7 +15,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .lifecycle import purge_file
+from .lifecycle import purge_file, purge_folder
 from .models import File, Folder, StorageObject, StorageReservation
 from .naming import unique_name
 from .quota import FileTooLarge, QuotaExceeded, available_bytes, commit, reserve
@@ -327,6 +327,19 @@ class FilePurgeView(APIView):
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         purge_file(file)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FolderPurgeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, folder_id):
+        """Permanently delete a trashed folder and everything under it."""
+        try:
+            folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=False)
+        except Folder.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        purge_folder(folder)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

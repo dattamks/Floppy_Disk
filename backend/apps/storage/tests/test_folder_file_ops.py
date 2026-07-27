@@ -136,6 +136,41 @@ def test_restore_folder_into_reused_name_gets_variant(client, user):
     assert Folder.objects.filter(owner=user, deleted_at__isnull=True, name__startswith="Projects").count() == 2
 
 
+def test_purge_folder_removes_subtree_and_releases_quota(client, user):
+    """Permanently deleting a trashed folder purges every file under it."""
+    from apps.storage.models import Folder
+
+    parent = _folder(user, "Big")
+    sub = _folder(user, "Sub", parent=parent)
+    f1 = _file(user, "a.txt", folder=parent)
+    f2 = _file(user, "b.txt", folder=sub)
+    # Pretend the files hold committed quota.
+    User.objects.filter(pk=user.pk).update(storage_used_bytes=2)
+    File.objects.filter(pk__in=[f1.pk, f2.pk]).update(size_bytes=1, status=File.Status.READY)
+
+    client.delete(f"/api/v1/storage/folders/{parent.id}")  # trash the parent
+    resp = client.post(f"/api/v1/storage/folders/{parent.id}/purge")
+    assert resp.status_code == 204, resp.content
+
+    assert not Folder.objects.filter(pk__in=[parent.pk, sub.pk]).exists()
+    assert not File.objects.filter(pk__in=[f1.pk, f2.pk]).exists()
+    user.refresh_from_db()
+    assert user.storage_used_bytes == 0  # quota released for both files
+
+
+def test_cannot_purge_a_non_trashed_folder(client, user):
+    f = _folder(user, "Live")
+    assert client.post(f"/api/v1/storage/folders/{f.id}/purge").status_code == 404
+
+
+def test_cannot_purge_another_users_folder(client, user):
+    other = User.objects.create_user(email="z@floppy.disk", password="hunter2pass")
+    foreign = _folder(other, "Theirs")
+    foreign.deleted_at = foreign.updated_at
+    foreign.save(update_fields=["deleted_at"])
+    assert client.post(f"/api/v1/storage/folders/{foreign.id}/purge").status_code == 404
+
+
 def test_restore_file_into_reused_name_gets_variant(client, user):
     a = _file(user, "notes.md")
     client.delete(f"/api/v1/storage/files/{a.id}")

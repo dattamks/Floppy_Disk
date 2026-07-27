@@ -1066,15 +1066,36 @@ export default class App extends React.Component {
     }
     this.toast('Restored');
   }
+  // Walk `item` up its parentId chain; true if `ancestorId` is above it.
+  _isDescendantOf(item, ancestorId, files) {
+    let pid = item.parentId;
+    const seen = new Set();
+    while (pid && !seen.has(pid)) {
+      if (pid === ancestorId) return true;
+      seen.add(pid);
+      const parent = files.find((x) => x.id === pid);
+      pid = parent ? parent.parentId : null;
+    }
+    return false;
+  }
   deleteForever(id, e) {
     if (e) e.stopPropagation();
     const f = this.state.files.find((x) => x.id === id);
     if (!f) return;
     const isFolder = f.kind === 'folder';
     if (f.trashed) {
-      // Permanent purge from trash (files only; folder purge is UI-side here).
-      if (f.real && !isFolder) api.purgeFile(id).catch(() => {});
-      this.setState((s) => ({ files: s.files.filter((x) => x.id !== id), modal: null }));
+      // Permanent purge from trash. Folders purge their whole subtree server-side.
+      if (f.real) {
+        const call = isFolder ? api.purgeFolder(id) : api.purgeFile(id);
+        call.catch(() => {});
+      }
+      this.setState((s) => ({
+        // Drop the item and, for a folder, any of its descendants still in state.
+        files: s.files.filter(
+          (x) => x.id !== id && (!isFolder || !this._isDescendantOf(x, id, s.files))
+        ),
+        modal: null,
+      }));
       this.toast('Deleted permanently');
     } else {
       // Soft delete: move to trash (still counts toward quota until purged).

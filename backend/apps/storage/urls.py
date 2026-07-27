@@ -18,6 +18,7 @@ urlpatterns = [
     path("files/<uuid:file_id>/restore", views.FileRestoreView.as_view(), name="file_restore"),
     path("files/<uuid:file_id>/purge", views.FilePurgeView.as_view(), name="file_purge"),
     path("folders/<uuid:folder_id>/restore", views.FolderRestoreView.as_view(), name="folder_restore"),
+    path("folders/<uuid:folder_id>/purge", views.FolderPurgeView.as_view(), name="folder_purge"),
     path("trash", views.TrashView.as_view(), name="trash"),
     path("uploads", views.UploadInitiateView.as_view(), name="upload_initiate"),
     path("uploads/<uuid:file_id>/complete", views.UploadCompleteView.as_view(), name="upload_complete"),
