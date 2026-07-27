@@ -37,4 +37,16 @@ describe('renderMarkdown', () => {
     expect(bad).not.toContain('javascript:');
     expect(bad).toContain('href="#"');
   });
+
+  it('leaves intra-word underscores alone (snake_case, underscored URLs)', () => {
+    const html = renderMarkdown('call some_variable_name here');
+    expect(html).toContain('some_variable_name');
+    expect(html).not.toContain('<em>');
+    const link = renderMarkdown('[doc](/files/my_file_name.pdf)');
+    expect(link).toContain('href="/files/my_file_name.pdf"');
+  });
+
+  it('still emphasizes underscores at word boundaries', () => {
+    expect(renderMarkdown('an _italic_ word')).toContain('<em>italic</em>');
+  });
 });

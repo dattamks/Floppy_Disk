@@ -1,7 +1,11 @@
 // Shared UI helpers used across the app's components.
 
-export const humanSize = (b) =>
-  b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+export const humanSize = (b) => {
+  if (!b || b < 0 || isNaN(b)) return '0 KB';
+  if (b >= 1073741824) return (b / 1073741824).toFixed(1) + ' GB';
+  if (b > 1048576) return (b / 1048576).toFixed(1) + ' MB';
+  return Math.max(1, Math.round(b / 1024)) + ' KB';
+};
 
 // Compact storage label from a GB value: sub-GB -> MB, >=1024 GB -> TB, else GB.
 export const fmtStorage = (gb) => {

@@ -900,6 +900,7 @@ export default class App extends React.Component {
         api
           .play(file.id)
           .then((d) => {
+            if (this.state.activeFileId !== file.id) return; // a newer file was opened
             this._activeVideoSrc = d.url;
             if (d.poster) this._activePoster = d.poster;
             this.forceUpdate();
@@ -934,17 +935,25 @@ export default class App extends React.Component {
       api
         .fileDownload(file.id)
         .then((d) => {
+          if (this.state.activeFileId !== file.id) return; // a newer file was opened
           const url = (d && d.download_url) || '';
           if (isText) {
             return fetch(url)
-              .then((r) => r.text())
-              .then((txt) =>
-                this.setState({ previewUrl: url, previewText: txt, previewLoading: false })
-              );
+              .then((r) => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.text();
+              })
+              .then((txt) => {
+                if (this.state.activeFileId !== file.id) return;
+                this.setState({ previewUrl: url, previewText: txt, previewLoading: false });
+              });
           }
           this.setState({ previewUrl: url, previewLoading: false });
         })
-        .catch(() => this.setState({ previewLoading: false, previewError: 'Could not load file' }));
+        .catch(() => {
+          if (this.state.activeFileId !== file.id) return;
+          this.setState({ previewLoading: false, previewError: 'Could not load file' });
+        });
     } else {
       // Demo data carries hardcoded URLs/content.
       this.setState({ previewUrl: file.docUrl || file.audioSrc || file.poster || '' });
@@ -1372,6 +1381,21 @@ export default class App extends React.Component {
     }
   }
   emptyTrash() {
+    // Permanently purge real trashed items server-side (releasing quota) — not
+    // just hiding them locally, which left them on the server to reappear on the
+    // next reload. Demo-only items are dropped from local state.
+    const trashed = this.state.files.filter((f) => f.trashed);
+    const real = trashed.filter((f) => f.real);
+    if (real.length) {
+      Promise.all(
+        real.map((f) =>
+          (f.kind === 'folder' ? api.purgeFolder(f.id) : api.purgeFile(f.id)).catch(() => {})
+        )
+      ).then(() => {
+        this.loadStorage();
+        this.loadUsage();
+      });
+    }
     this.setState((s) => ({ files: s.files.filter((f) => !f.trashed) }));
     this.toast('Trash emptied');
   }
@@ -1598,6 +1622,9 @@ export default class App extends React.Component {
       .then((res) => {
         this._upgrading = false;
         this.setState({ userTier: res.tier, quotaBytes: res.quota_bytes });
+        // Refresh the usage meter, which reads realQuotaBytes/realTierLabel
+        // (set by loadUsage) — not the userTier/quotaBytes written above.
+        this.loadUsage();
         this.toast('Upgraded to 2TB — enjoy the extra space');
       })
       .catch((err) => {

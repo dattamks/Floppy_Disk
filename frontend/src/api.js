@@ -71,6 +71,7 @@ export const api = {
   restoreFolder: (id) => request(`/storage/folders/${id}/restore`, { method: 'POST' }),
   purgeFolder: (id) => request(`/storage/folders/${id}/purge`, { method: 'POST' }),
   listFiles: (folder) => request(`/storage/files${folder ? `?folder=${folder}` : ''}`),
+  search: (q) => request(`/storage/search?q=${encodeURIComponent(q)}`),
   usage: () => request('/storage/usage'),
   trash: () => request('/storage/trash'),
   updateFile: (id, patch) => request(`/storage/files/${id}`, { method: 'PATCH', body: patch }),

@@ -7,6 +7,14 @@ describe('humanSize', () => {
     expect(humanSize(2048)).toBe('2 KB');
     expect(humanSize(1572864)).toBe('1.5 MB');
   });
+
+  it('shows GB at/above a gigabyte and guards bad input', () => {
+    expect(humanSize(2 * 1073741824)).toBe('2.0 GB');
+    expect(humanSize(1610612736)).toBe('1.5 GB');
+    expect(humanSize(0)).toBe('0 KB');
+    expect(humanSize(undefined)).toBe('0 KB');
+    expect(humanSize(NaN)).toBe('0 KB');
+  });
 });
 
 describe('fmtStorage', () => {
