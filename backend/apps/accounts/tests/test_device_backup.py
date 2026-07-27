@@ -33,6 +33,25 @@ def test_backup_settings_default_and_update(user):
     assert user.backup_wifi_only is False
 
 
+def test_string_false_disables_flag(user):
+    """Form-encoded / stringy 'false' must turn a flag OFF, not ON.
+
+    bool('false') is True, so the old coercion flipped 'disable wifi-only' into
+    'enable wifi-only' — backing up over cellular against the user's choice.
+    """
+    user.backup_wifi_only = True
+    user.auto_backup_enabled = True
+    user.save(update_fields=["backup_wifi_only", "auto_backup_enabled"])
+
+    c = _client(user)
+    resp = c.patch("/api/v1/auth/account/settings",
+                   {"backup_wifi_only": "false", "auto_backup_enabled": "0"}, format="json")
+    assert resp.status_code == 200
+    user.refresh_from_db()
+    assert user.backup_wifi_only is False
+    assert user.auto_backup_enabled is False
+
+
 def test_profile_and_2fa_settings_persist(user):
     c = _client(user)
     resp = c.patch("/api/v1/auth/account/settings",

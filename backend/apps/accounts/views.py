@@ -72,7 +72,19 @@ class LoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         user = User.objects.get(pk=result.user_id)
+        # Enforce account status: suspended/deleted accounts must not be able to
+        # sign in even with correct credentials (previously only is_active was
+        # checked, and nothing maps status onto is_active).
+        if user.status in (User.Status.SUSPENDED, User.Status.DELETED) or not user.is_active:
+            return Response(
+                {"detail": "This account is not active."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         django_login(request, user, backend=MODEL_BACKEND)
+        # Record login time for dormancy detection (Django's signal updates the
+        # inherited last_login, not this custom field, which was never written).
+        from django.utils import timezone
+        User.objects.filter(pk=user.pk).update(last_login_at=timezone.now())
         return Response(UserSerializer(user).data, status=status.HTTP_200_OK)
 
 

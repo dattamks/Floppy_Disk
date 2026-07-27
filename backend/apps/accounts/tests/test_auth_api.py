@@ -119,6 +119,23 @@ def test_login_bad_password(client, user):
     assert resp.status_code == 400
 
 
+def test_login_records_last_login_at(client, user):
+    assert user.last_login_at is None
+    client.post("/api/v1/auth/login",
+                {"email": "existing@floppy.disk", "password": "hunter2pass"}, format="json")
+    user.refresh_from_db()
+    assert user.last_login_at is not None
+
+
+def test_suspended_account_cannot_login(client, user):
+    user.status = User.Status.SUSPENDED
+    user.save(update_fields=["status"])
+    resp = client.post("/api/v1/auth/login",
+                       {"email": "existing@floppy.disk", "password": "hunter2pass"}, format="json")
+    assert resp.status_code == 403
+    assert client.get("/api/v1/auth/me").status_code == 403  # no session established
+
+
 def test_logout_clears_session(client, user):
     client.post(
         "/api/v1/auth/login",
