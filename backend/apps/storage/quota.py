@@ -84,16 +84,41 @@ def reserve(user, *, size_bytes: int, file: File | None = None) -> StorageReserv
 
 
 @transaction.atomic
-def commit(reservation: StorageReservation) -> None:
-    """Convert a live reservation into confirmed usage (idempotent-ish)."""
+def commit(reservation: StorageReservation, *, actual_bytes: int | None = None) -> None:
+    """Convert a live reservation into confirmed usage (idempotent-ish).
+
+    Charges `actual_bytes` (the real uploaded size) when given, rather than the
+    client-*claimed* size the reservation was opened with. Committing the claimed
+    size lets a caller reserve 1 byte and upload gigabytes (quota under-count),
+    and leaves permanent drift when the real size differs — because purge later
+    refunds the file's real `size_bytes`, not the reserved amount.
+    """
     res = StorageReservation.objects.select_for_update().get(pk=reservation.pk)
     if res.status != StorageReservation.Status.ACTIVE:
         return  # already committed or expired
+    charge = res.bytes if actual_bytes is None else actual_bytes
     user = res.owner.__class__.objects.select_for_update().get(pk=res.owner_id)
-    user.storage_used_bytes = models.F("storage_used_bytes") + res.bytes
+    user.storage_used_bytes = models.F("storage_used_bytes") + charge
     user.save(update_fields=["storage_used_bytes", "updated_at"])
+    res.bytes = charge  # keep the reservation consistent with what was charged
     res.status = StorageReservation.Status.COMMITTED
-    res.save(update_fields=["status", "updated_at"])
+    res.save(update_fields=["bytes", "status", "updated_at"])
+
+
+@transaction.atomic
+def charge_usage(user, size_bytes: int) -> None:
+    """Directly add committed usage for `user` (no reservation).
+
+    Used when an upload completes after its reservation already expired: the
+    bytes are real and on disk, so they must be counted — otherwise a later
+    purge subtracts a size that was never added and drives storage_used_bytes
+    negative (free quota).
+    """
+    if size_bytes <= 0:
+        return
+    locked = user.__class__.objects.select_for_update().get(pk=user.pk)
+    locked.storage_used_bytes = models.F("storage_used_bytes") + size_bytes
+    locked.save(update_fields=["storage_used_bytes", "updated_at"])
 
 
 def release_expired() -> int:

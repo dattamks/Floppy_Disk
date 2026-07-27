@@ -609,7 +609,13 @@ class UploadCompleteView(APIView):
 
         res = file.reservations.filter(status=StorageReservation.Status.ACTIVE).first()
         if res:
-            commit(res)
+            commit(res, actual_bytes=size_bytes)  # charge the real size, not the claimed one
+        else:
+            # The reservation lapsed before completion (slow/large upload past the
+            # 1h TTL). The bytes are real and on disk, so account for them anyway,
+            # or a later purge would drive storage_used_bytes negative.
+            from .quota import charge_usage
+            charge_usage(request.user, size_bytes)
 
         if is_video:
             from .tasks import transcode_video_task

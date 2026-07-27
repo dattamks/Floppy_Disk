@@ -57,8 +57,12 @@ def purge_file(file: File) -> None:
             extras.append(o)
             seen.add(o.pk)
 
-    # Release committed usage only for files that were actually committed (ready).
-    if file.status == File.Status.READY and file.size_bytes:
+    # Release committed usage for any file whose bytes were committed. That's
+    # READY files *and* videos still in PROCESSING (their reservation is committed
+    # the moment the upload completes, before transcoding). Excluding PROCESSING
+    # here leaked quota when a still-transcoding video was purged. PENDING/FAILED
+    # files were never committed, so they must not be refunded.
+    if file.status in (File.Status.READY, File.Status.PROCESSING) and file.size_bytes:
         type(file.owner).objects.filter(pk=file.owner_id).update(
             storage_used_bytes=models.F("storage_used_bytes") - file.size_bytes
         )
