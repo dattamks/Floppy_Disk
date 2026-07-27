@@ -41,7 +41,6 @@ LOCAL_APPS = [
     "apps.accounts",
     "apps.storage",
     "apps.sharing",
-    "apps.billing",
     "apps.moderation",
     "apps.notifications",
     "apps.analytics",
@@ -147,10 +146,6 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.storage.tasks.release_expired_reservations_task",
         "schedule": 60 * 60,
     },
-    "subscription-freeze-lifecycle": {
-        "task": "apps.billing.tasks.run_freeze_lifecycle_task",
-        "schedule": 24 * 60 * 60,
-    },
     "hard-delete-expired-accounts": {
         "task": "apps.accounts.tasks.hard_delete_expired_accounts_task",
         "schedule": 24 * 60 * 60,
@@ -195,15 +190,9 @@ MEDIA_TRANSCODER = env(
     else "apps.storage.services.transcode.FakeTranscoder",
 )
 
-# --- Payments (Razorpay behind PaymentGateway abstraction) ------------------
-# Master switch: when disabled, billing is deferred — new signups are granted the
-# default paid plan (see DEFAULT_SIGNUP_PLAN) and the client hides upgrade/billing UI.
-RAZORPAY_ENABLED = env.bool("RAZORPAY_ENABLED", default=False)
-DEFAULT_SIGNUP_PLAN = env("DEFAULT_SIGNUP_PLAN", default="paid_2tb")  # used only when billing disabled
-PAYMENT_GATEWAY = env("PAYMENT_GATEWAY", default="apps.billing.gateways.razorpay.RazorpayGateway")
-RAZORPAY_KEY_ID = env("RAZORPAY_KEY_ID", default="")
-RAZORPAY_KEY_SECRET = env("RAZORPAY_KEY_SECRET", default="")
-RAZORPAY_WEBHOOK_SECRET = env("RAZORPAY_WEBHOOK_SECRET", default="")
+# --- Storage allowance ------------------------------------------------------
+# No billing/subscriptions: every account gets the same storage quota.
+DEFAULT_QUOTA_BYTES = env.int("DEFAULT_QUOTA_BYTES", default=2 * 1024**4)  # 2 TB
 
 # --- Search (Postgres FTS now, OpenSearch later) ----------------------------
 SEARCH_SERVICE = env("SEARCH_SERVICE", default="apps.search.services.postgres.PostgresSearchService")

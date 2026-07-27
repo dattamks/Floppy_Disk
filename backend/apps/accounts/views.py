@@ -44,10 +44,12 @@ class RegisterView(APIView):
             date_of_birth=serializer.validated_data["date_of_birth"],
         )
         user = User.objects.get(pk=result.user_id)
-        # While billing is deferred, new users default to the paid plan.
-        from apps.billing.service import apply_signup_entitlements
-        apply_signup_entitlements(user)
-        user.refresh_from_db()
+        # No billing: every account gets the standard storage allowance and the
+        # larger per-file cap (there are no paid tiers to gate them behind).
+        from django.conf import settings
+        user.tier = User.Tier.PAID_2TB
+        user.quota_bytes = settings.DEFAULT_QUOTA_BYTES
+        user.save(update_fields=["tier", "quota_bytes", "updated_at"])
         django_login(request, user, backend=MODEL_BACKEND)
         from apps.analytics.track import track
         track("signup", user=user, tier=user.tier)

@@ -13,7 +13,6 @@ urlpatterns = [
     path("api/v1/storage/", include((sharing_owner, "sharing_owner"))),
     path("api/v1/public/", include((sharing_public, "sharing_public"))),
     path("api/v1/moderation/", include("apps.moderation.urls")),
-    path("api/v1/billing/", include("apps.billing.urls")),
     path("api/v1/notifications/", include("apps.notifications.urls")),
     path("api/v1/legal/", include("apps.common.urls")),
 ]

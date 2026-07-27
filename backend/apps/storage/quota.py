@@ -42,9 +42,8 @@ def _live_reserved_bytes(user) -> int:
 
 
 def _quota_limit(user) -> int:
-    """Effective quota = base tier quota + active referral bonuses (PRD 5.3)."""
-    from apps.billing.referrals import effective_quota
-    return effective_quota(user)
+    """The account's storage quota."""
+    return user.quota_bytes
 
 
 def available_bytes(user) -> int:

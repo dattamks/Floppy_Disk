@@ -19,9 +19,6 @@ DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(BASE_DIR / ".devstorage"))
 # Scanning: fake scanner in dev (ClamAV in production).
 SCAN_SERVICE = "apps.moderation.services.fake.FakeScanService"
 
-# Payments: fake gateway (instant activation) in dev/tests.
-PAYMENT_GATEWAY = "apps.billing.gateways.fake.FakePaymentGateway"
-
 # Video: no-binary fake transcoder in dev (real FFmpeg when the binary exists).
 MEDIA_TRANSCODER = "apps.storage.services.transcode.FakeTranscoder"
 

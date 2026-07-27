@@ -45,9 +45,3 @@ def test_upload_complete_emits_event(db):
     assert AnalyticsEvent.objects.filter(name="upload_complete", user=u).exists()
 
 
-def test_subscribe_emits_event(db):
-    u = User.objects.create_user(email="b@floppy.disk", password="hunter2pass")
-    c = APIClient(); c.force_authenticate(u)
-    c.post("/api/v1/billing/subscribe", {"plan": "paid_2tb"}, format="json")
-    ev = AnalyticsEvent.objects.filter(name="subscribe", user=u).first()
-    assert ev is not None and ev.properties.get("plan") == "paid_2tb"
