@@ -35,6 +35,30 @@ function Body(V) {
       </div>
     );
   }
+  if (V.isEditing) {
+    return (
+      <textarea
+        value={V.editText}
+        onInput={V.setEditText}
+        spellCheck={false}
+        style={{
+          width: '100%',
+          minHeight: '340px',
+          resize: 'vertical',
+          padding: '14px',
+          border: `1px solid ${theme.brand}`,
+          borderRadius: '11px',
+          background: theme.white,
+          color: theme.text,
+          fontFamily: "'IBM Plex Mono','SFMono-Regular',Menlo,monospace",
+          fontSize: '12.5px',
+          lineHeight: '1.55',
+          outline: 'none',
+          boxSizing: 'border-box',
+        }}
+      />
+    );
+  }
   const k = V.previewKind;
   if (k === 'image') {
     const arrow = (onClick, side, glyph) => (
@@ -235,6 +259,7 @@ export default function PreviewModal(V) {
         </span>
         <button
           onClick={V.closeModal}
+          aria-label="Close"
           style={{
             background: 'none',
             border: 'none',
@@ -263,75 +288,130 @@ export default function PreviewModal(V) {
         }}
       >
         <span style={{ fontSize: '11.5px', color: theme.textFaint }}>{V.activeFile.metaLine}</span>
-        <div style={{ display: 'flex', gap: '8px', flex: '0 0 auto' }}>
-          <button
-            onClick={V.activeFile.onToggleStar}
-            style={{
-              background: theme.surface,
-              border: `1px solid ${theme.border}`,
-              borderRadius: '9px',
-              width: '34px',
-              height: '34px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-            }}
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill={V.activeFile.starFill}>
-              <path
-                d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.6-4.1 6.1-.6L12 3Z"
-                stroke={V.activeFile.starStroke}
-                strokeWidth="1.3"
-              />
-            </svg>
-          </button>
-          <button
-            onClick={V.downloadActive}
-            style={{
-              background: theme.surface,
-              border: `1px solid ${theme.border}`,
-              color: theme.text,
-              borderRadius: '9px',
-              padding: '0 14px',
-              fontSize: '13px',
-              fontWeight: '500',
-              cursor: 'pointer',
-            }}
-          >
-            Download
-          </button>{' '}
-          <button
-            onClick={V.deleteActive}
-            style={{
-              background: theme.dangerBgSoft,
-              border: `1px solid ${theme.dangerBorder2}`,
-              color: theme.danger,
-              borderRadius: '9px',
-              padding: '0 14px',
-              fontSize: '13px',
-              fontWeight: '500',
-              cursor: 'pointer',
-            }}
-          >
-            Delete
-          </button>
-          <button
-            onClick={V.openShareForActive}
-            style={{
-              background: theme.brand,
-              color: theme.white,
-              border: 'none',
-              borderRadius: '9px',
-              padding: '0 16px',
-              fontSize: '13px',
-              fontWeight: '600',
-              cursor: 'pointer',
-            }}
-          >
-            Share
-          </button>
-        </div>
+        {V.isEditing ? (
+          <div style={{ display: 'flex', gap: '8px', flex: '0 0 auto' }}>
+            <button
+              onClick={V.onCancelEdit}
+              style={{
+                background: theme.surface,
+                border: `1px solid ${theme.border}`,
+                color: theme.text,
+                borderRadius: '9px',
+                padding: '0 14px',
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={V.onSaveEdit}
+              disabled={V.editSaving}
+              style={{
+                background: theme.brand,
+                color: theme.white,
+                border: 'none',
+                borderRadius: '9px',
+                padding: '0 16px',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: V.editSaving ? 'default' : 'pointer',
+                opacity: V.editSaving ? 0.7 : 1,
+              }}
+            >
+              {V.editSaving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: '8px', flex: '0 0 auto' }}>
+            <button
+              onClick={V.activeFile.onToggleStar}
+              aria-label={V.activeFile.starred ? 'Unstar' : 'Star'}
+              style={{
+                background: theme.surface,
+                border: `1px solid ${theme.border}`,
+                borderRadius: '9px',
+                width: '34px',
+                height: '34px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill={V.activeFile.starFill}>
+                <path
+                  d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.6-4.1 6.1-.6L12 3Z"
+                  stroke={V.activeFile.starStroke}
+                  strokeWidth="1.3"
+                />
+              </svg>
+            </button>
+            {V.canEdit ? (
+              <button
+                onClick={V.onStartEdit}
+                style={{
+                  background: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                  color: theme.text,
+                  borderRadius: '9px',
+                  padding: '0 14px',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                }}
+              >
+                Edit
+              </button>
+            ) : null}
+            <button
+              onClick={V.downloadActive}
+              style={{
+                background: theme.surface,
+                border: `1px solid ${theme.border}`,
+                color: theme.text,
+                borderRadius: '9px',
+                padding: '0 14px',
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >
+              Download
+            </button>{' '}
+            <button
+              onClick={V.deleteActive}
+              style={{
+                background: theme.dangerBgSoft,
+                border: `1px solid ${theme.dangerBorder2}`,
+                color: theme.danger,
+                borderRadius: '9px',
+                padding: '0 14px',
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >
+              Delete
+            </button>
+            <button
+              onClick={V.openShareForActive}
+              style={{
+                background: theme.brand,
+                color: theme.white,
+                border: 'none',
+                borderRadius: '9px',
+                padding: '0 16px',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >
+              Share
+            </button>
+          </div>
+        )}
       </div>{' '}
     </React.Fragment>
   ) : null;

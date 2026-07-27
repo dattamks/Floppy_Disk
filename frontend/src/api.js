@@ -74,6 +74,8 @@ export const api = {
   usage: () => request('/storage/usage'),
   trash: () => request('/storage/trash'),
   updateFile: (id, patch) => request(`/storage/files/${id}`, { method: 'PATCH', body: patch }),
+  updateFileContent: (id, content) =>
+    request(`/storage/files/${id}/content`, { method: 'PUT', body: { content } }),
   deleteFile: (id) => request(`/storage/files/${id}`, { method: 'DELETE' }),
   fileDownload: (id) => request(`/storage/files/${id}/download`),
   restoreFile: (id) => request(`/storage/files/${id}/restore`, { method: 'POST' }),

@@ -15,7 +15,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .lifecycle import purge_file, purge_folder
+import hashlib
+
+from django.db import transaction
+
+from .lifecycle import _release_object, purge_file, purge_folder
 from .models import File, Folder, StorageObject, StorageReservation
 from .naming import unique_name
 from .quota import FileTooLarge, QuotaExceeded, available_bytes, commit, reserve
@@ -242,6 +246,70 @@ class FileDownloadView(APIView):
         obj = file.storage_object
         url = get_storage_service().presign_download(region=obj.region, object_key=obj.object_key)
         return Response({"download_url": url, "name": file.name, "size_bytes": file.size_bytes})
+
+
+class FileContentView(APIView):
+    """Replace a (text) file's content in place — edit-in-place saving."""
+
+    permission_classes = [IsAuthenticated]
+    MAX_BYTES = 5 * 1024 * 1024  # inline text editing cap
+
+    @transaction.atomic
+    def put(self, request, file_id):
+        file = (
+            File.objects.select_for_update()
+            .select_related("storage_object")
+            .filter(pk=file_id, owner=request.user, deleted_at__isnull=True,
+                    is_quarantined=False, is_frozen=False)
+            .first()
+        )
+        if file is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        storage = get_storage_service()
+        if not hasattr(storage, "save_bytes"):
+            return Response({"detail": "Editing is not supported on this backend."},
+                            status=status.HTTP_501_NOT_IMPLEMENTED)
+
+        data = str(request.data.get("content", "")).encode("utf-8")
+        if len(data) > self.MAX_BYTES:
+            return Response({"detail": "File too large to edit inline.", "code": "file_too_large"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        old = file.storage_object
+        old_size = file.size_bytes or 0
+        new_size = len(data)
+        delta = new_size - old_size
+        if delta > 0 and delta > available_bytes(request.user):
+            return Response({"detail": "Not enough storage.", "code": "quota_exceeded"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        region = request.user.storage_region
+        content_hash = hashlib.sha256(data).hexdigest()
+        # New content addressed at a sibling key so releasing the old blob can't
+        # clobber the new one.
+        key = f"{_object_key(request.user.id, file.id)}.{content_hash[:12]}"
+        obj, _created = StorageObject.objects.get_or_create(
+            content_hash=content_hash, region=region,
+            defaults={"size_bytes": new_size, "status": StorageObject.Status.READY, "object_key": key},
+        )
+        storage.save_bytes(region=region, object_key=obj.object_key, data=data)
+
+        if old and obj.pk == old.pk:
+            return Response(FileSerializer(file).data)  # content unchanged
+
+        StorageObject.objects.filter(pk=obj.pk).update(ref_count=F("ref_count") + 1)
+        file.storage_object = obj
+        file.size_bytes = new_size
+        file.save(update_fields=["storage_object", "size_bytes", "updated_at"])
+        if old:
+            _release_object(old)
+        if delta:
+            from django.contrib.auth import get_user_model
+
+            get_user_model().objects.filter(pk=request.user.pk).update(
+                storage_used_bytes=F("storage_used_bytes") + delta
+            )
+        return Response(FileSerializer(file).data)
 
 
 class FileListView(APIView):

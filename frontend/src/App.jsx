@@ -40,6 +40,10 @@ export default class App extends React.Component {
     previewText: '',
     previewLoading: false,
     previewError: '',
+    // Edit-in-place for text files.
+    editing: false,
+    editText: '',
+    editSaving: false,
     // Rename / move dialogs.
     renameName: '',
     renameTargetId: null,
@@ -315,6 +319,16 @@ export default class App extends React.Component {
         if (this.state.ctxMenu) this.closeCtxMenu();
         else if (this.state.modal) this.closeModal();
         else if (this.state.drawerOpen) this.closeDrawer();
+        return;
+      }
+      // Arrow keys page through the image gallery in the preview modal.
+      if (
+        this.state.modal === 'preview' &&
+        this.state.previewKind === 'image' &&
+        !this.state.editing
+      ) {
+        if (e.key === 'ArrowLeft') this.previewStep(-1);
+        else if (e.key === 'ArrowRight') this.previewStep(1);
       }
     };
     window.addEventListener('keydown', this._onKey);
@@ -854,6 +868,8 @@ export default class App extends React.Component {
       videoUpgradeHint: false,
       videoFullscreen: false,
       shareCopied: false,
+      editing: false,
+      editText: '',
     });
   }
   openFile(file) {
@@ -909,6 +925,8 @@ export default class App extends React.Component {
       previewText: '',
       previewError: '',
       previewLoading: !!file.real,
+      editing: false,
+      editText: '',
     });
     if (file.real) {
       // Fetch a real, same-origin URL for the bytes; for text formats also read
@@ -947,6 +965,45 @@ export default class App extends React.Component {
     const idx = list.findIndex((f) => f.id === this.state.activeFileId);
     const nextItem = list[idx + dir];
     if (nextItem) this.openFile(nextItem);
+  }
+
+  // --- Edit-in-place (text files) -------------------------------------------
+  startEdit() {
+    this.setState({ editing: true, editText: this.state.previewText || '' });
+  }
+  setEditText(e) {
+    this.setState({ editText: e.target.value });
+  }
+  cancelEdit() {
+    this.setState({ editing: false, editText: '' });
+  }
+  saveEdit() {
+    const id = this.state.activeFileId;
+    const content = this.state.editText;
+    this.setState({ editSaving: true });
+    api
+      .updateFileContent(id, content)
+      .then((f) => {
+        this.setState((s) => ({
+          editing: false,
+          editSaving: false,
+          previewText: content,
+          files: s.files.map((x) =>
+            x.id === id
+              ? {
+                  ...x,
+                  size: f && f.size_bytes != null ? humanSize(f.size_bytes) : x.size,
+                  sizeBytes: f ? f.size_bytes : x.sizeBytes,
+                }
+              : x
+          ),
+        }));
+        this.toast('Saved');
+      })
+      .catch((err) => {
+        this.setState({ editSaving: false });
+        this.toast(firstError(err, 'Could not save'));
+      });
   }
 
   // --- Rename (files & folders) ---------------------------------------------
@@ -2121,6 +2178,20 @@ export default class App extends React.Component {
       })(),
       previewPrev: () => this.previewStep(-1),
       previewNext: () => this.previewStep(1),
+      // Edit-in-place (text formats, real files only).
+      canEdit:
+        !!activeFile &&
+        !!activeFile.real &&
+        ['markdown', 'json', 'yaml', 'text'].includes(st.previewKind) &&
+        !st.previewLoading &&
+        !st.previewError,
+      isEditing: st.editing,
+      editText: st.editText,
+      editSaving: st.editSaving,
+      onStartEdit: () => this.startEdit(),
+      setEditText: (e) => this.setEditText(e),
+      onCancelEdit: () => this.cancelEdit(),
+      onSaveEdit: () => this.saveEdit(),
       previewLoading: st.previewLoading,
       previewError: st.previewError,
       previewHtml: st.previewKind === 'markdown' ? renderMarkdown(st.previewText || '') : '',
