@@ -88,6 +88,38 @@ def test_report_isolates_file_immediately(client, user):
     assert ContentReport.objects.filter(target_id=f.id, kind="report").exists()
 
 
+def test_report_cannot_take_down_arbitrary_private_file(client, user):
+    """A user must not be able to quarantine another user's private file by UUID."""
+    victim = User.objects.create_user(email="victim@floppy.disk", password="hunter2pass")
+    private = _ready_file(victim)  # not discoverable, not shared
+
+    resp = client.post("/api/v1/moderation/reports",
+                       {"kind": "report", "target_type": "file",
+                        "target_id": str(private.id), "reason": "inappropriate"},
+                       format="json")
+    # The report is still recorded (for abuse-pattern analysis)...
+    assert resp.status_code == 201
+    assert ContentReport.objects.filter(target_id=private.id, kind="report").exists()
+    # ...but the private file is NOT auto-isolated.
+    private.refresh_from_db()
+    assert private.is_quarantined is False
+
+
+def test_report_isolates_discoverable_file(client, user):
+    """Discoverable content the reporter can actually reach is still auto-isolated."""
+    victim = User.objects.create_user(email="victim2@floppy.disk", password="hunter2pass")
+    pub = _ready_file(victim)
+    File.objects.filter(pk=pub.id).update(is_discoverable=True)
+
+    resp = client.post("/api/v1/moderation/reports",
+                       {"kind": "report", "target_type": "file",
+                        "target_id": str(pub.id), "reason": "inappropriate"},
+                       format="json")
+    assert resp.status_code == 201
+    pub.refresh_from_db()
+    assert pub.is_quarantined is True
+
+
 def test_copyright_report_requires_detail(client, user):
     f = _ready_file(user)
     resp = client.post("/api/v1/moderation/reports",

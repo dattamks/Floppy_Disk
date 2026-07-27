@@ -96,3 +96,34 @@ def test_expired_share_download_is_gone(user):
 
 def test_unknown_share_download_is_not_found(user):
     assert APIClient().get("/api/v1/public/share/nope-nope/download").status_code == 404
+
+
+def test_trashed_file_share_stops_resolving(user):
+    """Soft-deleting a shared file must stop its still-active link from serving it."""
+    f = _ready_file(user)
+    token = _share(user, f)
+    File.objects.filter(pk=f.id).update(deleted_at=timezone.now())
+
+    anon = APIClient()
+    assert anon.get(f"/api/v1/public/share/{token}").status_code == 410
+    assert anon.get(f"/api/v1/public/share/{token}/download").status_code == 410
+
+
+def test_quarantined_file_share_stops_resolving(user):
+    """A file quarantined after sharing (e.g. via a Report) must not stay downloadable."""
+    f = _ready_file(user)
+    token = _share(user, f)
+    File.objects.filter(pk=f.id).update(is_quarantined=True)
+
+    anon = APIClient()
+    assert anon.get(f"/api/v1/public/share/{token}").status_code == 410
+    assert anon.get(f"/api/v1/public/share/{token}/download").status_code == 410
+
+
+def test_frozen_file_share_stops_resolving(user):
+    """A frozen (lapsed-subscription) file cannot be shared out publicly."""
+    f = _ready_file(user)
+    token = _share(user, f)
+    File.objects.filter(pk=f.id).update(is_frozen=True)
+
+    assert APIClient().get(f"/api/v1/public/share/{token}/download").status_code == 410

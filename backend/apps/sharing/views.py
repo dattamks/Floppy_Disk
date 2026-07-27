@@ -5,9 +5,11 @@ Password protection is a paid-tier feature (PRD 5.4). The public resolver needs
 no auth — the token is the capability.
 """
 from django.contrib.auth.hashers import check_password, make_password
+from rest_framework import serializers as drf_serializers
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from apps.storage.models import File
@@ -15,6 +17,30 @@ from apps.storage.services.base import get_storage_service
 
 from .models import ShareLink
 from .serializers import ShareLinkSerializer
+
+
+def _target_available(link) -> bool:
+    """Is the link's target still safe to serve publicly?
+
+    A share is only a capability to reach content that is *currently* public:
+    a file that gets trashed, quarantined (malware/report), frozen (lapsed
+    subscription), or is not yet ready must stop resolving even while the token
+    itself is un-revoked and un-expired. Without this, an active link keeps
+    serving content the owner can no longer even see themselves.
+    """
+    if link.file_id:
+        f = link.file
+        return (
+            f is not None
+            and f.deleted_at is None
+            and not f.is_quarantined
+            and not f.is_frozen
+            and f.status == File.Status.READY
+        )
+    if link.folder_id:
+        fo = link.folder
+        return fo is not None and fo.deleted_at is None
+    return False
 
 
 class FileShareView(APIView):
@@ -28,6 +54,14 @@ class FileShareView(APIView):
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
+        # Don't mint a link for a file that can't be served publicly anyway
+        # (quarantined, frozen, or still uploading/processing).
+        if file.is_quarantined or file.is_frozen or file.status != File.Status.READY:
+            return Response(
+                {"detail": "File is not available to share.", "code": "file_not_ready"},
+                status=status.HTTP_409_CONFLICT,
+            )
+
         password = request.data.get("password") or ""
         if password and request.user.tier == request.user.Tier.FREE:
             return Response(
@@ -35,11 +69,25 @@ class FileShareView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # Validate expiry up front: a raw client string reaches the DB layer
+        # otherwise (500 on garbage) and a naive datetime is timezone-ambiguous
+        # against the aware `timezone.now()` used by `is_expired`.
+        expires_raw = request.data.get("expires_at")
+        expires_at = None
+        if expires_raw not in (None, ""):
+            try:
+                expires_at = drf_serializers.DateTimeField().to_internal_value(expires_raw)
+            except drf_serializers.ValidationError:
+                return Response(
+                    {"detail": "Invalid expires_at.", "code": "invalid_expires_at"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         link = ShareLink.objects.create(
             owner=request.user,
             file=file,
             password_hash=make_password(password) if password else "",
-            expires_at=request.data.get("expires_at") or None,
+            expires_at=expires_at,
         )
         from apps.analytics.track import track
         track("share_created", user=request.user, has_password=bool(password))
@@ -103,7 +151,7 @@ class PublicShareView(APIView):
     # helpers
     def _get_active(self, token):
         link = ShareLink.objects.filter(token=token).select_related("file", "folder", "owner").first()
-        if link is None or not link.is_active:
+        if link is None or not link.is_active or not _target_available(link):
             return None
         return link
 
@@ -143,9 +191,21 @@ class PublicShareDownloadView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    def get_throttles(self):
+        # A password can be supplied as `?password=` / `X-Share-Password`, so this
+        # endpoint is itself a password-unlock surface — throttle those attempts
+        # under the same scope as the POST unlock, or the gate is brute-forceable.
+        req = getattr(self, "request", None)
+        if req is not None and (
+            req.query_params.get("password") or req.headers.get("X-Share-Password")
+        ):
+            self.throttle_scope = "share_unlock"
+            return [ScopedRateThrottle()]
+        return []
+
     def get(self, request, token):
         link = ShareLink.objects.filter(token=token).select_related("file").first()
-        if link is None or not link.is_active:
+        if link is None or not link.is_active or not _target_available(link):
             exists = ShareLink.objects.filter(token=token).exists()
             return Response(
                 {"detail": "This link has expired or been revoked." if exists else "Not found."},
