@@ -136,6 +136,33 @@ export default function Sidebar(V) {
             {V.trashCount}
           </span>
         </button>{' '}
+        <button
+          onClick={V.openLinks}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '11px',
+            padding: '10px 11px',
+            borderRadius: '9px',
+            border: 'none',
+            background: 'none',
+            color: theme.textMuted,
+            fontSize: '13.5px',
+            cursor: 'pointer',
+            textAlign: 'left',
+            fontFamily: "'IBM Plex Sans',sans-serif",
+          }}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M9 15l6-6M10.5 6.5l1.2-1.2a3.5 3.5 0 0 1 5 5l-1.2 1.2M13.5 17.5l-1.2 1.2a3.5 3.5 0 0 1-5-5l1.2-1.2"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+            />
+          </svg>
+          Manage links
+        </button>{' '}
         <div style={{ flex: '1' }} />{' '}
         <div
           style={{

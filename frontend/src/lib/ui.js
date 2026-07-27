@@ -16,6 +16,16 @@ export const fmtStorage = (gb) => {
 
 export const TIER_LABELS = { free: 'Free', paid_2tb: '2 TB', paid_5tb: '5 TB' };
 
+// Seconds -> "M:SS" (or "H:MM:SS"). Returns '' for missing/invalid input.
+export const fmtDuration = (secs) => {
+  if (secs == null || isNaN(secs) || secs < 0) return '';
+  const s = Math.floor(secs % 60);
+  const m = Math.floor((secs / 60) % 60);
+  const h = Math.floor(secs / 3600);
+  const pad = (n) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+};
+
 export const kindOf = (mime) =>
   mime.startsWith('video')
     ? 'video'

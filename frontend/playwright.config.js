@@ -5,9 +5,19 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const backendDir = path.resolve(__dirname, '../backend');
 
-// Use the pre-installed Chromium (no download); sandbox off for CI containers.
-const CHROMIUM = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
-const E2E_DB = '/tmp/claude-0/-home-user-Floppy-Disk/5c03de2b-195c-53d0-b890-a3793c5ab2e1/scratchpad/e2e.sqlite3';
+// Environment-portable knobs (defaults suit the local sandbox; GitHub Actions
+// overrides them via env — see .github/workflows/ci.yml):
+//  - PW_MANAGED_BROWSER=1  -> use Playwright's own installed Chromium
+//  - PW_CHROMIUM_PATH      -> explicit Chromium binary (else the sandbox path)
+//  - BACKEND_PYTHON        -> python used to run the E2E backend (else .venv)
+//  - E2E_DB                -> SQLite file for the E2E backend
+const USE_MANAGED = process.env.PW_MANAGED_BROWSER === '1';
+const CHROMIUM =
+  process.env.PW_CHROMIUM_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const PY = process.env.BACKEND_PYTHON || '.venv/bin/python';
+const E2E_DB =
+  process.env.E2E_DB ||
+  '/tmp/claude-0/-home-user-Floppy-Disk/5c03de2b-195c-53d0-b890-a3793c5ab2e1/scratchpad/e2e.sqlite3';
 
 export default defineConfig({
   testDir: './e2e',
@@ -22,14 +32,15 @@ export default defineConfig({
     baseURL: 'http://localhost:5173',
     headless: true,
     screenshot: 'only-on-failure',
-    launchOptions: { executablePath: CHROMIUM, args: ['--no-sandbox'] },
+    launchOptions: USE_MANAGED
+      ? { args: ['--no-sandbox'] }
+      : { executablePath: CHROMIUM, args: ['--no-sandbox'] },
   },
   webServer: [
     {
       // Backend on SQLite so E2E needs no Postgres.
       command:
-        '.venv/bin/python manage.py migrate --noinput && ' +
-        '.venv/bin/python manage.py runserver 8000 --noreload',
+        `${PY} manage.py migrate --noinput && ` + `${PY} manage.py runserver 8000 --noreload`,
       cwd: backendDir,
       url: 'http://localhost:8000/health/',
       timeout: 120_000,

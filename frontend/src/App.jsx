@@ -1,7 +1,7 @@
 import React from 'react';
 import { theme } from './lib/theme';
 import { api, firstError } from './api';
-import { humanSize, fmtStorage, TIER_LABELS, kindOf, previewKindOf } from './lib/ui';
+import { humanSize, fmtStorage, TIER_LABELS, kindOf, previewKindOf, fmtDuration } from './lib/ui';
 import { renderMarkdown } from './lib/markdown';
 import AppView from './view/AppView';
 
@@ -44,6 +44,9 @@ export default class App extends React.Component {
     moveTargetId: null,
     moveIsFolder: false,
     moveDestId: null,
+    // Share-link management.
+    linksList: [],
+    linksLoading: false,
     settingsTab: 'profile',
     verifyType: 'email',
     verifyCode: '',
@@ -732,6 +735,9 @@ export default class App extends React.Component {
               shared: false,
               starred: false,
               trashed: false,
+              status: f.status,
+              poster: f.poster_url || undefined,
+              duration: fmtDuration(f.duration_seconds) || undefined,
               real: true,
             }));
           return mapped.length ? { files: [...mapped, ...s.files] } : null;
@@ -763,6 +769,33 @@ export default class App extends React.Component {
             .map((f) => ({ ...f, modified: '', trashed: true, real: true }));
           return mapped.length ? { files: [...mapped, ...s.files] } : null;
         });
+      })
+      .catch(() => {});
+  }
+  // Poll a single (transcoding) video until it's ready, updating its poster +
+  // status in place. Re-arms while the server still reports "processing".
+  refreshFile(id) {
+    const f = this.state.files.find((x) => x.id === id);
+    if (!f) return;
+    const isUuid = typeof f.parentId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(f.parentId);
+    api
+      .listFiles(isUuid ? f.parentId : undefined)
+      .then((files) => {
+        const fresh = (files || []).find((x) => x.id === id);
+        if (!fresh) return;
+        this.setState((s) => ({
+          files: s.files.map((x) =>
+            x.id === id
+              ? {
+                  ...x,
+                  status: fresh.status,
+                  poster: fresh.poster_url || x.poster,
+                  duration: fmtDuration(fresh.duration_seconds) || x.duration,
+                }
+              : x
+          ),
+        }));
+        if (fresh.status === 'processing') setTimeout(() => this.refreshFile(id), 3000);
       })
       .catch(() => {});
   }
@@ -935,6 +968,27 @@ export default class App extends React.Component {
     } else {
       apply();
     }
+  }
+
+  // --- Share-link management -------------------------------------------------
+  openLinks() {
+    this.setState({ modal: 'links', drawerOpen: false, linksLoading: true, linksList: [] });
+    api
+      .listShares()
+      .then((links) => this.setState({ linksList: links || [], linksLoading: false }))
+      .catch(() => this.setState({ linksLoading: false }));
+  }
+  revokeLink(id) {
+    api.revokeShare(id).catch((err) => this.toast(firstError(err, 'Could not revoke')));
+    this.setState((s) => ({ linksList: s.linksList.filter((l) => l.id !== id) }));
+    this.toast('Link revoked');
+  }
+  copyShareUrl(url) {
+    const abs = url && url.startsWith('http') ? url : window.location.origin + url;
+    try {
+      navigator.clipboard.writeText(abs);
+    } catch (e) {}
+    this.toast('Link copied');
   }
   openShare(file, e) {
     if (e) e.stopPropagation();
@@ -1159,13 +1213,21 @@ export default class App extends React.Component {
           shared: false,
           starred: false,
           trashed: false,
+          status: file.status,
+          poster: file.poster_url || undefined,
+          duration: fmtDuration(file.duration_seconds) || undefined,
           real: true,
         };
         this.setState((s) => ({
           files: [nf, ...s.files.filter((x) => x.id !== qid)],
           uploadQueue: s.uploadQueue.filter((u) => u.id !== qid),
         }));
-        this.toast('Uploaded');
+        this.toast(file.status === 'processing' ? 'Uploaded — processing video…' : 'Uploaded');
+        // A video may still be transcoding; refresh shortly to pick up its
+        // poster + ready state (prod worker; instant in dev).
+        if (file.kind === 'video' && file.status === 'processing') {
+          setTimeout(() => this.refreshFile(file.id), 2500);
+        }
       })
       .catch((err) => {
         this.setState((s) => ({ uploadQueue: s.uploadQueue.filter((u) => u.id !== qid) }));
@@ -1493,6 +1555,7 @@ export default class App extends React.Component {
         showThumb: isImage || isVideo,
         isDocOrAudio: isDoc || isAudio,
         isTrashed: !!f.trashed,
+        isProcessing: f.status === 'processing',
         tileBg: isDoc ? theme.dangerBgSoft : theme.tealBg,
         starFill: f.starred ? theme.star : 'none',
         starStroke: f.starred ? theme.star : theme.textFaint,
@@ -1817,6 +1880,20 @@ export default class App extends React.Component {
       isPreviewModal: modal === 'preview',
       isVideoModal: modal === 'video',
       isShareModal: modal === 'share',
+      // Share-link management.
+      isLinksModal: modal === 'links',
+      openLinks: () => this.openLinks(),
+      linksLoading: st.linksLoading,
+      linksEmpty: !st.linksLoading && (st.linksList || []).length === 0,
+      linksView: (st.linksList || []).map((l) => ({
+        id: l.id,
+        name: l.target_name || 'Shared item',
+        url: l.url && l.url.startsWith('http') ? l.url : window.location.origin + (l.url || ''),
+        hasPassword: !!l.has_password,
+        expiresLabel: l.expires_at ? new Date(l.expires_at).toLocaleDateString() : '',
+        onCopy: () => this.copyShareUrl(l.url),
+        onRevoke: () => this.revokeLink(l.id),
+      })),
       // Preview viewers (image / pdf / audio / markdown / json / yaml / text).
       previewKind: st.previewKind,
       previewUrl: st.previewUrl,

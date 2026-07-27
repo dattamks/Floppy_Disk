@@ -22,4 +22,13 @@ test('sharing a file creates a real backend link', async ({ page }) => {
 
   // The modal shows a real token link minted by the backend.
   await expect(page.getByLabel('Share link')).toHaveValue(/\/s\/.+/);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+
+  // The link shows up in "Manage links" and can be revoked.
+  await page.getByRole('button', { name: 'Manage links' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText('sharable.txt')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Revoke' }).click();
+  await expect(dialog.getByText('No active share links yet.')).toBeVisible();
 });

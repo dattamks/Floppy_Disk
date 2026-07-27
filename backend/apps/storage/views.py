@@ -252,7 +252,7 @@ class FileListView(APIView):
         qs = File.objects.filter(
             owner=request.user, deleted_at__isnull=True, is_quarantined=False,
             is_frozen=False, folder=folder,
-        ).order_by("-created_at")
+        ).select_related("poster_object").order_by("-created_at")
         return Response(FileSerializer(qs, many=True).data)
 
 
