@@ -49,12 +49,10 @@ service.
     dev/CI). The Docker image installs `ffmpeg`; `static-ffmpeg` is a pip
     fallback for bare-host installs.
 
-### Still deactivated: the "Continue watching" carousel
+### Also removed: the "Continue watching" carousel
 The watched-progress *"Continue watching"* carousel was part of the streaming
-platform's viewing experience, not basic own-file playback. Its component lives
-at `frontend/src/deactivated/ContinueWatchingCard.jsx` and is unwired. To
-re-enable, move it back into `src/components/`, restore its usage in
-`AppShell`, and feed it watched-progress data.
+platform's viewing experience, not basic own-file playback — its (unwired)
+component was deleted along with the rest of the streaming feature.
 
 ## Billing, subscriptions & referrals — removed
 

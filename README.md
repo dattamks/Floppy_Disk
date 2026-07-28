@@ -34,8 +34,7 @@ single storage tier (no subscriptions).
 └── docs/
     ├── PRD-02-Backend-Platform.md   # backend/platform spec
     ├── api/                         # OpenAPI spec + README
-    ├── deactivated-features.md      # what was removed/replaced in the pivot
-    └── design-reference/            # design export + PRD-01
+    └── deactivated-features.md      # what was removed/replaced in the pivot
 ```
 
 ## Features
@@ -121,4 +120,5 @@ See `docs/PRD-02-Backend-Platform.md` for the full specification.
 
 ## License
 
-Licensed under the [Apache License 2.0](LICENSE).
+Copyright 2026 Kashyap Sri Datta M.
+Licensed under the [Apache License 2.0](LICENSE) (see also [NOTICE](NOTICE)).

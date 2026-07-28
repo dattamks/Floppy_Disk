@@ -9,8 +9,6 @@ import Breadcrumb from './Breadcrumb';
 import TopBarMobile from './TopBarMobile';
 import MobileTabBar from './MobileTabBar';
 import TrashScreen from './TrashScreen';
-// DEACTIVATED (Drive-focus pivot): ContinueWatchingCard (video streaming) —
-// see src/deactivated/ and docs/deactivated-features.md.
 import EmptyState from './EmptyState';
 
 // Bulk-selection action bar, shown when one or more items are selected.

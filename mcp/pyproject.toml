@@ -5,6 +5,7 @@ description = "MCP server for the Floppy Disk cloud-storage platform"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
+authors = [{ name = "Kashyap Sri Datta M" }]
 dependencies = [
     "fastmcp>=2.0",
     "httpx>=0.27",
