@@ -15,12 +15,26 @@ from __future__ import annotations
 
 import base64
 import os
+import uuid
 from pathlib import Path
 from typing import Any, Optional
 
 from fastmcp import FastMCP
 
 from .client import FloppyApiError, FloppyClient
+
+
+def _uid(value: str, kind: str = "id") -> str:
+    """Validate that an id is a UUID before it's interpolated into a request path.
+
+    Without this, an id containing '/' or '?' (hallucinated or hostile) would
+    reshape the request path/query under the caller's Bearer key.
+    """
+    try:
+        return str(uuid.UUID(str(value)))
+    except (ValueError, AttributeError, TypeError):
+        raise ValueError(f"Invalid {kind}: expected a UUID, got {value!r}")
+
 
 mcp = FastMCP(
     name="floppy-disk",
@@ -91,32 +105,32 @@ def create_folder(name: str, parent_id: Optional[str] = None) -> dict:
 @mcp.tool
 def delete_folder(folder_id: str) -> dict:
     """Soft-delete a folder (moves it to trash)."""
-    return client().delete(f"storage/folders/{folder_id}")
+    return client().delete(f"storage/folders/{_uid(folder_id, 'folder_id')}")
 
 
 @mcp.tool
 def restore_folder(folder_id: str) -> dict:
     """Restore a trashed folder (and everything trashed with it)."""
-    return client().post(f"storage/folders/{folder_id}/restore")
+    return client().post(f"storage/folders/{_uid(folder_id, 'folder_id')}/restore")
 
 
 @mcp.tool
 def rename_folder(folder_id: str, name: str) -> dict:
     """Rename a folder. Auto-suffixes " (n)" if the name is taken by a sibling."""
-    return client().patch(f"storage/folders/{folder_id}", json={"name": name})
+    return client().patch(f"storage/folders/{_uid(folder_id, 'folder_id')}", json={"name": name})
 
 
 @mcp.tool
 def move_folder(folder_id: str, parent_id: Optional[str] = None) -> dict:
     """Move a folder under parent_id (omit/None = root). Rejects moving it into
     itself or its own subtree."""
-    return client().patch(f"storage/folders/{folder_id}", json={"parent": parent_id})
+    return client().patch(f"storage/folders/{_uid(folder_id, 'folder_id')}", json={"parent": parent_id})
 
 
 @mcp.tool
 def purge_folder(folder_id: str) -> dict:
     """Permanently delete a trashed folder and its whole subtree. Cannot be undone."""
-    return client().post(f"storage/folders/{folder_id}/purge")
+    return client().post(f"storage/folders/{_uid(folder_id, 'folder_id')}/purge")
 
 
 @mcp.tool
@@ -138,39 +152,39 @@ def list_files(folder_id: Optional[str] = None) -> list:
 @mcp.tool
 def delete_file(file_id: str) -> dict:
     """Soft-delete a file (moves it to trash; still counts toward quota until purged)."""
-    return client().delete(f"storage/files/{file_id}")
+    return client().delete(f"storage/files/{_uid(file_id, 'file_id')}")
 
 
 @mcp.tool
 def restore_file(file_id: str) -> dict:
     """Restore a trashed file."""
-    return client().post(f"storage/files/{file_id}/restore")
+    return client().post(f"storage/files/{_uid(file_id, 'file_id')}/restore")
 
 
 @mcp.tool
 def purge_file(file_id: str) -> dict:
     """Permanently delete a trashed file (releases quota). Cannot be undone."""
-    return client().post(f"storage/files/{file_id}/purge")
+    return client().post(f"storage/files/{_uid(file_id, 'file_id')}/purge")
 
 
 @mcp.tool
 def rename_file(file_id: str, name: str) -> dict:
     """Rename a file. Auto-suffixes " (n)" (extension preserved) on a collision."""
-    return client().patch(f"storage/files/{file_id}", json={"name": name})
+    return client().patch(f"storage/files/{_uid(file_id, 'file_id')}", json={"name": name})
 
 
 @mcp.tool
 def move_file(file_id: str, folder_id: Optional[str] = None) -> dict:
     """Move a file into folder_id (omit/None = root)."""
-    return client().patch(f"storage/files/{file_id}", json={"folder": folder_id})
+    return client().patch(f"storage/files/{_uid(file_id, 'file_id')}", json={"folder": folder_id})
 
 
 @mcp.tool
 def set_file_discoverable(file_id: str, discoverable: bool, mature: bool = False) -> dict:
     """Toggle whether a file is discoverable in search, and its mature flag."""
     return client().post(
-        f"storage/files/{file_id}/discoverable",
-        json={"discoverable": discoverable, "mature": mature},
+        f"storage/files/{_uid(file_id, 'file_id')}/discoverable",
+        json={"is_discoverable": discoverable, "is_mature_content": mature},
     )
 
 
@@ -230,7 +244,7 @@ def upload_file(
     if put.status_code >= 300:
         raise FloppyApiError(put.status_code, f"blob PUT failed: {put.text[:200]}")
 
-    return c.post(f"storage/uploads/{file_id}/complete")
+    return c.post(f"storage/uploads/{_uid(file_id, 'file_id')}/complete")
 
 
 @mcp.tool
@@ -258,24 +272,30 @@ def upload_bytes(
     )
     if put.status_code >= 300:
         raise FloppyApiError(put.status_code, f"blob PUT failed: {put.text[:200]}")
-    return c.post(f"storage/uploads/{file_id}/complete")
+    return c.post(f"storage/uploads/{_uid(file_id, 'file_id')}/complete")
 
 
 @mcp.tool
 def get_download_url(file_id: str) -> dict:
     """Get a URL to fetch a file's bytes (presigned in R2, direct in local mode)."""
-    return client().get(f"storage/files/{file_id}/download")
+    return client().get(f"storage/files/{_uid(file_id, 'file_id')}/download")
 
 
 @mcp.tool
-def download_file(file_id: str, dest_path: str) -> dict:
-    """Download a file's bytes to a local path on the MCP host. Returns {path, size_bytes}."""
+def download_file(file_id: str, dest_path: str, overwrite: bool = False) -> dict:
+    """Download a file's bytes to a local path on the MCP host. Returns {path, size_bytes}.
+
+    Refuses to overwrite an existing file unless overwrite=True, so a mistaken or
+    injected dest_path can't clobber host files (e.g. ~/.ssh/authorized_keys).
+    """
     c = client()
-    info = c.get(f"storage/files/{file_id}/download")
+    dest = Path(dest_path).expanduser()
+    if dest.exists() and not overwrite:
+        raise FileExistsError(f"{dest} already exists; pass overwrite=True to replace it.")
+    info = c.get(f"storage/files/{_uid(file_id, 'file_id')}/download")
     resp = c.blob_request("GET", info["download_url"])
     if resp.status_code >= 300:
         raise FloppyApiError(resp.status_code, f"blob GET failed: {resp.text[:200]}")
-    dest = Path(dest_path).expanduser()
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(resp.content)
     return {"path": str(dest), "size_bytes": len(resp.content), "name": info.get("name")}
@@ -292,7 +312,7 @@ def get_video_playback(file_id: str) -> dict:
     transcoded to a browser-playable MP4 server-side (self-hosted FFmpeg); a
     409 with code "processing" means the transcode hasn't finished yet.
     """
-    return client().post(f"storage/files/{file_id}/play")
+    return client().post(f"storage/files/{_uid(file_id, 'file_id')}/play")
 
 
 # ---------------------------------------------------------------------------
@@ -314,7 +334,7 @@ def create_share_link(
         payload["password"] = password
     if expires_at:
         payload["expires_at"] = expires_at
-    return client().post(f"storage/files/{file_id}/share", json=payload)
+    return client().post(f"storage/files/{_uid(file_id, 'file_id')}/share", json=payload)
 
 
 @mcp.tool
@@ -326,7 +346,7 @@ def list_share_links() -> list:
 @mcp.tool
 def revoke_share_link(share_id: str) -> dict:
     """Revoke a share link."""
-    return client().delete(f"storage/shares/{share_id}")
+    return client().delete(f"storage/shares/{_uid(share_id, 'share_id')}")
 
 
 # ---------------------------------------------------------------------------
@@ -341,7 +361,7 @@ def list_notifications() -> dict:
 @mcp.tool
 def mark_notification_read(notification_id: str) -> dict:
     """Mark one notification as read."""
-    return client().post(f"notifications/{notification_id}/read")
+    return client().post(f"notifications/{_uid(notification_id, 'notification_id')}/read")
 
 
 @mcp.tool
