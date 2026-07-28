@@ -63,6 +63,7 @@ export const api = {
   changePassword: (current_password, new_password) =>
     request('/auth/password-change', { method: 'POST', body: { current_password, new_password } }),
   passwordReset: (email) => request('/auth/password-reset', { method: 'POST', body: { email } }),
+  resendVerification: () => request('/auth/verify-email/resend', { method: 'POST' }),
 
   // Storage
   listFolders: (parent) => request(`/storage/folders${parent ? `?parent=${parent}` : ''}`),

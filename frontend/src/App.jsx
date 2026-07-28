@@ -12,9 +12,7 @@ export default class App extends React.Component {
     authName: '',
     authEmail: '',
     authPassword: '',
-    authPhone: '',
     authDob: '',
-    authCode: '',
     authError: '',
     authBusy: false,
     usedGB: 4.6,
@@ -61,15 +59,11 @@ export default class App extends React.Component {
     selectedIds: [],
     moveBulk: false,
     settingsTab: 'profile',
-    verifyType: 'email',
-    verifyCode: '',
     profileName: '',
     profileUsername: '',
     profileBio: '',
     accountEmail: '',
-    accountPhone: '',
     emailVerified: false,
-    phoneVerified: false,
     twofa: false,
     pwCurrent: '',
     pwNew: '',
@@ -411,14 +405,8 @@ export default class App extends React.Component {
   setAuthPassword(e) {
     this.setState({ authPassword: e.target.value, authError: '' });
   }
-  setAuthPhone(e) {
-    this.setState({ authPhone: e.target.value, authError: '' });
-  }
   setAuthDob(e) {
     this.setState({ authDob: e.target.value, authError: '' });
-  }
-  setAuthCode(e) {
-    this.setState({ authCode: e.target.value, authError: '' });
   }
 
   // Adopt a User payload from the backend into the app's session state.
@@ -515,16 +503,8 @@ export default class App extends React.Component {
         });
     }
   }
-  authSkip() {
-    const v = this.state.authView;
-    if (v === 'verifyEmail') this.setState({ authView: 'verifyPhone', authCode: '' });
-    else this.setState({ authView: 'app' });
-  }
   toastForgot() {
     this.toast('Password reset link sent');
-  }
-  toastResend() {
-    this.toast('A new code has been sent');
   }
 
   go(filterKey) {
@@ -695,24 +675,13 @@ export default class App extends React.Component {
       })
       .catch((err) => this.toast(firstError(err, 'Could not update password')));
   }
-  verifyEmailModal() {
-    this.setState({ modal: 'verify', verifyType: 'email', verifyCode: '' });
-  }
-  verifyPhoneModal() {
-    this.setState({ modal: 'verify', verifyType: 'phone', verifyCode: '' });
-  }
-  setVerifyCode(e) {
-    this.setState({ verifyCode: e.target.value });
-  }
-  confirmVerify() {
-    const t = this.state.verifyType;
-    if (t === 'email')
-      this.setState({ emailVerified: true, modal: 'settings', settingsTab: 'account' });
-    else this.setState({ phoneVerified: true, modal: 'settings', settingsTab: 'account' });
-    this.toast((t === 'email' ? 'Email' : 'Phone') + ' verified');
-  }
-  backToSettings() {
-    this.setState({ modal: 'settings', settingsTab: 'account' });
+  resendVerification() {
+    // Email verification is link-based: dispatch the email and let the user
+    // complete it via the link. Status comes from the backend (/me).
+    api
+      .resendVerification()
+      .then(() => this.toast('Verification email sent — check your inbox'))
+      .catch((err) => this.toast(firstError(err, 'Could not send verification email')));
   }
 
   openNewFolder() {
@@ -1696,10 +1665,7 @@ export default class App extends React.Component {
       modal,
       activeFileId,
       settingsTab,
-      verifyType,
-      verifyCode,
       emailVerified,
-      phoneVerified,
       twofa,
       uploadQueue,
       shareAccess,
@@ -1942,15 +1908,11 @@ export default class App extends React.Component {
     const authTitles = {
       login: 'Welcome back',
       register: 'Create your account',
-      verifyEmail: 'Verify your email',
-      verifyPhone: 'Verify your phone',
       forgot: 'Reset password',
     };
     const authSubs = {
       login: 'Sign in to your Floppy Disk account',
-      register: 'Start with 5 GB free storage',
-      verifyEmail: 'We sent a 6-digit code to ' + (st.authEmail || 'your email'),
-      verifyPhone: 'Add your phone for account recovery',
+      register: 'Create a Floppy Disk account',
       forgot: 'Enter your email and we\u2019ll send a reset link',
     };
 
@@ -1968,40 +1930,28 @@ export default class App extends React.Component {
       showDemoCreds: !!(import.meta && import.meta.env && import.meta.env.DEV),
       authIsRegister: authView === 'register',
       authIsForgot: authView === 'forgot',
-      authIsVerifyEmail: authView === 'verifyEmail',
-      authIsVerifyPhone: authView === 'verifyPhone',
-      authIsVerify: authView === 'verifyEmail' || authView === 'verifyPhone',
       authNeedsEmail: authView === 'login' || authView === 'register' || authView === 'forgot',
       authNeedsPassword: authView === 'login' || authView === 'register',
       authName: st.authName,
       authEmail: st.authEmail,
       authPassword: st.authPassword,
-      authPhone: st.authPhone,
       authDob: st.authDob,
-      authCode: st.authCode,
       authBusy: st.authBusy,
       setAuthName: (e) => this.setAuthName(e),
       setAuthEmail: (e) => this.setAuthEmail(e),
       setAuthPassword: (e) => this.setAuthPassword(e),
-      setAuthPhone: (e) => this.setAuthPhone(e),
       setAuthDob: (e) => this.setAuthDob(e),
-      setAuthCode: (e) => this.setAuthCode(e),
       authPrimary: () => this.authPrimary(),
       authPrimaryLabel:
         {
           login: 'Sign in',
           register: 'Create account',
-          verifyEmail: 'Verify email',
-          verifyPhone: 'Verify phone',
           forgot: 'Send reset link',
         }[authView] || 'Continue',
-      authSkip: () => this.authSkip(),
-      authSkipLabel: authView === 'verifyEmail' ? 'Skip' : 'Skip for now',
       gotoRegister: () => this.gotoRegister(),
       gotoLogin: () => this.gotoLogin(),
       logout: () => this.logout(),
       toastForgot: () => this.toastForgot(),
-      toastResend: () => this.toastResend(),
       setDesktop: () => this.setDesktop(),
       setMobile: () => this.setMobile(),
       deskTabBg: isMobile ? 'transparent' : '#5145E5',
@@ -2123,7 +2073,6 @@ export default class App extends React.Component {
       modalOpen: !!modal,
       isUploadModal: modal === 'upload',
       isSettingsModal: modal === 'settings',
-      isVerifyModal: modal === 'verify',
       isPreviewModal: modal === 'preview',
       isVideoModal: modal === 'video',
       isShareModal: modal === 'share',
@@ -2231,13 +2180,9 @@ export default class App extends React.Component {
       saveProfile: () => this.saveProfile(),
       toastPhoto: () => this.toastPhoto(),
       accountEmail: st.accountEmail,
-      accountPhone: st.accountPhone,
       emailVerified,
       emailNotVerified: !emailVerified,
-      phoneVerified,
-      phoneNotVerified: !phoneVerified,
-      verifyEmailModal: () => this.verifyEmailModal(),
-      verifyPhoneModal: () => this.verifyPhoneModal(),
+      resendVerification: () => this.resendVerification(),
       toastDelete: () => this.toastDelete(),
       pwCurrent: st.pwCurrent,
       pwNew: st.pwNew,
@@ -2250,12 +2195,6 @@ export default class App extends React.Component {
       twofaX: twofa ? 20 : 2,
       toggle2fa: () => this.toggle2fa(),
       toastSessions: () => this.toastSessions(),
-      verifyType,
-      verifyTarget: verifyType === 'email' ? st.accountEmail : st.accountPhone,
-      verifyCode,
-      setVerifyCode: (e) => this.setVerifyCode(e),
-      confirmVerify: () => this.confirmVerify(),
-      backToSettings: () => this.backToSettings(),
       activeFile,
       openShareForActive: () => this.openShareForActive(),
       downloadActive: () => this.downloadActive(),

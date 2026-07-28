@@ -1,9 +1,9 @@
 """
 AuthProvider abstraction.
 
-Phase 1 is DjangoAuthProvider (email/password). Phase 2 swaps in a
-CognitoAuthProvider (phone+OTP, social) without touching callers — they
-depend only on this interface. Selected via settings.AUTH_PROVIDER.
+DjangoAuthProvider (email/password) is the built-in implementation; the
+interface lets an alternative backend (e.g. a hosted identity provider) drop in
+without touching callers. Selected via settings.AUTH_PROVIDER.
 """
 from __future__ import annotations
 
@@ -44,13 +44,6 @@ class AuthProvider(ABC):
     @abstractmethod
     def confirm_password_reset(self, *, token: str, new_password: str) -> bool:
         """Complete a password reset."""
-
-    # --- Phase 2 (phone/OTP) — declared now, implemented with Cognito later ---
-    def start_phone_otp(self, *, phone: str) -> None:  # pragma: no cover
-        raise NotImplementedError("Phone/OTP is a Phase 2 capability.")
-
-    def verify_phone_otp(self, *, phone: str, code: str) -> AuthResult | None:  # pragma: no cover
-        raise NotImplementedError("Phone/OTP is a Phase 2 capability.")
 
 
 def get_auth_provider() -> AuthProvider:

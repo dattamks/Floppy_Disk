@@ -130,62 +130,6 @@ export default function AuthScreen(V) {
               />{' '}
             </React.Fragment>
           ) : null}{' '}
-          {V.authIsVerifyEmail ? (
-            <React.Fragment>
-              {' '}
-              <input
-                value={V.authCode}
-                onInput={V.setAuthCode}
-                placeholder="6-digit code"
-                style={{
-                  background: theme.white,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: '10px',
-                  padding: '12px 14px',
-                  fontSize: '16px',
-                  letterSpacing: '4px',
-                  textAlign: 'center',
-                  outline: 'none',
-                  fontFamily: "'Space Grotesk',sans-serif",
-                }}
-              />{' '}
-            </React.Fragment>
-          ) : null}{' '}
-          {V.authIsVerifyPhone ? (
-            <React.Fragment>
-              {' '}
-              <input
-                value={V.authPhone}
-                onInput={V.setAuthPhone}
-                placeholder="Phone number"
-                style={{
-                  background: theme.white,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: '10px',
-                  padding: '12px 14px',
-                  fontSize: '14px',
-                  outline: 'none',
-                  fontFamily: "'IBM Plex Sans',sans-serif",
-                }}
-              />{' '}
-              <input
-                value={V.authCode}
-                onInput={V.setAuthCode}
-                placeholder="6-digit code"
-                style={{
-                  background: theme.white,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: '10px',
-                  padding: '12px 14px',
-                  fontSize: '16px',
-                  letterSpacing: '4px',
-                  textAlign: 'center',
-                  outline: 'none',
-                  fontFamily: "'Space Grotesk',sans-serif",
-                }}
-              />{' '}
-            </React.Fragment>
-          ) : null}{' '}
           {V.hasAuthError ? (
             <React.Fragment>
               <div
@@ -311,41 +255,6 @@ export default function AuthScreen(V) {
                 >
                   Sign in
                 </button>
-              </div>{' '}
-            </React.Fragment>
-          ) : null}{' '}
-          {V.authIsVerify ? (
-            <React.Fragment>
-              {' '}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                {' '}
-                <button
-                  onClick={V.toastResend}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: theme.textMuted,
-                    cursor: 'pointer',
-                    padding: '0',
-                    fontSize: '13px',
-                  }}
-                >
-                  Resend code
-                </button>{' '}
-                <button
-                  onClick={V.authSkip}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: theme.brand,
-                    cursor: 'pointer',
-                    padding: '0',
-                    fontSize: '13px',
-                    fontWeight: '600',
-                  }}
-                >
-                  {V.authSkipLabel}
-                </button>{' '}
               </div>{' '}
             </React.Fragment>
           ) : null}{' '}

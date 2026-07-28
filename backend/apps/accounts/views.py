@@ -179,3 +179,18 @@ class VerifyEmailView(APIView):
             return Response({"detail": "Invalid or expired token."},
                             status=status.HTTP_400_BAD_REQUEST)
         return Response({"detail": "Email verified."}, status=status.HTTP_200_OK)
+
+
+class ResendVerificationView(APIView):
+    """Re-send the email-verification link to the logged-in user."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_scope = "verify_email"
+
+    def post(self, request):
+        if request.user.email_verified:
+            return Response({"detail": "Email is already verified."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        get_auth_provider().send_email_verification(user_id=str(request.user.pk))
+        # 202: we dispatched the email; the user completes it via the link.
+        return Response({"detail": "Verification email sent."}, status=status.HTTP_202_ACCEPTED)

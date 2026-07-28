@@ -57,11 +57,6 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     email = models.EmailField(unique=True, db_index=True)
     email_verified = models.BooleanField(default=False)
 
-    # Phase 2 (inert in Phase 1)
-    phone = models.CharField(max_length=20, blank=True, default="")
-    phone_verified = models.BooleanField(default=False)
-    phone_verified_at = models.DateTimeField(null=True, blank=True)
-
     date_of_birth = models.DateField(null=True, blank=True)  # self-attested, age >= 18
 
     display_name = models.CharField(max_length=120, blank=True, default="")
