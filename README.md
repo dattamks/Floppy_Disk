@@ -52,7 +52,7 @@ E2E specs for the main flows.
 | **Trash** | `storage/{files,folders}/{id}/{restore,purge}`, `storage/trash` | soft-delete with **folder cascade**, restore-as-a-unit, ref-count release, retention job |
 | **Viewers** | `storage/files/{id}/download` | inline **image / PDF / audio / Markdown / JSON / YAML / text** preview of your own files |
 | **Video** | `storage/files/{id}/play` | **self-hosted** FFmpeg transcode → browser-playable MP4 + poster, served over HTTP Range (no third-party streaming) |
-| **Sharing** | `storage/files/{id}/share`, `storage/shares`, `public/share/{token}` | public token links, expiry, paid password gate, **link management** (list/revoke) |
+| **Sharing** | `storage/files/{id}/share`, `storage/shares`, `public/share/{token}` | public token links, expiry, optional password gate, **link management** (list/revoke) |
 | **Moderation** | `moderation/reports` | malware scan on upload (quarantine), Flag/Report |
 | **Notifications** | `notifications/…/{read,read-all}` | in-app notifications, unread counts |
 | **Search** | `storage/search`, `storage/files/{id}/discoverable` | own + discoverable content; Postgres FTS (prod), portable (dev) |

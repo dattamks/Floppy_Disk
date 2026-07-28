@@ -18,8 +18,6 @@ export const fmtStorage = (gb) => {
   return (gb >= 100 || gb % 1 === 0 ? Math.round(gb) : gb.toFixed(1)) + ' GB';
 };
 
-export const TIER_LABELS = { free: 'Free', paid_2tb: '2 TB', paid_5tb: '5 TB' };
-
 // Seconds -> "M:SS" (or "H:MM:SS"). Returns '' for missing/invalid input.
 export const fmtDuration = (secs) => {
   if (secs == null || isNaN(secs) || secs < 0) return '';

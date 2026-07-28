@@ -79,7 +79,6 @@ def test_camera_backup_folder_is_created_once(user):
 def test_backup_upload_over_quota_pauses_and_notifies(user):
     user.quota_bytes = 1 * GB
     user.storage_used_bytes = 1 * GB
-    user.tier = User.Tier.PAID_2TB  # so the per-file cap isn't what trips it
     user.save()
     c = _client(user)
     folder = c.get("/api/v1/storage/camera-backup").json()

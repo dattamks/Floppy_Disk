@@ -1,8 +1,8 @@
 """
 Sharing API: owner-managed share links + a public token resolver.
 
-Password protection is a paid-tier feature (PRD 5.4). The public resolver needs
-no auth — the token is the capability.
+Share links may carry an optional password. The public resolver needs no auth —
+the token is the capability.
 """
 from django.contrib.auth.hashers import check_password, make_password
 from rest_framework import serializers as drf_serializers
@@ -23,10 +23,10 @@ def _target_available(link) -> bool:
     """Is the link's target still safe to serve publicly?
 
     A share is only a capability to reach content that is *currently* public:
-    a file that gets trashed, quarantined (malware/report), frozen (lapsed
-    subscription), or is not yet ready must stop resolving even while the token
-    itself is un-revoked and un-expired. Without this, an active link keeps
-    serving content the owner can no longer even see themselves.
+    a file that gets trashed, quarantined (malware/report), or is not yet ready
+    must stop resolving even while the token itself is un-revoked and
+    un-expired. Without this, an active link keeps serving content the owner can
+    no longer even see themselves.
     """
     if link.file_id:
         f = link.file
@@ -34,7 +34,6 @@ def _target_available(link) -> bool:
             f is not None
             and f.deleted_at is None
             and not f.is_quarantined
-            and not f.is_frozen
             and f.status == File.Status.READY
         )
     if link.folder_id:
@@ -55,19 +54,14 @@ class FileShareView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         # Don't mint a link for a file that can't be served publicly anyway
-        # (quarantined, frozen, or still uploading/processing).
-        if file.is_quarantined or file.is_frozen or file.status != File.Status.READY:
+        # (quarantined, or still uploading/processing).
+        if file.is_quarantined or file.status != File.Status.READY:
             return Response(
                 {"detail": "File is not available to share.", "code": "file_not_ready"},
                 status=status.HTTP_409_CONFLICT,
             )
 
         password = request.data.get("password") or ""
-        if password and request.user.tier == request.user.Tier.FREE:
-            return Response(
-                {"detail": "Password-protected links are a paid-tier feature.", "code": "paid_only"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
 
         # Validate expiry up front: a raw client string reaches the DB layer
         # otherwise (500 on garbage) and a naive datetime is timezone-ambiguous

@@ -20,7 +20,6 @@ GB = 1024**3
 @pytest.fixture
 def user(db):
     u = User.objects.create_user(email="qs@floppy.disk", password="hunter2pass")
-    u.tier = User.Tier.PAID_2TB
     u.quota_bytes = 10 * GB
     u.save()
     return u

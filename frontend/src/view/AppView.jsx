@@ -270,7 +270,6 @@ export default function AppView({ V }) {
                       <span>
                         {V.storageUsedLabel} of {V.storageTotalLabel}
                       </span>
-                      <span>{V.tierLabel}</span>
                     </div>
                     <div
                       style={{

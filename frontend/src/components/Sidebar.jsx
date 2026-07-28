@@ -187,17 +187,6 @@ export default function Sidebar(V) {
             <span>
               {V.storageUsedLabel} of {V.storageTotalLabel}
             </span>
-            <span
-              style={{
-                background: theme.appBg2,
-                borderRadius: '5px',
-                padding: '1px 7px',
-                fontSize: '11px',
-                color: theme.textMuted,
-              }}
-            >
-              {V.tierLabel}
-            </span>
           </div>{' '}
           <div
             style={{

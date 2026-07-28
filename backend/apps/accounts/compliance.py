@@ -64,7 +64,7 @@ def build_export(user) -> tuple[DataExport, str]:
     folders = Folder.objects.filter(owner=user, deleted_at__isnull=True)
     manifest = {
         "account": {
-            "id": str(user.id), "email": user.email, "tier": user.tier,
+            "id": str(user.id), "email": user.email,
             "created_at": user.created_at.isoformat(),
         },
         "files": [

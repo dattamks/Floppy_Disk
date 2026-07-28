@@ -76,9 +76,11 @@ single-tier storage app with no subscriptions, payments, or referrals.
   CTA, and `upgradeStorage` / `billingEnabled` state.
 - **MCP:** removed the billing tools (`list_plans`, `get_subscription`,
   `get_referral`).
-- **Vestigial (kept, inert):** `User.tier` (new users are `paid_2tb` for the
-  larger per-file cap), `User.referral_code` / `referred_by`, and `File.is_frozen`
-  remain as columns but nothing sets or gates on them anymore.
+- **Schema:** dropped the now-meaningless billing columns entirely —
+  `User.tier` (single storage tier), `User.referral_code` / `referred_by`, and
+  `File.is_frozen`. The free/paid distinctions they gated collapsed to single
+  values: one **20 GB per-file cap** and one **30-day** trash retention, and
+  password-protected share links are available to everyone.
 
 ## What was NOT touched
 Everything else Drive-core: auth, storage (folders/files/upload/quota/dedup),

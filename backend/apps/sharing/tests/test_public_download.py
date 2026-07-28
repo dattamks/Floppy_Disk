@@ -37,10 +37,7 @@ def user(db):
 
 @pytest.fixture
 def paid_user(db):
-    u = User.objects.create_user(email="paiddl@floppy.disk", password="hunter2pass")
-    u.tier = User.Tier.PAID_2TB
-    u.save()
-    return u
+    return User.objects.create_user(email="paiddl@floppy.disk", password="hunter2pass")
 
 
 def _share(owner, file, password=None):
@@ -118,12 +115,3 @@ def test_quarantined_file_share_stops_resolving(user):
     anon = APIClient()
     assert anon.get(f"/api/v1/public/share/{token}").status_code == 410
     assert anon.get(f"/api/v1/public/share/{token}/download").status_code == 410
-
-
-def test_frozen_file_share_stops_resolving(user):
-    """A frozen (lapsed-subscription) file cannot be shared out publicly."""
-    f = _ready_file(user)
-    token = _share(user, f)
-    File.objects.filter(pk=f.id).update(is_frozen=True)
-
-    assert APIClient().get(f"/api/v1/public/share/{token}/download").status_code == 410

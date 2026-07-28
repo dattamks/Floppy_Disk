@@ -20,10 +20,7 @@ def user(db):
 
 @pytest.fixture
 def paid_user(db):
-    u = User.objects.create_user(email="paid@floppy.disk", password="hunter2pass")
-    u.tier = User.Tier.PAID_2TB
-    u.save()
-    return u
+    return User.objects.create_user(email="paid@floppy.disk", password="hunter2pass")
 
 
 @pytest.fixture
@@ -87,14 +84,7 @@ def test_unknown_token_is_404(db):
     assert resp.status_code == 404
 
 
-def test_free_tier_cannot_set_password(client, user):
-    f = _file(user)
-    resp = client.post(f"/api/v1/storage/files/{f.id}/share", {"password": "secret1"}, format="json")
-    assert resp.status_code == 403
-    assert resp.json()["code"] == "paid_only"
-
-
-def test_paid_password_share_requires_password_to_unlock(paid_user):
+def test_password_share_requires_password_to_unlock(paid_user):
     c = APIClient()
     c.force_authenticate(paid_user)
     f = _file(paid_user)

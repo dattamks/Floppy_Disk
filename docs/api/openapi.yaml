@@ -76,7 +76,6 @@ components:
         display_name: { type: string }
         storage_region: { type: string, example: ap-south }
         status: { type: string, enum: [active, dormant, suspended, deleted] }
-        tier: { type: string, enum: [free, paid_2tb, paid_5tb] }
         quota_bytes: { type: integer }
     Folder:
       type: object
@@ -299,7 +298,6 @@ paths:
                   quota_bytes: { type: integer, description: The account's storage quota. }
                   used_bytes: { type: integer }
                   available_bytes: { type: integer }
-                  tier: { type: string }
   /storage/folders:
     get:
       tags: [Storage]
@@ -517,11 +515,11 @@ paths:
       tags: [Sharing]
       summary: Create a public share link
       parameters: [{ $ref: "#/components/parameters/FileId" }]
-      requestBody: { content: { application/json: { schema: { type: object, properties: { password: { type: string, description: Paid-tier only. }, expires_at: { type: string, format: date-time } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, properties: { password: { type: string, description: Optional password gate. }, expires_at: { type: string, format: date-time } } } } } }
       responses:
         "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/ShareLink" } } } }
-        "403": { description: "Password protection is paid-only (`paid_only`)." }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "File is not available to share (`file_not_ready`)." }
   /storage/shares:
     get:
       tags: [Sharing]

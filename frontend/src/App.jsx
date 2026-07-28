@@ -1,7 +1,7 @@
 import React from 'react';
 import { theme } from './lib/theme';
 import { api, firstError } from './api';
-import { humanSize, fmtStorage, TIER_LABELS, kindOf, previewKindOf, fmtDuration } from './lib/ui';
+import { humanSize, fmtStorage, kindOf, previewKindOf, fmtDuration } from './lib/ui';
 import { renderMarkdown } from './lib/markdown';
 import AppView from './view/AppView';
 
@@ -93,7 +93,6 @@ export default class App extends React.Component {
     discoverResults: [],
     realUsedBytes: null,
     realQuotaBytes: null,
-    realTierLabel: null,
     ctxMenu: null,
     toastMsg: '',
   };
@@ -445,7 +444,6 @@ export default class App extends React.Component {
         this.setState({
           realUsedBytes: u.used_bytes != null ? u.used_bytes : 0,
           realQuotaBytes: u.quota_bytes != null ? u.quota_bytes : null,
-          realTierLabel: TIER_LABELS[u.tier] || (u.tier ? String(u.tier) : null),
         })
       )
       .catch(() => {});
@@ -2121,7 +2119,6 @@ export default class App extends React.Component {
       storageTotalLabel: fmtStorage(storageTotalGB),
       storagePct,
       storageBarColor: storagePct > 90 ? '#E5484D' : storagePct > 75 ? '#D97706' : '#5145E5',
-      tierLabel: st.realTierLabel || 'Free',
       ctxMenuView,
       closeCtxMenu: () => this.closeCtxMenu(),
       openUpload: () => this.openUpload(),

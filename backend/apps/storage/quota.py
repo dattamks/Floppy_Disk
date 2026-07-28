@@ -10,7 +10,7 @@ from datetime import timedelta
 from django.db import models, transaction
 from django.utils import timezone
 
-from .models import FREE_MAX_FILE_BYTES, PAID_MAX_FILE_BYTES, File, StorageReservation
+from .models import MAX_FILE_BYTES, File, StorageReservation
 
 RESERVATION_TTL = timedelta(hours=1)
 
@@ -28,7 +28,7 @@ class FileTooLarge(QuotaError):
 
 
 def per_file_cap(user) -> int:
-    return FREE_MAX_FILE_BYTES if user.tier == user.Tier.FREE else PAID_MAX_FILE_BYTES
+    return MAX_FILE_BYTES
 
 
 def _live_reserved_bytes(user) -> int:
@@ -63,7 +63,7 @@ def reserve(user, *, size_bytes: int, file: File | None = None) -> StorageReserv
         raise QuotaError("size_bytes must be positive")
     if size_bytes > per_file_cap(user):
         raise FileTooLarge(
-            f"File exceeds the {per_file_cap(user) // 1024**3} GB per-file limit for your tier."
+            f"File exceeds the {per_file_cap(user) // 1024**3} GB per-file limit."
         )
 
     # Lock the owner row: serializes concurrent reservations for this user.

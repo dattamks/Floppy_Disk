@@ -28,7 +28,7 @@ mcp = FastMCP(
         "Tools for the Floppy Disk cloud-storage platform. Use get_usage to see "
         "quota, list_folders/list_files to browse, upload_file/download_file to "
         "move media, and create_share_link to get a public URL. IDs are UUIDs; "
-        "sizes are bytes. Uploading enforces quota and per-tier size caps."
+        "sizes are bytes. Uploading enforces quota and a per-file size cap."
     ),
 )
 
@@ -59,13 +59,13 @@ def _guess_kind(name: str) -> str:
 # ---------------------------------------------------------------------------
 @mcp.tool
 def whoami() -> dict:
-    """Return the authenticated user (email, tier, quota)."""
+    """Return the authenticated user (email, quota)."""
     return client().get("auth/me")
 
 
 @mcp.tool
 def get_usage() -> dict:
-    """Storage usage: quota_bytes, used_bytes, available_bytes, and tier."""
+    """Storage usage: quota_bytes, used_bytes, available_bytes."""
     return client().get("storage/usage")
 
 
@@ -202,7 +202,7 @@ def upload_file(
     """Upload a local file end-to-end (initiate → PUT bytes → complete).
 
     `path` is a file on the machine running this MCP server. Returns the ready
-    File record. Raises if quota or the per-tier size cap is exceeded.
+    File record. Raises if quota or the per-file size cap is exceeded.
     """
     src = Path(path).expanduser()
     if not src.is_file():
@@ -307,7 +307,7 @@ def create_share_link(
     """Create a public share link for a file.
 
     `expires_at` is an ISO-8601 datetime (e.g. "2026-12-31T23:59:00Z"); omit for
-    a non-expiring link. Password protection is a paid-tier feature.
+    a non-expiring link. An optional password protects the link.
     """
     payload: dict[str, Any] = {}
     if password:

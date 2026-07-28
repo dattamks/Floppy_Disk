@@ -17,9 +17,8 @@ from django.utils import timezone
 
 from apps.common.models import TimeStampedModel
 
-# Per-file upload caps by tier (PRD 5.3).
-FREE_MAX_FILE_BYTES = 2 * 1024**3      # 2 GB
-PAID_MAX_FILE_BYTES = 20 * 1024**3     # 20 GB
+# Per-file upload cap (single storage tier, no billing).
+MAX_FILE_BYTES = 20 * 1024**3          # 20 GB
 
 
 class StorageObject(TimeStampedModel):
@@ -109,9 +108,6 @@ class File(TimeStampedModel):
     duration_seconds = models.FloatField(null=True, blank=True)
     width = models.PositiveIntegerField(null=True, blank=True)
     height = models.PositiveIntegerField(null=True, blank=True)
-    # Frozen after a lapsed subscription: cannot view/share, can still download/
-    # delete; purged if the account stays lapsed long enough (PRD 5.3).
-    is_frozen = models.BooleanField(default=False)
     # Discovery (PRD 5.4): discoverable content is searchable/browsable by others;
     # mature-tagged content is never surfaced in discovery (PRD 5.5).
     is_discoverable = models.BooleanField(default=False, db_index=True)

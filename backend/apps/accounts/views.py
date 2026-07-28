@@ -44,15 +44,13 @@ class RegisterView(APIView):
             date_of_birth=serializer.validated_data["date_of_birth"],
         )
         user = User.objects.get(pk=result.user_id)
-        # No billing: every account gets the standard storage allowance and the
-        # larger per-file cap (there are no paid tiers to gate them behind).
+        # Single storage tier (no billing): grant the standard allowance.
         from django.conf import settings
-        user.tier = User.Tier.PAID_2TB
         user.quota_bytes = settings.DEFAULT_QUOTA_BYTES
-        user.save(update_fields=["tier", "quota_bytes", "updated_at"])
+        user.save(update_fields=["quota_bytes", "updated_at"])
         django_login(request, user, backend=MODEL_BACKEND)
         from apps.analytics.track import track
-        track("signup", user=user, tier=user.tier)
+        track("signup", user=user)
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 

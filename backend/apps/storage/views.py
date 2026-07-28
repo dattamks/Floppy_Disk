@@ -275,7 +275,7 @@ class FileContentView(APIView):
             File.objects.select_for_update()
             .select_related("storage_object")
             .filter(pk=file_id, owner=request.user, deleted_at__isnull=True,
-                    is_quarantined=False, is_frozen=False)
+                    is_quarantined=False)
             .first()
         )
         if file is None:
@@ -334,7 +334,7 @@ class FileListView(APIView):
         folder = request.query_params.get("folder") or None
         qs = File.objects.filter(
             owner=request.user, deleted_at__isnull=True, is_quarantined=False,
-            is_frozen=False, folder=folder,
+            folder=folder,
         ).select_related("poster_object").order_by("-created_at")
         return Response(FileSerializer(qs, many=True).data)
 
@@ -348,7 +348,6 @@ class UsageView(APIView):
             "quota_bytes": u.quota_bytes,
             "used_bytes": u.storage_used_bytes,
             "available_bytes": available_bytes(u),
-            "tier": u.tier,
         })
 
 

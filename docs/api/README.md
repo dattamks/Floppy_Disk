@@ -30,7 +30,7 @@ Unauthenticated endpoints: `register`, `login`, `csrf`, `password-reset*`,
 - **Sizes** are bytes; **money** is paise (₹1 = 100 paise).
 - **Errors**: `{ "detail": "…", "code": "…" }`. `detail` may be a string or a
   list (field validation). `code` appears on typed errors (`quota_exceeded`,
-  `file_too_large`, `scan_failed`, `paid_only`, `stream_unavailable`).
+  `file_too_large`, `scan_failed`, `stream_unavailable`).
 - **Rate limits** (429): login & password-reset 10/day, register 20/day, report
   10/hour, share-unlock 10/day.
 
@@ -57,7 +57,7 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | POST | `/register` | – | Email/password signup (18+); logs in |
 | POST | `/login` | – | Log in |
 | POST | `/logout` | ✓ | Log out |
-| GET | `/me` | ✓ | Current user (incl. `tier`, `quota_bytes`) |
+| GET | `/me` | ✓ | Current user (incl. `quota_bytes`) |
 | GET | `/csrf` | – | Prime the CSRF cookie |
 | POST | `/password-reset` | – | Request reset (no enumeration) |
 | POST | `/password-reset/confirm` | – | Confirm reset |
@@ -106,7 +106,7 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 ### Sharing — `/api/v1/storage` & `/api/v1/public`
 | Method | Path | Summary |
 |---|---|---|
-| POST | `/storage/files/{id}/share` | Create public link (password = paid) |
+| POST | `/storage/files/{id}/share` | Create public link (optional password) |
 | GET | `/storage/shares` | List my links |
 | DELETE | `/storage/shares/{id}` | Revoke |
 | GET | `/public/share/{token}` | Resolve (no auth); 410 if expired/revoked |

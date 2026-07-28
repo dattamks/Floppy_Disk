@@ -15,12 +15,10 @@ from .services.base import get_storage_service
 
 
 def _owned_video(request, file_id):
-    # Playback is a "view" — frozen files (lapsed subscription) are not viewable
-    # (they can still be downloaded via the download endpoint). Quarantined files
-    # are never playable.
+    # Quarantined files are never playable.
     return File.objects.filter(
         pk=file_id, owner=request.user, deleted_at__isnull=True,
-        is_quarantined=False, is_frozen=False, kind=File.Kind.VIDEO,
+        is_quarantined=False, kind=File.Kind.VIDEO,
     ).select_related("playable_object", "poster_object", "storage_object").first()
 
 

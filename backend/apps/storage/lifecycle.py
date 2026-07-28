@@ -13,12 +13,11 @@ from django.utils import timezone
 from .models import File, StorageObject
 from .services.base import get_storage_service
 
-RETENTION_FREE = timedelta(days=7)
-RETENTION_PAID = timedelta(days=30)
+RETENTION = timedelta(days=30)  # single storage tier (no billing)
 
 
 def retention_for(user) -> timedelta:
-    return RETENTION_FREE if user.tier == user.Tier.FREE else RETENTION_PAID
+    return RETENTION
 
 
 def _release_object(obj: StorageObject) -> None:

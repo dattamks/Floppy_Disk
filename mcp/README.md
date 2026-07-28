@@ -119,8 +119,8 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 ## Tools
 
 **Account & usage**
-- `whoami` — the authenticated user (email, tier, quota)
-- `get_usage` — quota, used, available bytes + tier
+- `whoami` — the authenticated user (email, quota)
+- `get_usage` — quota, used, available bytes
 
 **Folders**
 - `list_folders(parent_id?)`, `create_folder(name, parent_id?)`
@@ -163,7 +163,7 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 - **`upload_file` / `download_file`** read/write files on the machine running the
   MCP server, not the client. For in-memory transfer use `upload_bytes`.
 - Errors surface the API's `{detail, code}` so failures are actionable.
-- A key inherits the owning user's tier and data. For integrations that only
+- A key inherits the owning user's data. For integrations that only
   need to read, mint a **read-only** key so it can't mutate anything:
   `python manage.py create_api_key you@example.com --name mcp-ro --read-only`
   (or `POST /auth/api-keys {"read_only": true}`). Treat a key like a password

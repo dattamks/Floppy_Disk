@@ -126,7 +126,7 @@ def test_purge_expired_trash_job_respects_retention(user):
     from apps.storage.lifecycle import purge_expired_trash
 
     old = _ready_file(user, hash_="c" * 64)
-    old.deleted_at = timezone.now() - timedelta(days=8)  # past 7-day free retention
+    old.deleted_at = timezone.now() - timedelta(days=31)  # past the 30-day retention
     old.save()
     recent = _ready_file(user, hash_="d" * 64)
     recent.deleted_at = timezone.now() - timedelta(days=1)
