@@ -1,23 +1,24 @@
 import { defineConfig } from '@playwright/test';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const backendDir = path.resolve(__dirname, '../backend');
 
-// Environment-portable knobs (defaults suit the local sandbox; GitHub Actions
-// overrides them via env — see .github/workflows/ci.yml):
-//  - PW_MANAGED_BROWSER=1  -> use Playwright's own installed Chromium
-//  - PW_CHROMIUM_PATH      -> explicit Chromium binary (else the sandbox path)
-//  - BACKEND_PYTHON        -> python used to run the E2E backend (else .venv)
-//  - E2E_DB                -> SQLite file for the E2E backend
-const USE_MANAGED = process.env.PW_MANAGED_BROWSER === '1';
-const CHROMIUM =
-  process.env.PW_CHROMIUM_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
-const PY = process.env.BACKEND_PYTHON || '.venv/bin/python';
-const E2E_DB =
-  process.env.E2E_DB ||
-  '/tmp/claude-0/-home-user-Floppy-Disk/5c03de2b-195c-53d0-b890-a3793c5ab2e1/scratchpad/e2e.sqlite3';
+// Environment-portable knobs (portable defaults; GitHub Actions overrides some
+// via env — see .github/workflows/ci.yml):
+//  - PW_MANAGED_BROWSER=1  -> use Playwright's own installed Chromium (default)
+//  - PW_CHROMIUM_PATH      -> explicit Chromium binary
+//  - BACKEND_PYTHON        -> python that runs the E2E backend (needs the backend
+//                             deps installed; default `python3`)
+//  - E2E_DB                -> SQLite file for the E2E backend (default: temp dir)
+// Managed Chromium is the default so a fresh clone works after
+// `npx playwright install chromium`.
+const USE_MANAGED = process.env.PW_MANAGED_BROWSER !== '0';
+const CHROMIUM = process.env.PW_CHROMIUM_PATH || '';
+const PY = process.env.BACKEND_PYTHON || 'python3';
+const E2E_DB = process.env.E2E_DB || path.join(os.tmpdir(), 'floppy-e2e.sqlite3');
 
 export default defineConfig({
   testDir: './e2e',

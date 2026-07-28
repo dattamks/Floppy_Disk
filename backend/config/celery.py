@@ -3,7 +3,11 @@ import os
 
 from celery import Celery
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")
+# Match the wsgi/asgi entrypoints: a worker/beat started in production without an
+# explicit DJANGO_SETTINGS_MODULE must NOT silently fall back to dev settings
+# (memory broker + TASK_ALWAYS_EAGER + DEBUG), which would make it consume no
+# jobs. Dev/compose/tests set this env explicitly.
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.production")
 
 app = Celery("floppydisk")
 app.config_from_object("django.conf:settings", namespace="CELERY")

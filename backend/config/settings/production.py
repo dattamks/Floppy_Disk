@@ -1,8 +1,15 @@
 """Production settings (Railway now, AWS ECS Fargate later)."""
+from django.core.exceptions import ImproperlyConfigured
+
 from .base import *  # noqa: F401,F403
-from .base import SENTRY_DSN, env
+from .base import SECRET_KEY, SENTRY_DSN, env
 
 DEBUG = False
+
+# Fail fast rather than boot on the publicly-known dev key (which would make
+# sessions and password-reset/verify tokens forgeable).
+if SECRET_KEY == "insecure-dev-key-change-me":
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set in production.")
 
 # Security hardening; behind Railway/Cloudflare TLS termination.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
