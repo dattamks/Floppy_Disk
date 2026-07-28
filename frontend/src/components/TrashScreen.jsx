@@ -18,7 +18,7 @@ export default function TrashScreen(V) {
         }}
       >
         <span style={{ fontSize: '12.5px', color: theme.warnDark, flex: '1' }}>
-          Files are kept for <strong>7 days</strong> on Free — upgrade for 30‑day retention.
+          Files in Trash are kept for <strong>30 days</strong>, then permanently deleted.
         </span>
         <button
           onClick={V.emptyTrash}

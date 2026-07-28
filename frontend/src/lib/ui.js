@@ -3,7 +3,7 @@
 export const humanSize = (b) => {
   if (!b || b < 0 || isNaN(b)) return '0 KB';
   if (b >= 1073741824) return (b / 1073741824).toFixed(1) + ' GB';
-  if (b > 1048576) return (b / 1048576).toFixed(1) + ' MB';
+  if (b >= 1048576) return (b / 1048576).toFixed(1) + ' MB';
   return Math.max(1, Math.round(b / 1024)) + ' KB';
 };
 

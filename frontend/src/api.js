@@ -60,6 +60,8 @@ export const api = {
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
   logout: () => request('/auth/logout', { method: 'POST' }),
+  changePassword: (current_password, new_password) =>
+    request('/auth/password-change', { method: 'POST', body: { current_password, new_password } }),
   passwordReset: (email) => request('/auth/password-reset', { method: 'POST', body: { email } }),
 
   // Storage

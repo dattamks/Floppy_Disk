@@ -87,7 +87,6 @@ export default class App extends React.Component {
     videoDuration: 0,
     videoMuted: false,
     videoCC: true,
-    videoUpgradeHint: false,
     videoFullscreen: false,
     unreadCount: 0,
     discoverResults: [],
@@ -335,14 +334,16 @@ export default class App extends React.Component {
       const raw = localStorage.getItem('floppydisk-state');
       if (raw) {
         const d = JSON.parse(raw);
+        // Never rehydrate server-owned files: the server (loadStorage) is
+        // authoritative, so a file deleted server-side must not be resurrected
+        // from a stale local cache. Verified status likewise comes from /me.
+        const restored = (d.files || this.state.files).filter((f) => !f.real);
         this.setState({
-          files: d.files || this.state.files,
+          files: restored,
           usedGB: d.usedGB != null ? d.usedGB : this.state.usedGB,
           profileName: d.profileName || this.state.profileName,
           profileUsername: d.profileUsername || this.state.profileUsername,
           profileBio: d.profileBio || this.state.profileBio,
-          emailVerified: d.emailVerified != null ? d.emailVerified : this.state.emailVerified,
-          phoneVerified: d.phoneVerified != null ? d.phoneVerified : this.state.phoneVerified,
         });
       }
     } catch (e) {}
@@ -358,13 +359,13 @@ export default class App extends React.Component {
       localStorage.setItem(
         'floppydisk-state',
         JSON.stringify({
-          files: s.files,
+          // Only local/demo files are cached; server-owned files come from the
+          // server on load (see componentDidMount).
+          files: s.files.filter((f) => !f.real),
           usedGB: s.usedGB,
           profileName: s.profileName,
           profileUsername: s.profileUsername,
           profileBio: s.profileBio,
-          emailVerified: s.emailVerified,
-          phoneVerified: s.phoneVerified,
         })
       );
     } catch (e) {}
@@ -677,7 +678,7 @@ export default class App extends React.Component {
     this.setState({ pwConfirm: e.target.value });
   }
   updatePassword() {
-    const { pwNew, pwConfirm } = this.state;
+    const { pwCurrent, pwNew, pwConfirm } = this.state;
     if (!pwNew) {
       this.toast('Enter a new password');
       return;
@@ -686,8 +687,13 @@ export default class App extends React.Component {
       this.toast('Passwords do not match');
       return;
     }
-    this.setState({ pwCurrent: '', pwNew: '', pwConfirm: '' });
-    this.toast('Password updated');
+    api
+      .changePassword(pwCurrent, pwNew)
+      .then(() => {
+        this.setState({ pwCurrent: '', pwNew: '', pwConfirm: '' });
+        this.toast('Password updated');
+      })
+      .catch((err) => this.toast(firstError(err, 'Could not update password')));
   }
   verifyEmailModal() {
     this.setState({ modal: 'verify', verifyType: 'email', verifyCode: '' });
@@ -853,7 +859,6 @@ export default class App extends React.Component {
         this._videoEl.pause();
       } catch (e) {}
     }
-    this._activeMediaObj = null;
     this.setState({
       modal: null,
       activeFileId: null,
@@ -861,7 +866,6 @@ export default class App extends React.Component {
       videoProgress: 0,
       videoCurrent: 0,
       videoDuration: 0,
-      videoUpgradeHint: false,
       videoFullscreen: false,
       shareCopied: false,
       editing: false,
@@ -1204,7 +1208,6 @@ export default class App extends React.Component {
   }
   openShare(file, e) {
     if (e) e.stopPropagation();
-    this._activeMediaObj = null;
     this.setState({
       modal: 'share',
       activeFileId: file.id,
@@ -1223,24 +1226,11 @@ export default class App extends React.Component {
     }
   }
   openShareForActive() {
-    if (this._activeMediaObj && this.state.activeFileId === '__media') {
-      const m = this._activeMediaObj;
-      this.setState({
-        modal: 'share',
-        shareAccess: 'restricted',
-        sharePermission: 'view',
-        shareEmails: [],
-        shareEmailInput: '',
-        shareCopied: false,
-      });
-      return;
-    }
     const f = this.state.files.find((x) => x.id === this.state.activeFileId);
     if (f) this.openShare(f);
   }
   downloadActive() {
-    const f =
-      this._activeMediaObj || this.state.files.find((x) => x.id === this.state.activeFileId);
+    const f = this.state.files.find((x) => x.id === this.state.activeFileId);
     if (!f) return;
     if (f.real) {
       this.downloadFile(f);
@@ -1605,10 +1595,6 @@ export default class App extends React.Component {
       else if (!next && document.fullscreenElement) document.exitFullscreen();
     } catch (e) {}
   }
-  selectHD() {
-    this.setState({ videoUpgradeHint: true });
-    setTimeout(() => this.setState({ videoUpgradeHint: false }), 2500);
-  }
 
   toggleCC() {
     this.setState((s) => ({ videoCC: !s.videoCC }));
@@ -1728,7 +1714,6 @@ export default class App extends React.Component {
       videoDuration,
       videoMuted,
       videoCC,
-      videoUpgradeHint,
       videoFullscreen,
       toastMsg,
       discoverResults,
@@ -1760,7 +1745,7 @@ export default class App extends React.Component {
       const itemCount = isFolder
         ? files.filter((x) => x.parentId === f.id && !x.trashed).length
         : 0;
-      const daysLeft = f.trashed ? Math.max(0, 7 - (f.deletedDaysAgo || 0)) : null;
+      const daysLeft = f.trashed ? Math.max(0, 30 - (f.deletedDaysAgo || 0)) : null;
       return {
         ...f,
         isFolder,
@@ -1876,12 +1861,7 @@ export default class App extends React.Component {
         onOpen: () => this.openFile(f),
       }));
 
-    const activeRaw =
-      activeFileId === '__media'
-        ? this._activeMediaObj
-        : activeFileId
-          ? files.find((f) => f.id === activeFileId)
-          : null;
+    const activeRaw = activeFileId ? files.find((f) => f.id === activeFileId) : null;
     const activeFile = activeRaw ? decorate(activeRaw) : null;
 
     const navColor = (a) => (a ? theme.brand : theme.textMuted);
@@ -2297,11 +2277,9 @@ export default class App extends React.Component {
       scrubVideo: (e) => this.scrubVideo(e),
       toggleMute: () => this.toggleMute(),
       toggleCC: () => this.toggleCC(),
-      selectHD: () => this.selectHD(),
       toggleTheater: () => this.toggleTheater(),
       videoFullscreen,
       videoNotFullscreen: !videoFullscreen,
-      videoUpgradeHint,
       volumeColor: videoMuted ? '#E5484D' : theater ? '#fff' : '#15171C',
       ccColor: videoCC ? (theater ? '#B9B2FF' : '#5145E5') : '#9AA1AC',
       ccBorder: videoCC ? '#C7C3F5' : theater ? '#3A3D44' : '#E5E7EC',

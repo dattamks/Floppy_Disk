@@ -96,6 +96,31 @@ class LogoutView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class PasswordChangeView(APIView):
+    """Change the password of the logged-in user (requires the current one)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from django.contrib.auth import update_session_auth_hash
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        current = request.data.get("current_password") or ""
+        new = request.data.get("new_password") or ""
+        if not request.user.check_password(current):
+            return Response({"detail": "Current password is incorrect."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            validate_password(new, user=request.user)
+        except DjangoValidationError as exc:
+            return Response({"detail": list(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
+        request.user.set_password(new)
+        request.user.save(update_fields=["password", "updated_at"])
+        update_session_auth_hash(request, request.user)  # keep the user logged in
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
 

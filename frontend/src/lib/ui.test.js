@@ -15,6 +15,10 @@ describe('humanSize', () => {
     expect(humanSize(undefined)).toBe('0 KB');
     expect(humanSize(NaN)).toBe('0 KB');
   });
+
+  it('uses MB exactly at 1 MiB (not 1024 KB)', () => {
+    expect(humanSize(1048576)).toBe('1.0 MB');
+  });
 });
 
 describe('fmtStorage', () => {
