@@ -27,12 +27,12 @@ Unauthenticated endpoints: `register`, `login`, `csrf`, `password-reset*`,
 
 ## Conventions
 - **IDs** are UUIDs, except share `token` (a string).
-- **Sizes** are bytes; **money** is paise (₹1 = 100 paise).
+- **Sizes** are bytes.
 - **Errors**: `{ "detail": "…", "code": "…" }`. `detail` may be a string or a
   list (field validation). `code` appears on typed errors (`quota_exceeded`,
-  `file_too_large`, `scan_failed`, `stream_unavailable`).
-- **Rate limits** (429): login & password-reset 10/day, register 20/day, report
-  10/hour, share-unlock 10/day.
+  `file_too_large`).
+- **Rate limits** (429): login & password-reset 10/day, register 20/day,
+  share-unlock 10/day.
 
 ## Upload flow (3 steps)
 ```bash
@@ -44,9 +44,9 @@ curl -X POST /api/v1/storage/uploads -H "X-CSRFToken: $CSRF" -b cookies \
 # 2) PUT the raw bytes to upload.url
 curl -X PUT "<upload.url>" --data-binary @cat.jpg -H "X-CSRFToken: $CSRF" -b cookies
 
-# 3) complete — malware scan, dedup, commit quota
+# 3) complete — dedup, commit quota
 curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" -b cookies
-# -> File (status: ready)   |   422 {code: scan_failed} if the scan blocks it
+# -> File (status: ready)   |   video -> status: processing (transcode)
 ```
 
 ## Endpoint index
@@ -113,11 +113,6 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | POST | `/public/share/{token}` | Unlock a password-protected link |
 | GET | `/public/share/{token}/download` | Download the bytes (no account; `?password=` for locked links) |
 
-
-### Moderation — `/api/v1/moderation`
-| Method | Path | Summary |
-|---|---|---|
-| POST | `/reports` | Flag / Report (Report isolates a file) |
 
 ### Notifications — `/api/v1/notifications`
 | Method | Path | Summary |

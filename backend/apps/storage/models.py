@@ -68,10 +68,8 @@ class Folder(TimeStampedModel):
 class File(TimeStampedModel):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending upload"
-        SCANNING = "scanning", "Scanning"
         PROCESSING = "processing", "Processing"  # video transcoding in progress
         READY = "ready", "Ready"
-        FAILED = "failed", "Failed"
 
     class Kind(models.TextChoices):
         FILE = "file", "File"

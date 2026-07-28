@@ -82,7 +82,25 @@ single-tier storage app with no subscriptions, payments, or referrals.
   values: one **20 GB per-file cap** and one **30-day** trash retention, and
   password-protected share links are available to everyone.
 
+## Content moderation & malware scanning — removed
+
+Trust-and-safety machinery for a commercial platform, unneeded for a
+self-hosted open-source Drive.
+
+- **Backend:** deleted the `apps/moderation` app (the `ContentReport`
+  Flag/Report model incl. the CSAM reason, and the ClamAV/fake malware-scan
+  services). Removed the upload-time scan/quarantine step, so uploads go
+  straight to ready (videos to processing → ready).
+- **Schema:** dropped `File.is_quarantined` and the quarantine-based legal hold
+  on account hard-delete; simplified `StorageObject.Status` (dropped
+  `scanning`/`quarantined`) and `File.Status` (dropped `scanning`/`failed`) to
+  the states actually used.
+- **Config:** removed the `SCAN_SERVICE` / `SCAN_FAILURE_MODE` / `CLAMAV_*`
+  settings, the `report` throttle scope, and the ClamAV docker-compose service.
+- **Frontend/MCP:** removed the (unused) `api.report` method and the MCP
+  `report_content` tool.
+
 ## What was NOT touched
 Everything else Drive-core: auth, storage (folders/files/upload/quota/dedup),
-trash, sharing (incl. public download), search, notifications, moderation
-(file reports), analytics, device backup, and the legal surface.
+trash, sharing (incl. public download), search, notifications, analytics,
+device backup, and the legal surface.

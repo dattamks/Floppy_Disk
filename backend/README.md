@@ -19,14 +19,13 @@ backend/
 │   │   └── providers/      # AuthProvider interface + DjangoAuthProvider (Phase 1)
 │   ├── storage/            # StorageObject/File/Folder (+ StorageService → R2)
 │   ├── sharing/            # ShareLink / SharePermission / copy-on-share
-│   ├── moderation/         # ContentReport/Flag/CSAMIncident, quarantine
 │   ├── notifications/      # Notification + Celery dispatch
 │   ├── analytics/          # AnalyticsEvent (JSONB, partitioned)
 │   └── search/             # SearchService → Postgres FTS (OpenSearch later)
 ├── requirements.txt        # runtime deps (pip)
 ├── requirements-dev.txt    # + test/lint
 ├── Dockerfile
-└── docker-compose.yml      # postgres + redis + clamav + web + worker + beat
+└── docker-compose.yml      # postgres + redis + web + worker + beat
 ```
 
 ## Architecture notes

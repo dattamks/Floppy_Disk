@@ -27,8 +27,8 @@ single storage tier (no subscriptions).
 │   ├── e2e/              # Playwright end-to-end specs
 │   └── package.json, vite.config.js, playwright.config.js, vitest.config.js
 ├── backend/               # Django + DRF API + Celery workers
-│   └── apps/              # accounts, storage, sharing, moderation,
-│                          # notifications, search, analytics, common
+│   └── apps/              # accounts, storage, sharing, notifications,
+│                          # search, analytics, common
 ├── mcp/                   # Python FastMCP server wrapping the REST API
 ├── .github/workflows/ci.yml   # backend + frontend + MCP CI
 └── docs/
@@ -53,22 +53,21 @@ E2E specs for the main flows.
 | **Viewers** | `storage/files/{id}/download` | inline **image / PDF / audio / Markdown / JSON / YAML / text** preview of your own files |
 | **Video** | `storage/files/{id}/play` | **self-hosted** FFmpeg transcode → browser-playable MP4 + poster, served over HTTP Range (no third-party streaming) |
 | **Sharing** | `storage/files/{id}/share`, `storage/shares`, `public/share/{token}` | public token links, expiry, optional password gate, **link management** (list/revoke) |
-| **Moderation** | `moderation/reports` | malware scan on upload (quarantine), Flag/Report |
 | **Notifications** | `notifications/…/{read,read-all}` | in-app notifications, unread counts |
 | **Search** | `storage/search`, `storage/files/{id}/discoverable` | own + discoverable content; Postgres FTS (prod), portable (dev) |
-| **Compliance** | `auth/account/{delete,export,consent,settings}` | DPDPA soft→hard delete (legal hold), export, consent, backup settings |
+| **Compliance** | `auth/account/{delete,export,consent,settings}` | DPDPA soft→hard delete, export, consent, backup settings |
 | **Device backup** | `storage/camera-backup` | Camera Backup folder, quota-pause notify |
 
-Rate limits (DRF scoped throttles) on login/register/password-reset/report/
+Rate limits (DRF scoped throttles) on login/register/password-reset/
 share-unlock/verify-email/grievance.
 Scheduled (Celery beat): trash purge, expired-reservation release, and 30-day
 account hard-delete.
 
 Service boundaries are abstracted for the vendor migration: `AuthProvider`
 (Cognito), `StorageService` (R2/S3), `SearchService` (Postgres FTS/OpenSearch),
-`ScanService` (ClamAV), and `MediaTranscoder` (FFmpeg). Dev/test use in-process
-fakes (`LocalStorageService`, `FakeScanService`, `FakeTranscoder`) so the whole
-stack runs without external credentials.
+and `MediaTranscoder` (FFmpeg). Dev/test use in-process fakes
+(`LocalStorageService`, `FakeTranscoder`) so the whole stack runs without
+external credentials.
 
 ## Self-hosted video
 
@@ -84,7 +83,7 @@ file is always kept alongside the rendition.
 ```bash
 cd backend
 cp .env.example .env
-docker compose up --build        # postgres + redis + clamav + web + worker + beat (image includes ffmpeg)
+docker compose up --build        # postgres + redis + web + worker + beat (image includes ffmpeg)
 #   or locally:  python -m venv .venv && . .venv/bin/activate
 #                pip install -r requirements-dev.txt && python manage.py migrate && python manage.py runserver
 pytest                            # run the test suite

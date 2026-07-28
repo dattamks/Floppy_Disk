@@ -22,7 +22,7 @@ info:
 
     ## Conventions
     - IDs are UUIDs unless noted (share tokens are strings).
-    - Sizes are bytes. Money is paise (₹1 = 100).
+    - Sizes are bytes.
     - List endpoints return arrays; a few wrap results in an object (noted per path).
     - Errors use `{ "detail": "...", "code": "..." }` (code is present on typed errors).
 servers:
@@ -36,7 +36,6 @@ tags:
   - name: Upload
   - name: Video
   - name: Sharing
-  - name: Moderation
   - name: Notifications
   - name: Ops
 
@@ -93,7 +92,7 @@ components:
         folder: { type: [string, "null"], format: uuid }
         kind: { type: string, enum: [file, image, video, audio, doc] }
         size_bytes: { type: integer }
-        status: { type: string, enum: [pending, scanning, ready, failed] }
+        status: { type: string, enum: [pending, processing, ready] }
         created_at: { type: string, format: date-time }
     ShareLink:
       type: object
@@ -343,7 +342,7 @@ paths:
   /storage/files:
     get:
       tags: [Storage]
-      summary: List files (by folder; excludes trashed/quarantined/frozen)
+      summary: List files (by folder; excludes trashed)
       parameters: [{ name: folder, in: query, schema: { type: string, format: uuid } }]
       responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/File" } } } } } }
   /storage/files/{file_id}:
@@ -480,12 +479,11 @@ paths:
   /storage/uploads/{file_id}/complete:
     post:
       tags: [Upload]
-      summary: Complete an upload (scan → dedup → commit)
+      summary: Complete an upload (dedup → commit)
       parameters: [{ $ref: "#/components/parameters/FileId" }]
       responses:
         "200": { description: Ready, content: { application/json: { schema: { $ref: "#/components/schemas/File" } } } }
         "409": { description: No uploaded bytes found. }
-        "422": { description: "Blocked by malware scan (`scan_failed`)." , content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
 
   # ---------------------------------------------------------------- Video
   /storage/files/{file_id}/play:
@@ -581,26 +579,6 @@ paths:
         "401": { description: Incorrect/missing password. }
         "404": { description: Unknown token / nothing to download. }
         "410": { description: Expired or revoked. }
-
-  # ---------------------------------------------------------------- Moderation
-  /moderation/reports:
-    post:
-      tags: [Moderation]
-      summary: Flag or Report content (a Report reversibly isolates a file)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [kind, target_type, target_id]
-              properties:
-                kind: { type: string, enum: [flag, report] }
-                target_type: { type: string, enum: [file] }
-                target_id: { type: string, format: uuid }
-                reason: { type: string, enum: [copyright, inappropriate, csam, other], default: other }
-                detail: { type: string, description: Required for copyright reports. }
-      responses: { "201": { description: Recorded. }, "400": { $ref: "#/components/responses/ValidationError" }, "429": { description: Rate limited (10/hour). } }
 
   # ---------------------------------------------------------------- Notifications
   /notifications/:
