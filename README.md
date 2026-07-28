@@ -32,7 +32,6 @@ single storage tier (no subscriptions).
 ├── mcp/                   # Python FastMCP server wrapping the REST API
 ├── .github/workflows/ci.yml   # backend + frontend + MCP CI
 └── docs/
-    ├── PRD-02-Backend-Platform.md   # backend/platform spec
     ├── api/                         # OpenAPI spec + README
     └── deactivated-features.md      # what was removed/replaced in the pivot
 ```
@@ -58,7 +57,7 @@ E2E specs for the main flows.
 | **Device backup** | `storage/camera-backup` | Camera Backup folder, quota-pause notify |
 
 Rate limits (DRF scoped throttles) on login/register/password-reset/
-share-unlock/verify-email/grievance.
+share-unlock/verify-email.
 Scheduled (Celery beat): trash purge, expired-reservation release, and 30-day
 account hard-delete.
 
@@ -116,7 +115,7 @@ sharing, video playback, notifications) for MCP-aware clients. See
 - **Auth:** email/password via Django auth behind an `AuthProvider` abstraction
 - **CI:** GitHub Actions — backend pytest, frontend build + unit + E2E, MCP smoke
 
-See `docs/PRD-02-Backend-Platform.md` for the full specification.
+See [`docs/api/`](docs/api) for the API reference (OpenAPI + README).
 
 ## License
 

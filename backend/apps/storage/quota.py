@@ -1,5 +1,5 @@
 """
-Reserve-then-commit quota (PRD 5.3).
+Reserve-then-commit quota.
 
 Closes the TOCTOU race where concurrent uploads all pass a stale
 `storage_used_bytes` check: quota is atomically reserved when a presigned upload

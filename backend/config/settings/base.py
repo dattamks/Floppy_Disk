@@ -114,14 +114,12 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.ScopedRateThrottle",
     ],
-    # Concrete per-scope rates come from the rate-limit spec (PRD 5.2).
     "DEFAULT_THROTTLE_RATES": {
         "login": "10/day",
         "password_reset": "10/day",
         "register": "20/day",
         "share_unlock": "10/day",
         "verify_email": "20/day",
-        "grievance": "20/day",
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 50,
@@ -225,15 +223,6 @@ CSRF_TRUSTED_ORIGINS = env.list(
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Floppy Disk <no-reply@floppy.disk>")
 # Base URL of the web app, used to build verification / reset links in emails.
 FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173")
-
-# --- Legal / compliance ------------------------------------------------------
-# Grievance Officer contact (India IT Rules 2021). Set real values in prod.
-GRIEVANCE_OFFICER_NAME = env("GRIEVANCE_OFFICER_NAME", default="")
-GRIEVANCE_OFFICER_EMAIL = env("GRIEVANCE_OFFICER_EMAIL", default="grievance@floppy.disk")
-GRIEVANCE_OFFICER_ADDRESS = env("GRIEVANCE_OFFICER_ADDRESS", default="")
-# Current policy versions surfaced to clients + recorded on consent.
-TOS_VERSION = env("TOS_VERSION", default="2026-01-01")
-PRIVACY_VERSION = env("PRIVACY_VERSION", default="2026-01-01")
 
 # --- Sentry (optional) ------------------------------------------------------
 SENTRY_DSN = env("SENTRY_DSN", default="")

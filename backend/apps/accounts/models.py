@@ -48,7 +48,7 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
 
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
-        DORMANT = "dormant", "Dormant"  # no login for 6 months (PRD 5.1)
+        DORMANT = "dormant", "Dormant"  # no login for 6 months
         SUSPENDED = "suspended", "Suspended"
         DELETED = "deleted", "Deleted"  # soft-deleted, pending 30-day hard delete
 
@@ -71,7 +71,7 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     )
     storage_region = models.CharField(max_length=16, default="ap-south")  # data residency
 
-    # Device backup settings (PRD 5.10).
+    # Device backup settings.
     auto_backup_enabled = models.BooleanField(default=False)
     backup_wifi_only = models.BooleanField(default=True)
     two_factor_enabled = models.BooleanField(default=False)
@@ -98,7 +98,7 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
         return self.email
 
     def mark_deleted(self):
-        """DPDPA soft delete; hard delete cascades after 30 days (PRD 5.11)."""
+        """DPDPA soft delete; hard delete cascades after 30 days."""
         self.status = self.Status.DELETED
         self.is_active = False
         self.deleted_at = timezone.now()

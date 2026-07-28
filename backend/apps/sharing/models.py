@@ -1,5 +1,5 @@
 """
-Sharing: public share links (PRD 5.4).
+Sharing: public share links.
 
 A ShareLink grants access to a File (or Folder) via an unguessable token.
 Optional expiry; optional password (a PAID-tier feature). Private per-user

@@ -1,4 +1,4 @@
-"""track() — the single entry point for recording product analytics (PRD 5.12)."""
+"""track() — the single entry point for recording product analytics."""
 from __future__ import annotations
 
 from django.utils import timezone

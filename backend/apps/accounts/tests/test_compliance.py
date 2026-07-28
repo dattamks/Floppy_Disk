@@ -1,4 +1,4 @@
-"""TDD spec for DPDPA account deletion + data export (PRD 5.11)."""
+"""TDD spec for DPDPA account deletion + data export."""
 from datetime import datetime, timedelta, timezone
 
 import pytest

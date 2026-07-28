@@ -200,7 +200,7 @@ CAMERA_BACKUP_NAME = "Camera Backup"
 
 
 class CameraBackupFolderView(APIView):
-    """Return (creating if needed) the user's dedicated device-backup folder (PRD 5.10)."""
+    """Return (creating if needed) the user's dedicated device-backup folder."""
 
     permission_classes = [IsAuthenticated]
 
@@ -514,7 +514,7 @@ class UploadInitiateView(APIView):
             return Response({"detail": str(exc), "code": "file_too_large"}, status=status.HTTP_400_BAD_REQUEST)
         except QuotaExceeded as exc:
             file.delete()
-            # Device backup pauses on quota — notify the user, don't fail silently (PRD 5.10).
+            # Device backup pauses on quota — notify the user, don't fail silently.
             if request.data.get("is_backup"):
                 from apps.notifications.dispatch import notify
                 notify(request.user, type="quota", title="Backup paused — storage full",

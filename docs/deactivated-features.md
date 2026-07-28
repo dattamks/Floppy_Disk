@@ -98,7 +98,22 @@ self-hosted open-source Drive.
 - **Frontend/MCP:** removed the (unused) `api.report` method and the MCP
   `report_content` tool.
 
+## India IT-Rules grievance surface — removed
+
+The grievance/redressal endpoints (`apps/common/legal_views.py` — policy-version
++ grievance-officer info and grievance filing), the `Grievance` model, the
+`/api/v1/legal/` routes, the `grievance` throttle, and the
+`GRIEVANCE_OFFICER_*` / `TOS_VERSION` / `PRIVACY_VERSION` settings were removed —
+commercial-India-specific machinery unneeded for a self-hosted open-source Drive.
+The DPDPA-style account delete / export / consent endpoints (in `apps/accounts`)
+are kept. The `apps/common` app remains for its shared base models and the health
+check.
+
+The original `docs/PRD-02-Backend-Platform.md` product spec (which described the
+removed billing, channels, moderation, and monetization features) was also
+removed; the current API is documented under `docs/api/`.
+
 ## What was NOT touched
 Everything else Drive-core: auth, storage (folders/files/upload/quota/dedup),
 trash, sharing (incl. public download), search, notifications, analytics,
-device backup, and the legal surface.
+device backup, and the DPDPA account delete/export/consent endpoints.

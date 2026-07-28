@@ -102,8 +102,8 @@ class File(TimeStampedModel):
     duration_seconds = models.FloatField(null=True, blank=True)
     width = models.PositiveIntegerField(null=True, blank=True)
     height = models.PositiveIntegerField(null=True, blank=True)
-    # Discovery (PRD 5.4): discoverable content is searchable/browsable by others;
-    # mature-tagged content is never surfaced in discovery (PRD 5.5).
+    # Discovery: discoverable content is searchable/browsable by others;
+    # mature-tagged content is never surfaced in discovery.
     is_discoverable = models.BooleanField(default=False, db_index=True)
     is_mature_content = models.BooleanField(default=False)
 

@@ -1,8 +1,8 @@
 # Floppy Disk — Backend
 
-Django + DRF API, Celery workers, PostgreSQL, Redis. Object storage / video /
-CDN via Cloudflare (R2 + Stream). See `../docs/PRD-02-Backend-Platform.md` for
-the full specification.
+Django + DRF API, Celery workers, PostgreSQL, Redis. Object storage on
+Cloudflare R2 (S3-compatible) in prod, local disk in dev; self-hosted FFmpeg
+video transcoding. See [`../docs/api/`](../docs/api) for the API reference.
 
 ## Layout
 

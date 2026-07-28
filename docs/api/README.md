@@ -121,12 +121,6 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | POST | `/{id}/read` | Mark one read |
 | POST | `/read-all` | Mark all read |
 
-### Legal — `/api/v1/legal`
-| Method | Path | Summary |
-|---|---|---|
-| GET | `/` | Policy versions + grievance officer contact (public) |
-| POST | `/grievance` | File a grievance (IT Rules 2021 redressal); returns a ticket |
-
 ### Ops
 | Method | Path | Summary |
 |---|---|---|

@@ -4,7 +4,7 @@ from celery import shared_task
 
 @shared_task
 def purge_expired_trash_task():
-    """Hard-delete trashed files past their tier retention (PRD 5.3)."""
+    """Hard-delete trashed files past their tier retention."""
     from .lifecycle import purge_expired_trash
     return purge_expired_trash()
 

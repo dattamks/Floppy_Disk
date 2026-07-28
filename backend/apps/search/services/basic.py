@@ -1,7 +1,7 @@
 """
 BasicSearchService — portable substring search (dev/test; works on SQLite).
 
-Scope (PRD 5.4): the user's own files plus other users' *discoverable*,
+Scope: the user's own files plus other users' *discoverable*,
 non-mature content. Always excludes trashed and not-yet-ready files.
 Production uses PostgresSearchService (ranked full-text); this is the drop-in
 that keeps dev + tests DB-agnostic.

@@ -1,5 +1,5 @@
 """
-Notification dispatch (PRD 5.8).
+Notification dispatch.
 
 Single entry point so every producer is decoupled from delivery. Today it
 persists an in-app Notification; FCM push / SES email hang off the same call

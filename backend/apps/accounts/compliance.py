@@ -1,5 +1,5 @@
 """
-DPDPA compliance: account deletion + data export (PRD 5.11).
+DPDPA compliance: account deletion + data export.
 
 - Deletion soft-deletes immediately; a daily job hard-deletes (cascading) after
   30 days.
