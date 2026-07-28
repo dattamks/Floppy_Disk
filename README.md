@@ -118,3 +118,7 @@ sharing, video playback, notifications) for MCP-aware clients. See
 - **CI:** GitHub Actions — backend pytest, frontend build + unit + E2E, MCP smoke
 
 See `docs/PRD-02-Backend-Platform.md` for the full specification.
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE).
