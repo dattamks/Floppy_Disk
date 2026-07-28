@@ -7,7 +7,7 @@ Upload flow (presigned direct-to-storage):
   3. POST uploads/<id>/complete -> dedup StorageObject, commit reservation, File ready
 """
 from django.db.models import F
-from django.http import HttpResponse
+from django.http import FileResponse, HttpResponse, StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -35,8 +35,28 @@ def _object_key(user_id, file_id) -> str:
     return f"{user_id}/{file_id}"
 
 
+_STREAM_BLOCK = 64 * 1024
+
+
+def _iter_file_range(path, start, length, block=_STREAM_BLOCK):
+    """Yield `length` bytes from `path` starting at `start`, in bounded blocks."""
+    with open(path, "rb") as fh:
+        fh.seek(start)
+        remaining = length
+        while remaining > 0:
+            data = fh.read(min(block, remaining))
+            if not data:
+                break
+            remaining -= len(data)
+            yield data
+
+
 def _ranged_file_response(request, path, content_type):
-    """Serve a file from disk honoring the HTTP Range header (206 partial)."""
+    """Serve a file from disk honoring the HTTP Range header (206 partial).
+
+    Streams in bounded blocks (never reads the whole file, or a whole requested
+    range, into memory) so a large download can't OOM the worker.
+    """
     import re
 
     file_size = path.stat().st_size
@@ -59,15 +79,14 @@ def _ranged_file_response(request, path, content_type):
             resp["Content-Range"] = f"bytes */{file_size}"
             resp["Accept-Ranges"] = "bytes"
             return resp
-        with open(path, "rb") as fh:
-            fh.seek(start)
-            chunk = fh.read(end - start + 1)
-        resp = HttpResponse(chunk, status=206, content_type=content_type)
+        length = end - start + 1
+        resp = StreamingHttpResponse(
+            _iter_file_range(path, start, length), status=206, content_type=content_type
+        )
         resp["Content-Range"] = f"bytes {start}-{end}/{file_size}"
-        resp["Content-Length"] = str(len(chunk))
+        resp["Content-Length"] = str(length)
     else:
-        with open(path, "rb") as fh:
-            resp = HttpResponse(fh.read(), content_type=content_type)
+        resp = FileResponse(path.open("rb"), content_type=content_type)
         resp["Content-Length"] = str(file_size)
     resp["Accept-Ranges"] = "bytes"
     return resp
@@ -598,23 +617,47 @@ class UploadCompleteView(APIView):
 
 
 class DevBlobView(APIView):
-    """DEV-ONLY blob store (stands in for R2 presigned PUT/GET). No auth on GET download token in dev."""
+    """Local-disk blob store standing in for R2 presigned PUT/GET.
+
+    This is the storage delivery path when the local backend is in use. Access
+    is restricted to the owner: every object_key is namespaced by the owning
+    user's id ("<user_id>/..." for blobs, "exports/<user_id>/..." for exports),
+    so a caller may only read/write keys under their own namespace.
+    """
 
     permission_classes = [IsAuthenticated]
 
+    @staticmethod
+    def _owns_key(user, object_key: str) -> bool:
+        parts = object_key.split("/")
+        uid = str(user.id)
+        if parts and parts[0] == uid:
+            return True
+        return len(parts) >= 2 and parts[0] == "exports" and parts[1] == uid
+
     def put(self, request, region, object_key):
+        if not self._owns_key(request.user, object_key):
+            return Response(status=status.HTTP_404_NOT_FOUND)
         storage = get_storage_service()
         if not hasattr(storage, "save_bytes"):
             return Response(status=status.HTTP_404_NOT_FOUND)
-        storage.save_bytes(region=region, object_key=object_key, data=request.body)
+        try:
+            storage.save_bytes(region=region, object_key=object_key, data=request.body)
+        except ValueError:
+            return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get(self, request, region, object_key):
         """Serve a locally-stored blob with HTTP Range support (video seeking)."""
+        if not self._owns_key(request.user, object_key):
+            return Response(status=status.HTTP_404_NOT_FOUND)
         storage = get_storage_service()
         if not hasattr(storage, "local_path"):
             return Response(status=status.HTTP_404_NOT_FOUND)
-        path = storage.local_path(region=region, object_key=object_key)
+        try:
+            path = storage.local_path(region=region, object_key=object_key)
+        except ValueError:
+            return Response(status=status.HTTP_404_NOT_FOUND)
         if not path.exists():
             return Response(status=status.HTTP_404_NOT_FOUND)
         return _ranged_file_response(request, path, self._content_type(object_key))

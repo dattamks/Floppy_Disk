@@ -91,15 +91,33 @@ def test_local_media_delivery_supports_range(client, user, settings, tmp_path):
     partial = client.get(url, HTTP_RANGE="bytes=0-9")
     assert partial.status_code == 206
     assert partial["Content-Range"] == f"bytes 0-9/{len(payload)}"
-    assert partial.content == payload[:10]
+    assert b"".join(partial.streaming_content) == payload[:10]
 
     # Suffix range: the last 10 bytes.
     suffix = client.get(url, HTTP_RANGE="bytes=-10")
     assert suffix.status_code == 206
-    assert suffix.content == payload[-10:]
+    assert b"".join(suffix.streaming_content) == payload[-10:]
     assert suffix["Content-Range"] == f"bytes {len(payload) - 10}-{len(payload) - 1}/{len(payload)}"
 
     # Unsatisfiable range (start past EOF) -> 416, not a bogus 206.
     bad = client.get(url, HTTP_RANGE=f"bytes={len(payload)}-{len(payload) + 5}")
     assert bad.status_code == 416
     assert bad["Content-Range"] == f"bytes */{len(payload)}"
+
+
+def test_dev_blob_rejects_other_users_key_and_traversal(client, user, settings, tmp_path):
+    """The local blob endpoint is owner-scoped and traversal-proof."""
+    settings.DEV_STORAGE_DIR = str(tmp_path)
+    other = User.objects.create_user(email="intruder@floppy.disk", password="hunter2pass")
+
+    # A key under another user's namespace is not readable/writable (404, no leak).
+    foreign_key = f"{other.id}/secret"
+    assert client.get(f"/api/v1/storage/_dev/blob/ap-south/{foreign_key}").status_code == 404
+    assert client.put(f"/api/v1/storage/_dev/blob/ap-south/{foreign_key}",
+                      data=b"x", content_type="application/octet-stream").status_code == 404
+
+    # Path traversal in the object_key is refused.
+    trav = f"{user.id}/../../../../etc/passwd"
+    assert client.get(f"/api/v1/storage/_dev/blob/ap-south/{trav}").status_code == 404
+    assert client.put(f"/api/v1/storage/_dev/blob/ap-south/{trav}",
+                      data=b"pwned", content_type="application/octet-stream").status_code == 404

@@ -56,8 +56,8 @@ def test_anonymous_can_download_public_share_bytes(user):
     assert payload["download_url"]
 
     resp = anon.get(f"/api/v1/public/share/{token}/download")
-    assert resp.status_code == 200, resp.content
-    assert resp.content == b"PNGBYTES-123"
+    assert resp.status_code == 200
+    assert b"".join(resp.streaming_content) == b"PNGBYTES-123"
     assert resp["Content-Type"] == "image/png"
     assert resp["Accept-Ranges"] == "bytes"
 
@@ -74,7 +74,7 @@ def test_password_share_download_requires_password(paid_user):
     # correct password -> bytes
     ok = anon.get(f"/api/v1/public/share/{token}/download?password=hunter2")
     assert ok.status_code == 200
-    assert ok.content == b"TOPSECRET"
+    assert b"".join(ok.streaming_content) == b"TOPSECRET"
 
 
 def test_revoked_share_download_is_gone(user):
