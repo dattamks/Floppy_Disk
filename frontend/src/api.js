@@ -108,9 +108,6 @@ export const api = {
     }
   },
 
-  // Moderation
-  report: (payload) => request('/moderation/reports', { method: 'POST', body: payload }),
-
   // Video
   play: (fileId) => request(`/storage/files/${fileId}/play`, { method: 'POST' }),
 

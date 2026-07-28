@@ -153,9 +153,6 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 **Notifications**
 - `list_notifications()`, `mark_notification_read(id)`, `mark_all_notifications_read()`
 
-**Moderation**
-- `report_content(target_id, target_type?, reason?, kind?, detail?)`
-
 ## Notes & limits
 
 - **Quota & size caps** are enforced server-side; `upload_file` raises with a

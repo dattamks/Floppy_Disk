@@ -350,35 +350,6 @@ def mark_all_notifications_read() -> dict:
     return client().post("notifications/read-all")
 
 
-# ---------------------------------------------------------------------------
-# Moderation
-# ---------------------------------------------------------------------------
-@mcp.tool
-def report_content(
-    target_id: str,
-    target_type: str = "file",
-    reason: str = "inappropriate",
-    kind: str = "report",
-    detail: str = "",
-) -> dict:
-    """Flag or report content.
-
-    target_type: file. reason: copyright | inappropriate | csam | other
-    (copyright requires `detail`). kind='report' reversibly isolates a file
-    target pending review; kind='flag' is lightweight with no auto-action.
-    """
-    return client().post(
-        "moderation/reports",
-        json={
-            "target_id": target_id,
-            "target_type": target_type,
-            "reason": reason,
-            "kind": kind,
-            "detail": detail,
-        },
-    )
-
-
 def main() -> None:
     """Entry point: run over stdio (default) or the transport from FLOPPY_MCP_TRANSPORT."""
     transport = os.environ.get("FLOPPY_MCP_TRANSPORT", "stdio")
