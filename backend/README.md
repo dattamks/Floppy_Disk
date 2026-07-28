@@ -34,9 +34,11 @@ backend/
   `AuthProvider` (Django auth → Cognito), `StorageService` (R2 → S3),
   `SearchService` (Postgres FTS → OpenSearch). Each is chosen via a
   settings string and instantiated through a `get_*()` helper.
-- **Auth is Phase 1 = email/password**; phone/OTP + social are Phase 2 (fields exist but inert).
-- **Foundation pass:** models exist for accounts only; other apps are registered skeletons.
-  Service methods raise `NotImplementedError` where a build slice will wire them.
+- **Auth is email/password** (behind the `AuthProvider` abstraction); phone/OTP +
+  social are future work (fields exist but inert).
+- **Storage backends:** `LocalStorageService` (local disk) is fully implemented
+  and is the default when R2 isn't configured. `R2StorageService` is a stub —
+  wiring the boto3 calls is the main task before a cloud deployment.
 
 ## Run (Docker — recommended)
 

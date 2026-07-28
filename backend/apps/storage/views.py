@@ -544,7 +544,7 @@ class UploadInitiateView(APIView):
             if request.data.get("is_backup"):
                 from apps.notifications.dispatch import notify
                 notify(request.user, type="quota", title="Backup paused — storage full",
-                       body="Free up space or upgrade to resume Camera Backup.")
+                       body="Free up space to resume Camera Backup.")
             return Response({"detail": str(exc), "code": "quota_exceeded"}, status=status.HTTP_400_BAD_REQUEST)
 
         object_key = _object_key(request.user.id, file.id)

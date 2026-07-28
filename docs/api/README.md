@@ -23,7 +23,7 @@ Programmatic clients (the MCP server, integrations) authenticate with an
 **API key**: `Authorization: Bearer <key>` — which bypasses CSRF.
 
 Unauthenticated endpoints: `register`, `login`, `csrf`, `password-reset*`,
-`verify-email`, `public/share/*`, the Stream/Razorpay webhooks, and `health`.
+`verify-email`, `public/share/*`, and `health`.
 
 ## Conventions
 - **IDs** are UUIDs, except share `token` (a string).

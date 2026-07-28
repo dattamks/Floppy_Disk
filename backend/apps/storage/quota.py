@@ -24,7 +24,7 @@ class QuotaExceeded(QuotaError):
 
 
 class FileTooLarge(QuotaError):
-    """The requested file exceeds the per-file cap for the user's tier."""
+    """The requested file exceeds the per-file cap."""
 
 
 def per_file_cap(user) -> int:

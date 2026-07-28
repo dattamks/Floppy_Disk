@@ -1,8 +1,8 @@
 # Floppy Disk
 
-A **Google-Drive-style cloud storage app** — upload, organize, preview, and
-share your files and folders, with self-hosted video playback. India-first,
-single storage tier (no subscriptions).
+A **self-hostable, Google-Drive-style cloud storage app** — upload, organize,
+preview, and share your files and folders, with self-hosted video playback.
+Single storage tier, no subscriptions. Apache-2.0.
 
 > **Product focus:** Floppy Disk is a file-storage product. The earlier
 > "media platform" features were dropped in the Drive-focus pivot — **Channels**
@@ -116,6 +116,11 @@ sharing, video playback, notifications) for MCP-aware clients. See
 - **CI:** GitHub Actions — backend pytest, frontend build + unit + E2E, MCP smoke
 
 See [`docs/api/`](docs/api) for the API reference (OpenAPI + README).
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and
+test instructions. To report a security issue, see [SECURITY.md](SECURITY.md).
 
 ## License
 
