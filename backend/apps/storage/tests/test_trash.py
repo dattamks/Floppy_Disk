@@ -120,6 +120,23 @@ def test_cannot_restore_a_cascaded_subfolder_directly(client, user):
     assert client.post(f"/api/v1/storage/folders/{sub.id}/restore").status_code == 404
 
 
+def test_purge_expired_trash_purges_trashed_folders(client, user):
+    """A trashed folder past retention is hard-deleted with its subtree, not left
+    as an orphaned row after its files age out."""
+    from datetime import timedelta
+
+    from apps.storage.lifecycle import purge_expired_trash
+    from apps.storage.models import Folder
+
+    parent = Folder.objects.create(owner=user, name="Old")
+    _ = _ready_file(user, hash_="e" * 64)  # a file inside is fine; folder cascade covers it
+    client.delete(f"/api/v1/storage/folders/{parent.id}")
+    Folder.objects.filter(pk=parent.id).update(deleted_at=timezone.now() - timedelta(days=31))
+
+    assert purge_expired_trash() >= 1
+    assert not Folder.objects.filter(pk=parent.id).exists()  # folder row gone
+
+
 def test_purge_expired_trash_job_respects_retention(user):
     from datetime import timedelta
 

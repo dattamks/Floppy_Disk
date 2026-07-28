@@ -10,7 +10,7 @@ from datetime import timedelta
 from django.db import models, transaction
 from django.utils import timezone
 
-from .models import File, StorageObject
+from .models import File, Folder, StorageObject
 from .services.base import get_storage_service
 
 RETENTION = timedelta(days=30)  # single storage tier (no billing)
@@ -108,13 +108,55 @@ def purge_folder(folder) -> None:
 
 
 def purge_expired_trash() -> int:
-    """Daily job: hard-delete trashed files past the retention window. Returns count."""
+    """Daily job: hard-delete trashed items past the retention window.
+
+    Operates on *top-level* trashed items (mirroring the Trash view and
+    restore-as-a-unit): a trashed folder is purged with its whole subtree, so
+    folder rows no longer linger forever after their files age out.
+    """
     now = timezone.now()
     count = 0
-    qs = File.objects.filter(deleted_at__isnull=False).select_related("owner")
-    for file in qs.iterator():
-        cutoff = file.deleted_at + retention_for(file.owner)
-        if cutoff <= now:
+
+    folders = Folder.objects.filter(
+        deleted_at__isnull=False, trashed_root__isnull=True
+    ).select_related("owner")
+    for folder in folders:
+        if folder.deleted_at + retention_for(folder.owner) <= now:
+            purge_folder(folder)
+            count += 1
+
+    files = File.objects.filter(
+        deleted_at__isnull=False, trashed_root__isnull=True
+    ).select_related("owner")
+    for file in files.iterator():
+        if file.deleted_at + retention_for(file.owner) <= now:
             purge_file(file)
             count += 1
+    return count
+
+
+def purge_abandoned_uploads() -> int:
+    """Delete PENDING files whose upload was never completed and whose
+    reservation window has lapsed (abandoned uploads). Returns count.
+
+    Such rows otherwise accumulate forever: only the reservation is expired,
+    never the File. They hold no committed quota and have no StorageObject, but
+    bytes may have been PUT to the deterministic key, so we best-effort delete
+    those too.
+    """
+    from .quota import RESERVATION_TTL
+
+    cutoff = timezone.now() - RESERVATION_TTL
+    count = 0
+    storage = get_storage_service()
+    stale = File.objects.filter(
+        status=File.Status.PENDING, created_at__lte=cutoff
+    ).select_related("owner")
+    for f in stale:
+        try:  # best-effort: remove any bytes uploaded before the upload was abandoned
+            storage.delete_object(region=f.owner.storage_region, object_key=f"{f.owner_id}/{f.id}")
+        except Exception:  # noqa: BLE001 - cleanup must not block the job
+            pass
+        f.delete()
+        count += 1
     return count

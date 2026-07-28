@@ -293,6 +293,11 @@ class FileContentView(APIView):
         )
         if file is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        # Only a fully-committed file can be edited. Editing a PENDING file (whose
+        # size_bytes is the *claimed*, uncommitted size) would make the quota delta
+        # wildly negative and drive storage_used_bytes below zero.
+        if file.status != File.Status.READY:
+            return Response({"detail": "File is not ready."}, status=status.HTTP_409_CONFLICT)
         storage = get_storage_service()
         if not hasattr(storage, "save_bytes"):
             return Response({"detail": "Editing is not supported on this backend."},
@@ -345,9 +350,11 @@ class FileListView(APIView):
 
     def get(self, request):
         folder = request.query_params.get("folder") or None
+        # Exclude PENDING files: an upload that was initiated but never completed
+        # has no bytes yet and must not appear as a 0-byte file in the listing.
         qs = File.objects.filter(
             owner=request.user, deleted_at__isnull=True, folder=folder,
-        ).select_related("poster_object").order_by("-created_at")
+        ).exclude(status=File.Status.PENDING).select_related("poster_object").order_by("-created_at")
         return Response(FileSerializer(qs, many=True).data)
 
 
