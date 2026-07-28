@@ -16,7 +16,7 @@ def _client(u):
 
 
 def _file(owner, name, *, discoverable=False, mature=False, status=File.Status.READY,
-          trashed=False, quarantined=False):
+          trashed=False):
     from django.utils import timezone
     obj = StorageObject.objects.create(content_hash=uuid.uuid4().hex + uuid.uuid4().hex,
                                        region=owner.storage_region, size_bytes=10, ref_count=1,
@@ -24,7 +24,7 @@ def _file(owner, name, *, discoverable=False, mature=False, status=File.Status.R
     return File.objects.create(
         owner=owner, name=name, size_bytes=10, status=status, storage_object=obj,
         is_discoverable=discoverable, is_mature_content=mature,
-        deleted_at=timezone.now() if trashed else None, is_quarantined=quarantined,
+        deleted_at=timezone.now() if trashed else None,
     )
 
 
@@ -67,9 +67,8 @@ def test_owner_still_finds_own_mature_file(me):
     assert "my-mature-note.txt" in _search(_client(me), "mature")
 
 
-def test_trashed_and_quarantined_are_excluded(me):
+def test_trashed_is_excluded(me):
     _file(me, "trashed-doc.txt", trashed=True)
-    _file(me, "bad-doc.txt", quarantined=True)
     assert _search(_client(me), "doc") == []
 
 

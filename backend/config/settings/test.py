@@ -18,9 +18,6 @@ REST_FRAMEWORK = {**REST_FRAMEWORK, "DEFAULT_THROTTLE_CLASSES": []}  # noqa: F40
 STORAGE_SERVICE = "apps.storage.services.local.LocalStorageService"
 DEV_STORAGE_DIR = "/tmp/claude-0/-home-user-Floppy-Disk/5c03de2b-195c-53d0-b890-a3793c5ab2e1/scratchpad/devstorage_test"
 
-# Scanning: fake scanner (detects EICAR) for tests.
-SCAN_SERVICE = "apps.moderation.services.fake.FakeScanService"
-
 # Video: no-binary fake transcoder in tests (real FFmpeg runs in production).
 MEDIA_TRANSCODER = "apps.storage.services.transcode.FakeTranscoder"
 

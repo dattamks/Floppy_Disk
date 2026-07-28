@@ -9,7 +9,7 @@ framework), then serve it over the existing HTTP Range endpoint. No Cloudflare
 Stream, no external accounts, no per-minute fees.
 
 - `MediaTranscoder` is the abstraction; `settings.MEDIA_TRANSCODER` selects an
-  implementation (mirrors STORAGE_SERVICE / SCAN_SERVICE).
+  implementation (mirrors STORAGE_SERVICE).
 - `FFmpegTranscoder` shells out to the bundled `ffmpeg` / `ffprobe` binaries.
 - `FakeTranscoder` needs no binaries — used in dev/tests so the suite stays
   fast and hermetic.

@@ -2,7 +2,7 @@
 DPDPA compliance: account deletion + data export (PRD 5.11).
 
 - Deletion soft-deletes immediately; a daily job hard-deletes (cascading) after
-  30 days, but SKIPS any account under legal hold (open CSAM/quarantine).
+  30 days.
 - Data export builds a zip manifest of the user's data with an expiring link.
 """
 from __future__ import annotations
@@ -29,20 +29,13 @@ HARD_DELETE_AFTER = timedelta(days=30)
 EXPORT_TTL = timedelta(days=7)
 
 
-def has_legal_hold(user) -> bool:
-    """An account with quarantined content must not be hard-deleted (evidence)."""
-    return File.objects.filter(owner=user, is_quarantined=True).exists()
-
-
 def hard_delete_expired_accounts(*, now) -> int:
-    """Daily job: purge accounts soft-deleted > 30 days ago (skipping legal holds)."""
+    """Daily job: purge accounts soft-deleted > 30 days ago."""
     User = get_user_model()
     cutoff = now - HARD_DELETE_AFTER
     deleted = 0
     qs = User.objects.filter(status=User.Status.DELETED, deleted_at__lte=cutoff)
     for user in qs:
-        if has_legal_hold(user):
-            continue
         # Each account is purged atomically so a mid-loop failure can't leave one
         # half-deleted (some blobs gone, user row still present) and doesn't abort
         # the whole batch — the rest of the accounts still get processed.
@@ -60,7 +53,7 @@ def hard_delete_expired_accounts(*, now) -> int:
 
 def build_export(user) -> tuple[DataExport, str]:
     """Assemble a data-export zip (manifest of the user's data) and store it."""
-    files = File.objects.filter(owner=user, deleted_at__isnull=True, is_quarantined=False)
+    files = File.objects.filter(owner=user, deleted_at__isnull=True)
     folders = Folder.objects.filter(owner=user, deleted_at__isnull=True)
     manifest = {
         "account": {

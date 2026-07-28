@@ -25,16 +25,14 @@ class StorageObject(TimeStampedModel):
     """Physical blob, content-hash addressed, deduplicated within a region."""
 
     class Status(models.TextChoices):
-        SCANNING = "scanning", "Scanning"
         READY = "ready", "Ready"
-        QUARANTINED = "quarantined", "Quarantined"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     content_hash = models.CharField(max_length=64, db_index=True)  # sha256 hex
     region = models.CharField(max_length=16)
     size_bytes = models.BigIntegerField()
     ref_count = models.PositiveIntegerField(default=0)
-    status = models.CharField(max_length=12, choices=Status.choices, default=Status.SCANNING)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.READY)
     object_key = models.CharField(max_length=512, blank=True, default="")
 
     class Meta:
@@ -94,8 +92,6 @@ class File(TimeStampedModel):
     # Set when this file was trashed by trashing its ancestor folder (that
     # folder's id): hidden from the Trash view, restored with the folder.
     trashed_root = models.UUIDField(null=True, blank=True, db_index=True)
-    # Reversible isolation: set by a failed malware scan or a Report (PRD 5.7).
-    is_quarantined = models.BooleanField(default=False)
     # Self-hosted video playback: a browser-playable H.264/AAC MP4 rendition
     # transcoded with FFmpeg (points at storage_object when the upload was
     # already web-playable), an optional JPEG poster frame, and probed metadata.

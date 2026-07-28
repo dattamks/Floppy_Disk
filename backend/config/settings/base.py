@@ -41,7 +41,6 @@ LOCAL_APPS = [
     "apps.accounts",
     "apps.storage",
     "apps.sharing",
-    "apps.moderation",
     "apps.notifications",
     "apps.analytics",
 ]
@@ -120,7 +119,6 @@ REST_FRAMEWORK = {
         "login": "10/day",
         "password_reset": "10/day",
         "register": "20/day",
-        "report": "10/hour",
         "share_unlock": "10/day",
         "verify_email": "20/day",
         "grievance": "20/day",
@@ -196,14 +194,6 @@ DEFAULT_QUOTA_BYTES = env.int("DEFAULT_QUOTA_BYTES", default=2 * 1024**4)  # 2 T
 
 # --- Search (Postgres FTS now, OpenSearch later) ----------------------------
 SEARCH_SERVICE = env("SEARCH_SERVICE", default="apps.search.services.postgres.PostgresSearchService")
-
-# --- ClamAV (malware scanning) ----------------------------------------------
-CLAMAV_HOST = env("CLAMAV_HOST", default="localhost")
-CLAMAV_PORT = env.int("CLAMAV_PORT", default=3310)
-SCAN_SERVICE = env("SCAN_SERVICE", default="apps.moderation.services.clamav.ClamAVScanService")
-# What to do when the scanner is unreachable: "closed" (safe: block/quarantine
-# the upload) or "open" (risky: let it through unscanned). Defaults to closed.
-SCAN_FAILURE_MODE = env("SCAN_FAILURE_MODE", default="closed")
 
 # --- i18n / tz --------------------------------------------------------------
 LANGUAGE_CODE = "en-us"

@@ -104,14 +104,3 @@ def test_trashed_file_share_stops_resolving(user):
     anon = APIClient()
     assert anon.get(f"/api/v1/public/share/{token}").status_code == 410
     assert anon.get(f"/api/v1/public/share/{token}/download").status_code == 410
-
-
-def test_quarantined_file_share_stops_resolving(user):
-    """A file quarantined after sharing (e.g. via a Report) must not stay downloadable."""
-    f = _ready_file(user)
-    token = _share(user, f)
-    File.objects.filter(pk=f.id).update(is_quarantined=True)
-
-    anon = APIClient()
-    assert anon.get(f"/api/v1/public/share/{token}").status_code == 410
-    assert anon.get(f"/api/v1/public/share/{token}/download").status_code == 410

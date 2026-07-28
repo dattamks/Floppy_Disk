@@ -23,17 +23,15 @@ def _target_available(link) -> bool:
     """Is the link's target still safe to serve publicly?
 
     A share is only a capability to reach content that is *currently* public:
-    a file that gets trashed, quarantined (malware/report), or is not yet ready
-    must stop resolving even while the token itself is un-revoked and
-    un-expired. Without this, an active link keeps serving content the owner can
-    no longer even see themselves.
+    a file that gets trashed or is not yet ready must stop resolving even while
+    the token itself is un-revoked and un-expired. Without this, an active link
+    keeps serving content the owner can no longer even see themselves.
     """
     if link.file_id:
         f = link.file
         return (
             f is not None
             and f.deleted_at is None
-            and not f.is_quarantined
             and f.status == File.Status.READY
         )
     if link.folder_id:
@@ -53,9 +51,9 @@ class FileShareView(APIView):
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        # Don't mint a link for a file that can't be served publicly anyway
-        # (quarantined, or still uploading/processing).
-        if file.is_quarantined or file.status != File.Status.READY:
+        # Don't mint a link for a file that isn't ready to serve (still
+        # uploading/processing).
+        if file.status != File.Status.READY:
             return Response(
                 {"detail": "File is not available to share.", "code": "file_not_ready"},
                 status=status.HTTP_409_CONFLICT,
