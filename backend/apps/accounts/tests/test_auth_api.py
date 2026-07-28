@@ -119,6 +119,52 @@ def test_login_bad_password(client, user):
     assert resp.status_code == 400
 
 
+def test_login_records_last_login_at(client, user):
+    assert user.last_login_at is None
+    client.post("/api/v1/auth/login",
+                {"email": "existing@floppy.disk", "password": "hunter2pass"}, format="json")
+    user.refresh_from_db()
+    assert user.last_login_at is not None
+
+
+def test_suspended_account_cannot_login(client, user):
+    user.status = User.Status.SUSPENDED
+    user.save(update_fields=["status"])
+    resp = client.post("/api/v1/auth/login",
+                       {"email": "existing@floppy.disk", "password": "hunter2pass"}, format="json")
+    assert resp.status_code == 403
+    assert client.get("/api/v1/auth/me").status_code == 403  # no session established
+
+
+def test_password_change_updates_and_keeps_session(client, user):
+    client.post("/api/v1/auth/login",
+                {"email": "existing@floppy.disk", "password": "hunter2pass"}, format="json")
+    resp = client.post("/api/v1/auth/password-change",
+                       {"current_password": "hunter2pass", "new_password": "brandnewpass9"},
+                       format="json")
+    assert resp.status_code == 204
+    assert client.get("/api/v1/auth/me").status_code == 200  # session preserved
+    user.refresh_from_db()
+    assert user.check_password("brandnewpass9")
+
+
+def test_password_change_rejects_wrong_current(client, user):
+    client.post("/api/v1/auth/login",
+                {"email": "existing@floppy.disk", "password": "hunter2pass"}, format="json")
+    resp = client.post("/api/v1/auth/password-change",
+                       {"current_password": "wrong", "new_password": "brandnewpass9"},
+                       format="json")
+    assert resp.status_code == 400
+    user.refresh_from_db()
+    assert user.check_password("hunter2pass")  # unchanged
+
+
+def test_password_change_requires_auth(client):
+    assert client.post("/api/v1/auth/password-change",
+                       {"current_password": "x", "new_password": "y"},
+                       format="json").status_code == 403
+
+
 def test_logout_clears_session(client, user):
     client.post(
         "/api/v1/auth/login",

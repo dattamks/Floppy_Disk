@@ -1,4 +1,4 @@
-"""TDD spec for DPDPA account deletion + data export (PRD 5.11)."""
+"""TDD spec for DPDPA account deletion + data export."""
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -20,14 +20,13 @@ def _client(u):
     return c
 
 
-def _file(user, *, quarantined=False):
+def _file(user):
     import uuid
     obj = StorageObject.objects.create(content_hash=uuid.uuid4().hex + uuid.uuid4().hex,
                                        region=user.storage_region, size_bytes=100, ref_count=1,
                                        status=StorageObject.Status.READY, object_key=f"{user.id}/k")
     return File.objects.create(owner=user, name="doc.txt", size_bytes=100,
-                               status=File.Status.READY, storage_object=obj,
-                               is_quarantined=quarantined)
+                               status=File.Status.READY, storage_object=obj)
 
 
 # --- deletion ---------------------------------------------------------------
@@ -60,16 +59,6 @@ def test_hard_delete_skips_recent_deletions():
     assert User.objects.filter(pk=user.pk).exists()
 
 
-def test_hard_delete_respects_legal_hold():
-    user = User.objects.create_user(email="hold@floppy.disk", password="hunter2pass")
-    _file(user, quarantined=True)  # quarantined content = legal hold
-    user.mark_deleted()
-    User.objects.filter(pk=user.pk).update(deleted_at=NOW - timedelta(days=60))
-
-    assert hard_delete_expired_accounts(now=NOW) == 0
-    assert User.objects.filter(pk=user.pk).exists()  # preserved for evidence
-
-
 # --- export -----------------------------------------------------------------
 
 def test_export_produces_a_downloadable_archive():
@@ -81,24 +70,6 @@ def test_export_produces_a_downloadable_archive():
     assert body["download_url"]
     assert body["size_bytes"] > 0
     assert DataExport.objects.filter(user=user).count() == 1
-
-
-def test_export_excludes_quarantined_content():
-    import io
-    import zipfile
-
-    from apps.accounts.compliance import build_export
-    user = User.objects.create_user(email="exp2@floppy.disk", password="hunter2pass")
-    _file(user, quarantined=False)
-    _file(user, quarantined=True)
-    _export, _url = build_export(user)
-
-    from apps.storage.services.base import get_storage_service
-    data = get_storage_service().read_bytes(region=user.storage_region, object_key=f"exports/{user.id}/export.zip")
-    with zipfile.ZipFile(io.BytesIO(data)) as z:
-        manifest = z.read("manifest.json").decode()
-    # exactly one (non-quarantined) file in the export
-    assert manifest.count('"name": "doc.txt"') == 1
 
 
 # --- consent ----------------------------------------------------------------

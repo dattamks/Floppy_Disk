@@ -1,5 +1,5 @@
 """
-Notification dispatch (PRD 5.8).
+Notification dispatch.
 
 Single entry point so every producer is decoupled from delivery. Today it
 persists an in-app Notification; FCM push / SES email hang off the same call
@@ -27,5 +27,8 @@ def notify_many(users, *, type: str, title: str, body: str = "", data: dict | No
     ]
     if not objs:
         return 0
-    Notification.objects.bulk_create(objs)
+    try:
+        Notification.objects.bulk_create(objs)
+    except Exception:  # noqa: BLE001 - best-effort; never block the triggering action
+        return 0
     return len(objs)

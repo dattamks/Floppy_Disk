@@ -6,9 +6,8 @@ Upload flow (presigned direct-to-storage):
   2. PUT  <presigned url>   -> client uploads bytes (dev: LocalStorageService blob)
   3. POST uploads/<id>/complete -> dedup StorageObject, commit reservation, File ready
 """
-from django.conf import settings
 from django.db.models import F
-from django.http import HttpResponse
+from django.http import FileResponse, HttpResponse, StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -36,27 +35,58 @@ def _object_key(user_id, file_id) -> str:
     return f"{user_id}/{file_id}"
 
 
+_STREAM_BLOCK = 64 * 1024
+
+
+def _iter_file_range(path, start, length, block=_STREAM_BLOCK):
+    """Yield `length` bytes from `path` starting at `start`, in bounded blocks."""
+    with open(path, "rb") as fh:
+        fh.seek(start)
+        remaining = length
+        while remaining > 0:
+            data = fh.read(min(block, remaining))
+            if not data:
+                break
+            remaining -= len(data)
+            yield data
+
+
 def _ranged_file_response(request, path, content_type):
-    """Serve a file from disk honoring the HTTP Range header (206 partial)."""
+    """Serve a file from disk honoring the HTTP Range header (206 partial).
+
+    Streams in bounded blocks (never reads the whole file, or a whole requested
+    range, into memory) so a large download can't OOM the worker.
+    """
     import re
 
     file_size = path.stat().st_size
     range_header = request.headers.get("Range", "")
-    m = re.match(r"bytes=(\d+)-(\d*)", range_header)
-    if m:
-        start = int(m.group(1))
-        end = int(m.group(2)) if m.group(2) else file_size - 1
-        end = min(end, file_size - 1)
-        start = min(start, end)
-        with open(path, "rb") as fh:
-            fh.seek(start)
-            chunk = fh.read(end - start + 1)
-        resp = HttpResponse(chunk, status=206, content_type=content_type)
+    # Accept both `bytes=start-[end]` and the suffix form `bytes=-N` (last N bytes).
+    m = re.match(r"bytes=(\d*)-(\d*)", range_header)
+    if m and (m.group(1) or m.group(2)):
+        if m.group(1) == "":
+            # Suffix range: the final N bytes.
+            n = int(m.group(2))
+            start = max(0, file_size - n) if n else file_size
+            end = file_size - 1
+        else:
+            start = int(m.group(1))
+            end = int(m.group(2)) if m.group(2) else file_size - 1
+            end = min(end, file_size - 1)
+        # Unsatisfiable (start past EOF, empty file, or zero-length suffix) -> 416.
+        if start > end or start >= file_size:
+            resp = HttpResponse(status=416, content_type=content_type)
+            resp["Content-Range"] = f"bytes */{file_size}"
+            resp["Accept-Ranges"] = "bytes"
+            return resp
+        length = end - start + 1
+        resp = StreamingHttpResponse(
+            _iter_file_range(path, start, length), status=206, content_type=content_type
+        )
         resp["Content-Range"] = f"bytes {start}-{end}/{file_size}"
-        resp["Content-Length"] = str(len(chunk))
+        resp["Content-Length"] = str(length)
     else:
-        with open(path, "rb") as fh:
-            resp = HttpResponse(fh.read(), content_type=content_type)
+        resp = FileResponse(path.open("rb"), content_type=content_type)
         resp["Content-Length"] = str(file_size)
     resp["Accept-Ranges"] = "bytes"
     return resp
@@ -189,7 +219,7 @@ CAMERA_BACKUP_NAME = "Camera Backup"
 
 
 class CameraBackupFolderView(APIView):
-    """Return (creating if needed) the user's dedicated device-backup folder (PRD 5.10)."""
+    """Return (creating if needed) the user's dedicated device-backup folder."""
 
     permission_classes = [IsAuthenticated]
 
@@ -237,7 +267,6 @@ class FileDownloadView(APIView):
         try:
             file = File.objects.select_related("storage_object").get(
                 pk=file_id, owner=request.user, deleted_at__isnull=True,
-                is_quarantined=False, is_frozen=False,
             )
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
@@ -259,12 +288,16 @@ class FileContentView(APIView):
         file = (
             File.objects.select_for_update()
             .select_related("storage_object")
-            .filter(pk=file_id, owner=request.user, deleted_at__isnull=True,
-                    is_quarantined=False, is_frozen=False)
+            .filter(pk=file_id, owner=request.user, deleted_at__isnull=True)
             .first()
         )
         if file is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
+        # Only a fully-committed file can be edited. Editing a PENDING file (whose
+        # size_bytes is the *claimed*, uncommitted size) would make the quota delta
+        # wildly negative and drive storage_used_bytes below zero.
+        if file.status != File.Status.READY:
+            return Response({"detail": "File is not ready."}, status=status.HTTP_409_CONFLICT)
         storage = get_storage_service()
         if not hasattr(storage, "save_bytes"):
             return Response({"detail": "Editing is not supported on this backend."},
@@ -317,10 +350,11 @@ class FileListView(APIView):
 
     def get(self, request):
         folder = request.query_params.get("folder") or None
+        # Exclude PENDING files: an upload that was initiated but never completed
+        # has no bytes yet and must not appear as a 0-byte file in the listing.
         qs = File.objects.filter(
-            owner=request.user, deleted_at__isnull=True, is_quarantined=False,
-            is_frozen=False, folder=folder,
-        ).select_related("poster_object").order_by("-created_at")
+            owner=request.user, deleted_at__isnull=True, folder=folder,
+        ).exclude(status=File.Status.PENDING).select_related("poster_object").order_by("-created_at")
         return Response(FileSerializer(qs, many=True).data)
 
 
@@ -329,13 +363,10 @@ class UsageView(APIView):
 
     def get(self, request):
         u = request.user
-        from apps.billing.referrals import effective_quota
         return Response({
-            "quota_bytes": effective_quota(u),   # includes active referral bonuses
-            "base_quota_bytes": u.quota_bytes,
+            "quota_bytes": u.quota_bytes,
             "used_bytes": u.storage_used_bytes,
             "available_bytes": available_bytes(u),
-            "tier": u.tier,
         })
 
 
@@ -439,7 +470,14 @@ class FolderRestoreView(APIView):
 
     def post(self, request, folder_id):
         try:
-            folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=False)
+            # Only a top-level trashed folder can be restored on its own; a
+            # subfolder trashed as part of an ancestor (trashed_root set) is
+            # hidden from Trash and must come back with that ancestor, never
+            # independently (which would orphan it under a still-trashed parent).
+            folder = Folder.objects.get(
+                pk=folder_id, owner=request.user,
+                deleted_at__isnull=False, trashed_root__isnull=True,
+            )
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         # Restore everything trashed together with this folder (but NOT items the
@@ -502,11 +540,11 @@ class UploadInitiateView(APIView):
             return Response({"detail": str(exc), "code": "file_too_large"}, status=status.HTTP_400_BAD_REQUEST)
         except QuotaExceeded as exc:
             file.delete()
-            # Device backup pauses on quota — notify the user, don't fail silently (PRD 5.10).
+            # Device backup pauses on quota — notify the user, don't fail silently.
             if request.data.get("is_backup"):
                 from apps.notifications.dispatch import notify
                 notify(request.user, type="quota", title="Backup paused — storage full",
-                       body="Free up space or upgrade to resume Camera Backup.")
+                       body="Free up space to resume Camera Backup.")
             return Response({"detail": str(exc), "code": "quota_exceeded"}, status=status.HTTP_400_BAD_REQUEST)
 
         object_key = _object_key(request.user.id, file.id)
@@ -549,48 +587,6 @@ class UploadCompleteView(APIView):
             return Response({"detail": "No uploaded bytes found for this file."},
                             status=status.HTTP_409_CONFLICT)
 
-        # Malware scan before the file is allowed to go `ready` (PRD 5.7). On a
-        # hit the file is quarantined, the blob deleted, and its reservation
-        # released (never committed) so a rejected upload costs no quota.
-        if hasattr(storage, "read_bytes"):
-            from apps.moderation.services.base import get_scan_service
-            try:
-                result = get_scan_service().scan(storage.read_bytes(region=region, object_key=object_key))
-            except Exception:  # noqa: BLE001 — scanner unreachable/errored
-                # Apply the configured downtime policy (PRD 5.7 open question).
-                mode = getattr(settings, "SCAN_FAILURE_MODE", "closed")
-                if mode == "open":
-                    result = None  # proceed unscanned (opt-in, risky)
-                else:
-                    # Fail closed: block + quarantine, release the reservation.
-                    file.status = File.Status.FAILED
-                    file.is_quarantined = True
-                    file.save(update_fields=["status", "is_quarantined", "updated_at"])
-                    storage.delete_object(region=region, object_key=object_key)
-                    res = file.reservations.filter(status=StorageReservation.Status.ACTIVE).first()
-                    if res:
-                        res.status = StorageReservation.Status.EXPIRED
-                        res.save(update_fields=["status", "updated_at"])
-                    return Response(
-                        {"detail": "Upload could not be scanned right now. Please try again shortly.",
-                         "code": "scan_unavailable", "status": "failed"},
-                        status=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    )
-            if result is not None and not result.clean:
-                file.status = File.Status.FAILED
-                file.is_quarantined = True
-                file.save(update_fields=["status", "is_quarantined", "updated_at"])
-                storage.delete_object(region=region, object_key=object_key)
-                res = file.reservations.filter(status=StorageReservation.Status.ACTIVE).first()
-                if res:
-                    res.status = StorageReservation.Status.EXPIRED
-                    res.save(update_fields=["status", "updated_at"])
-                return Response(
-                    {"detail": "Upload blocked: failed the malware scan.",
-                     "code": "scan_failed", "status": "failed"},
-                    status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                )
-
         # Per-region dedup: reuse an existing blob or create a new one.
         obj, _created = StorageObject.objects.get_or_create(
             content_hash=content_hash,
@@ -609,7 +605,13 @@ class UploadCompleteView(APIView):
 
         res = file.reservations.filter(status=StorageReservation.Status.ACTIVE).first()
         if res:
-            commit(res)
+            commit(res, actual_bytes=size_bytes)  # charge the real size, not the claimed one
+        else:
+            # The reservation lapsed before completion (slow/large upload past the
+            # 1h TTL). The bytes are real and on disk, so account for them anyway,
+            # or a later purge would drive storage_used_bytes negative.
+            from .quota import charge_usage
+            charge_usage(request.user, size_bytes)
 
         if is_video:
             from .tasks import transcode_video_task
@@ -622,23 +624,47 @@ class UploadCompleteView(APIView):
 
 
 class DevBlobView(APIView):
-    """DEV-ONLY blob store (stands in for R2 presigned PUT/GET). No auth on GET download token in dev."""
+    """Local-disk blob store standing in for R2 presigned PUT/GET.
+
+    This is the storage delivery path when the local backend is in use. Access
+    is restricted to the owner: every object_key is namespaced by the owning
+    user's id ("<user_id>/..." for blobs, "exports/<user_id>/..." for exports),
+    so a caller may only read/write keys under their own namespace.
+    """
 
     permission_classes = [IsAuthenticated]
 
+    @staticmethod
+    def _owns_key(user, object_key: str) -> bool:
+        parts = object_key.split("/")
+        uid = str(user.id)
+        if parts and parts[0] == uid:
+            return True
+        return len(parts) >= 2 and parts[0] == "exports" and parts[1] == uid
+
     def put(self, request, region, object_key):
+        if not self._owns_key(request.user, object_key):
+            return Response(status=status.HTTP_404_NOT_FOUND)
         storage = get_storage_service()
         if not hasattr(storage, "save_bytes"):
             return Response(status=status.HTTP_404_NOT_FOUND)
-        storage.save_bytes(region=region, object_key=object_key, data=request.body)
+        try:
+            storage.save_bytes(region=region, object_key=object_key, data=request.body)
+        except ValueError:
+            return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get(self, request, region, object_key):
         """Serve a locally-stored blob with HTTP Range support (video seeking)."""
+        if not self._owns_key(request.user, object_key):
+            return Response(status=status.HTTP_404_NOT_FOUND)
         storage = get_storage_service()
         if not hasattr(storage, "local_path"):
             return Response(status=status.HTTP_404_NOT_FOUND)
-        path = storage.local_path(region=region, object_key=object_key)
+        try:
+            path = storage.local_path(region=region, object_key=object_key)
+        except ValueError:
+            return Response(status=status.HTTP_404_NOT_FOUND)
         if not path.exists():
             return Response(status=status.HTTP_404_NOT_FOUND)
         return _ranged_file_response(request, path, self._content_type(object_key))

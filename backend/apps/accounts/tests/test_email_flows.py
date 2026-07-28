@@ -35,6 +35,27 @@ def test_registration_sends_working_verification_email(mailoutbox):
     assert User.objects.get(email="newbie@floppy.disk").email_verified is True
 
 
+def test_resend_verification_sends_working_link(mailoutbox):
+    user = User.objects.create_user(email="unv@floppy.disk", password="hunter2pass")
+    c = APIClient()
+    c.force_authenticate(user)
+    resp = c.post("/api/v1/auth/verify-email/resend")
+    assert resp.status_code == 202
+    assert len(mailoutbox) == 1
+    token = _token_from(mailoutbox[0].body)
+    assert c.post("/api/v1/auth/verify-email", {"token": token}, format="json").status_code == 200
+    user.refresh_from_db()
+    assert user.email_verified is True
+
+
+def test_resend_verification_noop_when_already_verified(mailoutbox):
+    user = User.objects.create_user(email="ver@floppy.disk", password="hunter2pass", email_verified=True)
+    c = APIClient()
+    c.force_authenticate(user)
+    assert c.post("/api/v1/auth/verify-email/resend").status_code == 400
+    assert len(mailoutbox) == 0
+
+
 def test_password_reset_sends_email(mailoutbox):
     User.objects.create_user(email="reset@floppy.disk", password="hunter2pass")
     resp = APIClient().post("/api/v1/auth/password-reset", {"email": "reset@floppy.disk"}, format="json")

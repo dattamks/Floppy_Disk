@@ -41,8 +41,6 @@ LOCAL_APPS = [
     "apps.accounts",
     "apps.storage",
     "apps.sharing",
-    "apps.billing",
-    "apps.moderation",
     "apps.notifications",
     "apps.analytics",
 ]
@@ -116,13 +114,12 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.ScopedRateThrottle",
     ],
-    # Concrete per-scope rates come from the rate-limit spec (PRD 5.2).
     "DEFAULT_THROTTLE_RATES": {
         "login": "10/day",
         "password_reset": "10/day",
         "register": "20/day",
-        "report": "10/hour",
         "share_unlock": "10/day",
+        "verify_email": "20/day",
     },
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 50,
@@ -144,10 +141,6 @@ CELERY_BEAT_SCHEDULE = {
     "release-expired-reservations": {
         "task": "apps.storage.tasks.release_expired_reservations_task",
         "schedule": 60 * 60,
-    },
-    "subscription-freeze-lifecycle": {
-        "task": "apps.billing.tasks.run_freeze_lifecycle_task",
-        "schedule": 24 * 60 * 60,
     },
     "hard-delete-expired-accounts": {
         "task": "apps.accounts.tasks.hard_delete_expired_accounts_task",
@@ -193,26 +186,12 @@ MEDIA_TRANSCODER = env(
     else "apps.storage.services.transcode.FakeTranscoder",
 )
 
-# --- Payments (Razorpay behind PaymentGateway abstraction) ------------------
-# Master switch: when disabled, billing is deferred — new signups are granted the
-# default paid plan (see DEFAULT_SIGNUP_PLAN) and the client hides upgrade/billing UI.
-RAZORPAY_ENABLED = env.bool("RAZORPAY_ENABLED", default=False)
-DEFAULT_SIGNUP_PLAN = env("DEFAULT_SIGNUP_PLAN", default="paid_2tb")  # used only when billing disabled
-PAYMENT_GATEWAY = env("PAYMENT_GATEWAY", default="apps.billing.gateways.razorpay.RazorpayGateway")
-RAZORPAY_KEY_ID = env("RAZORPAY_KEY_ID", default="")
-RAZORPAY_KEY_SECRET = env("RAZORPAY_KEY_SECRET", default="")
-RAZORPAY_WEBHOOK_SECRET = env("RAZORPAY_WEBHOOK_SECRET", default="")
+# --- Storage allowance ------------------------------------------------------
+# No billing/subscriptions: every account gets the same storage quota.
+DEFAULT_QUOTA_BYTES = env.int("DEFAULT_QUOTA_BYTES", default=2 * 1024**4)  # 2 TB
 
 # --- Search (Postgres FTS now, OpenSearch later) ----------------------------
 SEARCH_SERVICE = env("SEARCH_SERVICE", default="apps.search.services.postgres.PostgresSearchService")
-
-# --- ClamAV (malware scanning) ----------------------------------------------
-CLAMAV_HOST = env("CLAMAV_HOST", default="localhost")
-CLAMAV_PORT = env.int("CLAMAV_PORT", default=3310)
-SCAN_SERVICE = env("SCAN_SERVICE", default="apps.moderation.services.clamav.ClamAVScanService")
-# What to do when the scanner is unreachable: "closed" (safe: block/quarantine
-# the upload) or "open" (risky: let it through unscanned). Defaults to closed.
-SCAN_FAILURE_MODE = env("SCAN_FAILURE_MODE", default="closed")
 
 # --- i18n / tz --------------------------------------------------------------
 LANGUAGE_CODE = "en-us"
@@ -244,15 +223,6 @@ CSRF_TRUSTED_ORIGINS = env.list(
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Floppy Disk <no-reply@floppy.disk>")
 # Base URL of the web app, used to build verification / reset links in emails.
 FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:5173")
-
-# --- Legal / compliance ------------------------------------------------------
-# Grievance Officer contact (India IT Rules 2021). Set real values in prod.
-GRIEVANCE_OFFICER_NAME = env("GRIEVANCE_OFFICER_NAME", default="")
-GRIEVANCE_OFFICER_EMAIL = env("GRIEVANCE_OFFICER_EMAIL", default="grievance@floppy.disk")
-GRIEVANCE_OFFICER_ADDRESS = env("GRIEVANCE_OFFICER_ADDRESS", default="")
-# Current policy versions surfaced to clients + recorded on consent.
-TOS_VERSION = env("TOS_VERSION", default="2026-01-01")
-PRIVACY_VERSION = env("PRIVACY_VERSION", default="2026-01-01")
 
 # --- Sentry (optional) ------------------------------------------------------
 SENTRY_DSN = env("SENTRY_DSN", default="")

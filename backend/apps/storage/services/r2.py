@@ -5,9 +5,10 @@ R2 speaks the S3 API, so the same boto3 client works, and swapping to S3 at AWS
 migration is a config change. Region -> bucket mapping (settings.R2_REGION_BUCKETS)
 keeps each user's data in their chosen residency region; dedup is per-region.
 
-NOTE: method bodies are stubs for the foundation pass — the storage slice wires
-the real boto3 calls. The interface and client wiring are in place so callers
-can be written against them now.
+NOTE: the method bodies are NOT implemented yet — they raise NotImplementedError.
+The default local-disk backend (LocalStorageService) is fully working; wiring the
+real boto3 calls here is the main task before a cloud (R2/S3) deployment. The
+interface and client are in place so callers already work against them.
 """
 from __future__ import annotations
 

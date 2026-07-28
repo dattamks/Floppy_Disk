@@ -1,8 +1,8 @@
 # Floppy Disk
 
-A **Google-Drive-style cloud storage app** — upload, organize, preview, and
-share your files and folders, with self-hosted video playback. India-first, with
-a free tier and paid subscription tiers.
+A **self-hostable, Google-Drive-style cloud storage app** — upload, organize,
+preview, and share your files and folders, with self-hosted video playback.
+Single storage tier, no subscriptions. Apache-2.0.
 
 > **Product focus:** Floppy Disk is a file-storage product. The earlier
 > "media platform" features were dropped in the Drive-focus pivot — **Channels**
@@ -27,21 +27,20 @@ a free tier and paid subscription tiers.
 │   ├── e2e/              # Playwright end-to-end specs
 │   └── package.json, vite.config.js, playwright.config.js, vitest.config.js
 ├── backend/               # Django + DRF API + Celery workers
-│   └── apps/              # accounts, storage, sharing, billing, moderation,
-│                          # notifications, search, analytics, common
+│   └── apps/              # accounts, storage, sharing, notifications,
+│                          # search, analytics, common
 ├── mcp/                   # Python FastMCP server wrapping the REST API
 ├── .github/workflows/ci.yml   # backend + frontend + MCP CI
 └── docs/
-    ├── PRD-02-Backend-Platform.md   # backend/platform spec
     ├── api/                         # OpenAPI spec + README
-    ├── deactivated-features.md      # what was removed/replaced in the pivot
-    └── design-reference/            # design export + PRD-01
+    └── deactivated-features.md      # what was removed/replaced in the pivot
 ```
 
 ## Features
 
 Built test-first (pytest) with the frontend wired and Playwright end-to-end
-coverage. **165 backend tests · 15 Playwright E2E · 11 Vitest unit — all green.**
+coverage. **161 backend tests · 18 Vitest unit — all green**, plus Playwright
+E2E specs for the main flows.
 
 | Area | Endpoints (under `/api/v1/`) | Highlights |
 |---|---|---|
@@ -51,25 +50,22 @@ coverage. **165 backend tests · 15 Playwright E2E · 11 Vitest unit — all gre
 | **Trash** | `storage/{files,folders}/{id}/{restore,purge}`, `storage/trash` | soft-delete with **folder cascade**, restore-as-a-unit, ref-count release, retention job |
 | **Viewers** | `storage/files/{id}/download` | inline **image / PDF / audio / Markdown / JSON / YAML / text** preview of your own files |
 | **Video** | `storage/files/{id}/play` | **self-hosted** FFmpeg transcode → browser-playable MP4 + poster, served over HTTP Range (no third-party streaming) |
-| **Sharing** | `storage/files/{id}/share`, `storage/shares`, `public/share/{token}` | public token links, expiry, paid password gate, **link management** (list/revoke) |
-| **Moderation** | `moderation/reports` | malware scan on upload (quarantine), Flag/Report |
-| **Billing** | `billing/{plans,subscribe,cancel,webhook}` | tier+quota upgrades, idempotent webhooks, expiry-anchored freeze lifecycle |
-| **Referrals** | `billing/referral{,/apply}` | 50GB/referral, 1TB cap, 180d expiry, effective quota |
+| **Sharing** | `storage/files/{id}/share`, `storage/shares`, `public/share/{token}` | public token links, expiry, optional password gate, **link management** (list/revoke) |
 | **Notifications** | `notifications/…/{read,read-all}` | in-app notifications, unread counts |
 | **Search** | `storage/search`, `storage/files/{id}/discoverable` | own + discoverable content; Postgres FTS (prod), portable (dev) |
-| **Compliance** | `auth/account/{delete,export,consent,settings}` | DPDPA soft→hard delete (legal hold), export, consent, backup settings |
+| **Compliance** | `auth/account/{delete,export,consent,settings}` | DPDPA soft→hard delete, export, consent, backup settings |
 | **Device backup** | `storage/camera-backup` | Camera Backup folder, quota-pause notify |
 
-Rate limits (DRF scoped throttles) on login/register/password-reset/report/share-unlock.
-Scheduled (Celery beat): trash purge, expired-reservation release, subscription
-freeze lifecycle, and 30-day account hard-delete.
+Rate limits (DRF scoped throttles) on login/register/password-reset/
+share-unlock/verify-email.
+Scheduled (Celery beat): trash purge, expired-reservation release, and 30-day
+account hard-delete.
 
 Service boundaries are abstracted for the vendor migration: `AuthProvider`
-(Cognito), `StorageService` (R2/S3), `PaymentGateway` (Razorpay/Stripe),
-`SearchService` (Postgres FTS/OpenSearch), `ScanService` (ClamAV), and
-`MediaTranscoder` (FFmpeg). Dev/test use in-process fakes (`LocalStorageService`,
-`FakePaymentGateway`, `FakeScanService`, `FakeTranscoder`) so the whole stack
-runs without external credentials.
+(Cognito), `StorageService` (R2/S3), `SearchService` (Postgres FTS/OpenSearch),
+and `MediaTranscoder` (FFmpeg). Dev/test use in-process fakes
+(`LocalStorageService`, `FakeTranscoder`) so the whole stack runs without
+external credentials.
 
 ## Self-hosted video
 
@@ -85,7 +81,7 @@ file is always kept alongside the rendition.
 ```bash
 cd backend
 cp .env.example .env
-docker compose up --build        # postgres + redis + clamav + web + worker + beat (image includes ffmpeg)
+docker compose up --build        # postgres + redis + web + worker + beat (image includes ffmpeg)
 #   or locally:  python -m venv .venv && . .venv/bin/activate
 #                pip install -r requirements-dev.txt && python manage.py migrate && python manage.py runserver
 pytest                            # run the test suite
@@ -108,7 +104,7 @@ npm run test:e2e     # Playwright E2E (boots backend on SQLite + Vite, drives Ch
 
 `mcp/` is a Python [FastMCP](https://github.com/jlowin/fastmcp) server exposing
 the REST API as MCP tools (folders, files, rename/move, upload/download,
-sharing, video playback, notifications, billing) for MCP-aware clients. See
+sharing, video playback, notifications) for MCP-aware clients. See
 [`mcp/README.md`](mcp/README.md).
 
 ## Stack
@@ -117,7 +113,16 @@ sharing, video playback, notifications, billing) for MCP-aware clients. See
 - **Storage:** Cloudflare R2 (S3-compatible) in prod; local disk in dev
 - **Video:** self-hosted FFmpeg transcoding + HTTP Range delivery
 - **Auth:** email/password via Django auth behind an `AuthProvider` abstraction
-- **Payments:** Razorpay behind a `PaymentGateway` abstraction
 - **CI:** GitHub Actions — backend pytest, frontend build + unit + E2E, MCP smoke
 
-See `docs/PRD-02-Backend-Platform.md` for the full specification.
+See [`docs/api/`](docs/api) for the API reference (OpenAPI + README).
+
+## Contributing
+
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and
+test instructions. To report a security issue, see [SECURITY.md](SECURITY.md).
+
+## License
+
+Copyright 2026 Kashyap Sri Datta M.
+Licensed under the [Apache License 2.0](LICENSE) (see also [NOTICE](NOTICE)).

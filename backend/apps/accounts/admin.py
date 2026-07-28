@@ -7,7 +7,7 @@ from .models import User, UserDevice
 class UserAdmin(admin.ModelAdmin):
     list_display = ("email", "status", "email_verified", "storage_region", "is_staff", "created_at")
     list_filter = ("status", "email_verified", "is_staff", "storage_region")
-    search_fields = ("email", "display_name", "phone")
+    search_fields = ("email", "display_name")
     ordering = ("-created_at",)
     readonly_fields = ("id", "created_at", "updated_at", "last_login", "last_login_at")
 

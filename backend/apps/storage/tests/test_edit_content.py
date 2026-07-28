@@ -48,7 +48,7 @@ def test_edit_replaces_content_and_updates_size_and_quota(client, user, settings
     # The bytes served back reflect the edit.
     obj = f.storage_object
     url = f"/api/v1/storage/_dev/blob/{obj.region}/{obj.object_key}"
-    assert client.get(url).content == b"hello, world!"
+    assert b"".join(client.get(url).streaming_content) == b"hello, world!"
     # Quota tracked the +8 byte delta.
     user.refresh_from_db()
     assert user.storage_used_bytes == used_before + (len("hello, world!") - len("hello"))

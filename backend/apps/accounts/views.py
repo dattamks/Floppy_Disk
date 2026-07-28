@@ -44,13 +44,13 @@ class RegisterView(APIView):
             date_of_birth=serializer.validated_data["date_of_birth"],
         )
         user = User.objects.get(pk=result.user_id)
-        # While billing is deferred, new users default to the paid plan.
-        from apps.billing.service import apply_signup_entitlements
-        apply_signup_entitlements(user)
-        user.refresh_from_db()
+        # Single storage tier (no billing): grant the standard allowance.
+        from django.conf import settings
+        user.quota_bytes = settings.DEFAULT_QUOTA_BYTES
+        user.save(update_fields=["quota_bytes", "updated_at"])
         django_login(request, user, backend=MODEL_BACKEND)
         from apps.analytics.track import track
-        track("signup", user=user, tier=user.tier)
+        track("signup", user=user)
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
@@ -72,7 +72,19 @@ class LoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         user = User.objects.get(pk=result.user_id)
+        # Enforce account status: suspended/deleted accounts must not be able to
+        # sign in even with correct credentials (previously only is_active was
+        # checked, and nothing maps status onto is_active).
+        if user.status in (User.Status.SUSPENDED, User.Status.DELETED) or not user.is_active:
+            return Response(
+                {"detail": "This account is not active."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         django_login(request, user, backend=MODEL_BACKEND)
+        # Record login time for dormancy detection (Django's signal updates the
+        # inherited last_login, not this custom field, which was never written).
+        from django.utils import timezone
+        User.objects.filter(pk=user.pk).update(last_login_at=timezone.now())
         return Response(UserSerializer(user).data, status=status.HTTP_200_OK)
 
 
@@ -81,6 +93,31 @@ class LogoutView(APIView):
 
     def post(self, request):
         django_logout(request)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PasswordChangeView(APIView):
+    """Change the password of the logged-in user (requires the current one)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from django.contrib.auth import update_session_auth_hash
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
+        current = request.data.get("current_password") or ""
+        new = request.data.get("new_password") or ""
+        if not request.user.check_password(current):
+            return Response({"detail": "Current password is incorrect."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            validate_password(new, user=request.user)
+        except DjangoValidationError as exc:
+            return Response({"detail": list(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
+        request.user.set_password(new)
+        request.user.save(update_fields=["password", "updated_at"])
+        update_session_auth_hash(request, request.user)  # keep the user logged in
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -115,6 +152,7 @@ class PasswordResetRequestView(APIView):
 
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
+    throttle_scope = "password_reset"  # token-guessing must be rate-limited too
 
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
@@ -131,6 +169,7 @@ class PasswordResetConfirmView(APIView):
 
 class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
+    throttle_scope = "verify_email"  # rate-limit token guessing
 
     def post(self, request):
         serializer = VerifyEmailSerializer(data=request.data)
@@ -140,3 +179,18 @@ class VerifyEmailView(APIView):
             return Response({"detail": "Invalid or expired token."},
                             status=status.HTTP_400_BAD_REQUEST)
         return Response({"detail": "Email verified."}, status=status.HTTP_200_OK)
+
+
+class ResendVerificationView(APIView):
+    """Re-send the email-verification link to the logged-in user."""
+
+    permission_classes = [IsAuthenticated]
+    throttle_scope = "verify_email"
+
+    def post(self, request):
+        if request.user.email_verified:
+            return Response({"detail": "Email is already verified."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        get_auth_provider().send_email_verification(user_id=str(request.user.pk))
+        # 202: we dispatched the email; the user completes it via the link.
+        return Response({"detail": "Verification email sent."}, status=status.HTTP_202_ACCEPTED)

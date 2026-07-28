@@ -1,8 +1,8 @@
 # Floppy Disk — Backend
 
-Django + DRF API, Celery workers, PostgreSQL, Redis. Object storage / video /
-CDN via Cloudflare (R2 + Stream). See `../docs/PRD-02-Backend-Platform.md` for
-the full specification.
+Django + DRF API, Celery workers, PostgreSQL, Redis. Object storage on
+Cloudflare R2 (S3-compatible) in prod, local disk in dev; self-hosted FFmpeg
+video transcoding. See [`../docs/api/`](../docs/api) for the API reference.
 
 ## Layout
 
@@ -19,27 +19,26 @@ backend/
 │   │   └── providers/      # AuthProvider interface + DjangoAuthProvider (Phase 1)
 │   ├── storage/            # StorageObject/File/Folder (+ StorageService → R2)
 │   ├── sharing/            # ShareLink / SharePermission / copy-on-share
-│   ├── channels/           # Channel / membership / posts
-│   ├── billing/            # Subscription/Invoice/ReferralBonus (+ PaymentGateway → Razorpay)
-│   ├── moderation/         # ContentReport/Flag/CSAMIncident, quarantine
 │   ├── notifications/      # Notification + Celery dispatch
 │   ├── analytics/          # AnalyticsEvent (JSONB, partitioned)
 │   └── search/             # SearchService → Postgres FTS (OpenSearch later)
 ├── requirements.txt        # runtime deps (pip)
 ├── requirements-dev.txt    # + test/lint
 ├── Dockerfile
-└── docker-compose.yml      # postgres + redis + clamav + web + worker + beat
+└── docker-compose.yml      # postgres + redis + web + worker + beat
 ```
 
 ## Architecture notes
 
 - **Service abstractions** decouple the app from vendors so migrations are config-only:
-  `AuthProvider` (Django auth → Cognito), `StorageService` (R2 → S3), `PaymentGateway`
-  (Razorpay → Stripe), `SearchService` (Postgres FTS → OpenSearch). Each is chosen via a
+  `AuthProvider` (Django auth → Cognito), `StorageService` (R2 → S3),
+  `SearchService` (Postgres FTS → OpenSearch). Each is chosen via a
   settings string and instantiated through a `get_*()` helper.
-- **Auth is Phase 1 = email/password**; phone/OTP + social are Phase 2 (fields exist but inert).
-- **Foundation pass:** models exist for accounts only; other apps are registered skeletons.
-  Service methods raise `NotImplementedError` where a build slice will wire them.
+- **Auth is email/password** (behind the `AuthProvider` abstraction); phone/OTP +
+  social are future work (fields exist but inert).
+- **Storage backends:** `LocalStorageService` (local disk) is fully implemented
+  and is the default when R2 isn't configured. `R2StorageService` is a stub —
+  wiring the boto3 calls is the main task before a cloud deployment.
 
 ## Run (Docker — recommended)
 

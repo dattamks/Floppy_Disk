@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Test / build artifacts
+test-results/
+playwright-report/
+dist/
+build/
+htmlcov/
+.coverage
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

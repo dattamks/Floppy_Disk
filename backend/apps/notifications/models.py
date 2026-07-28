@@ -1,5 +1,5 @@
 """
-Notifications (PRD 5.8).
+Notifications.
 
 In-app now; push (FCM) and email (SES, security/quota-critical only) attach to
 the same dispatch path later. Delivery is best-effort and never blocks the

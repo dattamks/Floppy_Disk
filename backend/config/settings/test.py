@@ -1,4 +1,6 @@
 """Test settings: in-memory SQLite, fast hasher, no external services."""
+import tempfile
+
 from .base import *  # noqa: F401,F403
 
 DATABASES = {
@@ -14,15 +16,10 @@ PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 # Disable throttling noise in unit tests (rate limits are asserted separately).
 REST_FRAMEWORK = {**REST_FRAMEWORK, "DEFAULT_THROTTLE_CLASSES": []}  # noqa: F405
 
-# Storage: use the local disk-backed service for tests.
+# Storage: use the local disk-backed service for tests, in a throwaway temp dir
+# (portable + hermetic — no machine-specific path).
 STORAGE_SERVICE = "apps.storage.services.local.LocalStorageService"
-DEV_STORAGE_DIR = "/tmp/claude-0/-home-user-Floppy-Disk/5c03de2b-195c-53d0-b890-a3793c5ab2e1/scratchpad/devstorage_test"
-
-# Scanning: fake scanner (detects EICAR) for tests.
-SCAN_SERVICE = "apps.moderation.services.fake.FakeScanService"
-
-# Payments: fake gateway (instant activation) in dev/tests.
-PAYMENT_GATEWAY = "apps.billing.gateways.fake.FakePaymentGateway"
+DEV_STORAGE_DIR = tempfile.mkdtemp(prefix="floppy-test-storage-")
 
 # Video: no-binary fake transcoder in tests (real FFmpeg runs in production).
 MEDIA_TRANSCODER = "apps.storage.services.transcode.FakeTranscoder"

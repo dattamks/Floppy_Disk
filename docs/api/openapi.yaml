@@ -22,7 +22,7 @@ info:
 
     ## Conventions
     - IDs are UUIDs unless noted (share tokens are strings).
-    - Sizes are bytes. Money is paise (₹1 = 100).
+    - Sizes are bytes.
     - List endpoints return arrays; a few wrap results in an object (noted per path).
     - Errors use `{ "detail": "...", "code": "..." }` (code is present on typed errors).
 servers:
@@ -36,8 +36,6 @@ tags:
   - name: Upload
   - name: Video
   - name: Sharing
-  - name: Moderation
-  - name: Billing
   - name: Notifications
   - name: Ops
 
@@ -77,9 +75,7 @@ components:
         display_name: { type: string }
         storage_region: { type: string, example: ap-south }
         status: { type: string, enum: [active, dormant, suspended, deleted] }
-        tier: { type: string, enum: [free, paid_2tb, paid_5tb] }
         quota_bytes: { type: integer }
-        billing_enabled: { type: boolean, description: Whether Razorpay billing is active. }
     Folder:
       type: object
       properties:
@@ -96,7 +92,7 @@ components:
         folder: { type: [string, "null"], format: uuid }
         kind: { type: string, enum: [file, image, video, audio, doc] }
         size_bytes: { type: integer }
-        status: { type: string, enum: [pending, scanning, ready, failed] }
+        status: { type: string, enum: [pending, processing, ready] }
         created_at: { type: string, format: date-time }
     ShareLink:
       type: object
@@ -298,11 +294,9 @@ paths:
               schema:
                 type: object
                 properties:
-                  quota_bytes: { type: integer, description: Effective (base + active referral bonuses). }
-                  base_quota_bytes: { type: integer }
+                  quota_bytes: { type: integer, description: The account's storage quota. }
                   used_bytes: { type: integer }
                   available_bytes: { type: integer }
-                  tier: { type: string }
   /storage/folders:
     get:
       tags: [Storage]
@@ -348,7 +342,7 @@ paths:
   /storage/files:
     get:
       tags: [Storage]
-      summary: List files (by folder; excludes trashed/quarantined/frozen)
+      summary: List files (by folder; excludes trashed)
       parameters: [{ name: folder, in: query, schema: { type: string, format: uuid } }]
       responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/File" } } } } } }
   /storage/files/{file_id}:
@@ -485,12 +479,11 @@ paths:
   /storage/uploads/{file_id}/complete:
     post:
       tags: [Upload]
-      summary: Complete an upload (scan → dedup → commit)
+      summary: Complete an upload (dedup → commit)
       parameters: [{ $ref: "#/components/parameters/FileId" }]
       responses:
         "200": { description: Ready, content: { application/json: { schema: { $ref: "#/components/schemas/File" } } } }
         "409": { description: No uploaded bytes found. }
-        "422": { description: "Blocked by malware scan (`scan_failed`)." , content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
 
   # ---------------------------------------------------------------- Video
   /storage/files/{file_id}/play:
@@ -520,11 +513,11 @@ paths:
       tags: [Sharing]
       summary: Create a public share link
       parameters: [{ $ref: "#/components/parameters/FileId" }]
-      requestBody: { content: { application/json: { schema: { type: object, properties: { password: { type: string, description: Paid-tier only. }, expires_at: { type: string, format: date-time } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, properties: { password: { type: string, description: Optional password gate. }, expires_at: { type: string, format: date-time } } } } } }
       responses:
         "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/ShareLink" } } } }
-        "403": { description: "Password protection is paid-only (`paid_only`)." }
         "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: "File is not available to share (`file_not_ready`)." }
   /storage/shares:
     get:
       tags: [Sharing]
@@ -587,78 +580,6 @@ paths:
         "404": { description: Unknown token / nothing to download. }
         "410": { description: Expired or revoked. }
 
-  # ---------------------------------------------------------------- Moderation
-  /moderation/reports:
-    post:
-      tags: [Moderation]
-      summary: Flag or Report content (a Report reversibly isolates a file)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [kind, target_type, target_id]
-              properties:
-                kind: { type: string, enum: [flag, report] }
-                target_type: { type: string, enum: [file] }
-                target_id: { type: string, format: uuid }
-                reason: { type: string, enum: [copyright, inappropriate, csam, other], default: other }
-                detail: { type: string, description: Required for copyright reports. }
-      responses: { "201": { description: Recorded. }, "400": { $ref: "#/components/responses/ValidationError" }, "429": { description: Rate limited (10/hour). } }
-
-  # ---------------------------------------------------------------- Billing
-  /billing/plans:
-    get:
-      tags: [Billing]
-      summary: List plans
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties: { code: { type: string }, name: { type: string }, price_paise: { type: integer }, quota_bytes: { type: integer } }
-  /billing/subscribe:
-    post:
-      tags: [Billing]
-      summary: Subscribe to a paid plan (upgrades tier + quota)
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [plan], properties: { plan: { type: string, enum: [paid_2tb, paid_5tb] }, annual: { type: boolean } } } } } }
-      responses:
-        "201": { description: Subscribed, content: { application/json: { schema: { type: object, properties: { plan: { type: string }, status: { type: string }, tier: { type: string }, quota_bytes: { type: integer }, current_period_end: { type: string, format: date-time } } } } } }
-        "400": { description: Unknown/non-purchasable plan. }
-  /billing/subscription:
-    get:
-      tags: [Billing]
-      summary: Current subscription
-      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { plan: { type: string }, status: { type: [string, "null"] }, current_period_end: { type: [string, "null"], format: date-time } } } } } } }
-  /billing/cancel:
-    post:
-      tags: [Billing]
-      summary: Cancel (retains access to period end)
-      responses: { "200": { description: Cancelled. }, "400": { description: No active subscription. } }
-  /billing/webhook:
-    post:
-      tags: [Billing]
-      summary: Razorpay webhook (idempotent; HMAC-verified)
-      security: []
-      parameters: [{ name: X-Razorpay-Signature, in: header, schema: { type: string } }]
-      responses: { "200": { description: "{ processed: bool }" }, "400": { description: Invalid signature. } }
-  /billing/referral:
-    get:
-      tags: [Billing]
-      summary: My referral code + stats
-      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { code: { type: string }, referrals_count: { type: integer }, bonus_bytes_active: { type: integer }, bonus_bytes_cap: { type: integer } } } } } } }
-  /billing/referral/apply:
-    post:
-      tags: [Billing]
-      summary: Apply a referral code (grants the referrer 50GB)
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string } } } } } }
-      responses: { "201": { description: "{ granted_bytes }" }, "400": { description: Invalid/self/duplicate/capped. } }
-
   # ---------------------------------------------------------------- Notifications
   /notifications/:
     get:
@@ -685,49 +606,6 @@ paths:
       tags: [Notifications]
       summary: Mark all read
       responses: { "204": { $ref: "#/components/responses/NoContent" } }
-
-  # ---------------------------------------------------------------- Legal
-  /legal/:
-    get:
-      tags: [Ops]
-      summary: Policy versions + grievance officer contact (public)
-      security: []
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  policies:
-                    type: object
-                    properties:
-                      tos: { type: object, properties: { version: { type: string } } }
-                      privacy: { type: object, properties: { version: { type: string } } }
-                  grievance_officer:
-                    type: object
-                    properties: { name: { type: string }, email: { type: string }, address: { type: string } }
-                  note: { type: string }
-  /legal/grievance:
-    post:
-      tags: [Ops]
-      summary: File a grievance (IT Rules 2021 redressal)
-      security: []
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [subject, body], properties: { subject: { type: string }, body: { type: string }, email: { type: string } } } } } }
-      responses:
-        "201":
-          description: Received
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  ticket: { type: string, format: uuid }
-                  status: { type: string }
-                  acknowledgement: { type: string }
-                  grievance_officer_email: { type: string }
-        "400": { $ref: "#/components/responses/ValidationError" }
 
   # ---------------------------------------------------------------- Ops
   /health/:

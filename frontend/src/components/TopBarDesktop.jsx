@@ -133,6 +133,56 @@ export default function TopBarDesktop(V) {
         Upload
       </button>{' '}
       <button
+        onClick={V.openNotifications}
+        title="Notifications"
+        style={{
+          position: 'relative',
+          width: '34px',
+          height: '34px',
+          borderRadius: '50%',
+          background: theme.surface,
+          border: `1px solid ${theme.border}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: theme.textMuted,
+          cursor: 'pointer',
+        }}
+        {...hov({ background: theme.border })}
+      >
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        {V.hasUnread ? (
+          <span
+            style={{
+              position: 'absolute',
+              top: '-3px',
+              right: '-3px',
+              minWidth: '16px',
+              height: '16px',
+              padding: '0 4px',
+              borderRadius: '8px',
+              background: '#E5484D',
+              color: '#fff',
+              fontSize: '10px',
+              fontWeight: '700',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {V.unreadCount > 9 ? '9+' : V.unreadCount}
+          </span>
+        ) : null}
+      </button>{' '}
+      <button
         onClick={V.openSettings}
         style={{
           width: '34px',

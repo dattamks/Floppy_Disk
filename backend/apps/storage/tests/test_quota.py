@@ -2,7 +2,7 @@
 import pytest
 from django.contrib.auth import get_user_model
 
-from apps.storage.models import FREE_MAX_FILE_BYTES, StorageReservation
+from apps.storage.models import MAX_FILE_BYTES, StorageReservation
 from apps.storage.quota import (
     FileTooLarge,
     QuotaExceeded,
@@ -19,10 +19,9 @@ GB = 1024**3
 
 @pytest.fixture
 def user(db):
-    # Paid tier (20GB per-file cap) so GB-scale reservations exercise quota math,
-    # not the per-file cap. quota_bytes is set small to make the math readable.
+    # quota_bytes is set small to make the GB-scale quota math readable (well
+    # under the 20GB per-file cap so reservations exercise quota, not the cap).
     u = User.objects.create_user(email="q@floppy.disk", password="hunter2pass")
-    u.tier = User.Tier.PAID_2TB
     u.quota_bytes = 10 * GB
     u.storage_used_bytes = 0
     u.save()
@@ -70,10 +69,8 @@ def test_commit_is_idempotent(user):
 
 
 def test_reserve_rejects_file_over_per_file_cap(user):
-    user.tier = User.Tier.FREE  # free tier -> 2GB per-file cap
-    user.save()
     with pytest.raises(FileTooLarge):
-        reserve(user, size_bytes=FREE_MAX_FILE_BYTES + 1)
+        reserve(user, size_bytes=MAX_FILE_BYTES + 1)
 
 
 def test_expired_reservations_release_quota(user):

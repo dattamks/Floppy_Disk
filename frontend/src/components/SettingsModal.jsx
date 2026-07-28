@@ -249,7 +249,7 @@ export default function SettingsModal(V) {
               {V.emailNotVerified ? (
                 <React.Fragment>
                   <button
-                    onClick={V.verifyEmailModal}
+                    onClick={V.resendVerification}
                     style={{
                       background: theme.brand,
                       color: theme.white,
@@ -261,70 +261,7 @@ export default function SettingsModal(V) {
                       cursor: 'pointer',
                     }}
                   >
-                    Verify
-                  </button>
-                </React.Fragment>
-              ) : null}
-            </div>
-          </div>{' '}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <span style={{ fontSize: '12px', color: theme.textMuted, fontWeight: '500' }}>
-              Phone
-            </span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div
-                style={{
-                  flex: '1',
-                  background: theme.surface,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: '9px',
-                  padding: '10px 12px',
-                  fontSize: '13px',
-                }}
-              >
-                {V.accountPhone}
-              </div>
-              {V.phoneVerified ? (
-                <React.Fragment>
-                  <span
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      color: theme.success,
-                      fontSize: '11.5px',
-                      fontWeight: '600',
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                      <path
-                        d="M20 6L9 17l-5-5"
-                        stroke={theme.success}
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    Verified
-                  </span>
-                </React.Fragment>
-              ) : null}
-              {V.phoneNotVerified ? (
-                <React.Fragment>
-                  <button
-                    onClick={V.verifyPhoneModal}
-                    style={{
-                      background: theme.brand,
-                      color: theme.white,
-                      border: 'none',
-                      borderRadius: '8px',
-                      padding: '8px 12px',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Verify
+                    Resend email
                   </button>
                 </React.Fragment>
               ) : null}

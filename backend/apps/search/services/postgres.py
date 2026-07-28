@@ -28,8 +28,7 @@ class PostgresSearchService(SearchService):
         sq = SearchQuery(query, search_type="websearch")
         visible = (
             File.objects.filter(
-                deleted_at__isnull=True, is_quarantined=False, is_frozen=False,
-                status=File.Status.READY,
+                deleted_at__isnull=True, status=File.Status.READY,
             )
             .filter(Q(owner_id=user_id) | Q(is_discoverable=True, is_mature_content=False))
             .annotate(rank=SearchRank(vector, sq))

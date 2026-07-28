@@ -4,16 +4,19 @@ from celery import shared_task
 
 @shared_task
 def purge_expired_trash_task():
-    """Hard-delete trashed files past their tier retention (PRD 5.3)."""
+    """Hard-delete trashed items past the retention window."""
     from .lifecycle import purge_expired_trash
     return purge_expired_trash()
 
 
 @shared_task
 def release_expired_reservations_task():
-    """Release expired upload reservations (reserve-then-commit cleanup)."""
+    """Release expired upload reservations and clean up abandoned uploads."""
+    from .lifecycle import purge_abandoned_uploads
     from .quota import release_expired
-    return release_expired()
+    released = release_expired()
+    abandoned = purge_abandoned_uploads()
+    return {"released": released, "abandoned": abandoned}
 
 
 @shared_task

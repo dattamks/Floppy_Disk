@@ -37,10 +37,7 @@ def user(db):
 
 @pytest.fixture
 def paid_user(db):
-    u = User.objects.create_user(email="paiddl@floppy.disk", password="hunter2pass")
-    u.tier = User.Tier.PAID_2TB
-    u.save()
-    return u
+    return User.objects.create_user(email="paiddl@floppy.disk", password="hunter2pass")
 
 
 def _share(owner, file, password=None):
@@ -59,8 +56,8 @@ def test_anonymous_can_download_public_share_bytes(user):
     assert payload["download_url"]
 
     resp = anon.get(f"/api/v1/public/share/{token}/download")
-    assert resp.status_code == 200, resp.content
-    assert resp.content == b"PNGBYTES-123"
+    assert resp.status_code == 200
+    assert b"".join(resp.streaming_content) == b"PNGBYTES-123"
     assert resp["Content-Type"] == "image/png"
     assert resp["Accept-Ranges"] == "bytes"
 
@@ -77,7 +74,7 @@ def test_password_share_download_requires_password(paid_user):
     # correct password -> bytes
     ok = anon.get(f"/api/v1/public/share/{token}/download?password=hunter2")
     assert ok.status_code == 200
-    assert ok.content == b"TOPSECRET"
+    assert b"".join(ok.streaming_content) == b"TOPSECRET"
 
 
 def test_revoked_share_download_is_gone(user):
@@ -96,3 +93,14 @@ def test_expired_share_download_is_gone(user):
 
 def test_unknown_share_download_is_not_found(user):
     assert APIClient().get("/api/v1/public/share/nope-nope/download").status_code == 404
+
+
+def test_trashed_file_share_stops_resolving(user):
+    """Soft-deleting a shared file must stop its still-active link from serving it."""
+    f = _ready_file(user)
+    token = _share(user, f)
+    File.objects.filter(pk=f.id).update(deleted_at=timezone.now())
+
+    anon = APIClient()
+    assert anon.get(f"/api/v1/public/share/{token}").status_code == 410
+    assert anon.get(f"/api/v1/public/share/{token}/download").status_code == 410

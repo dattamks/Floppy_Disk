@@ -23,20 +23,10 @@ class UserManager(BaseUserManager):
         if not email:
             raise ValueError("Users must have an email address")
         email = self.normalize_email(email).lower()
-        extra_fields.setdefault("referral_code", self._new_referral_code())
         user = self.model(email=email, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
-
-    def _new_referral_code(self):
-        import secrets
-        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no ambiguous chars
-        for _ in range(10):
-            code = "".join(secrets.choice(alphabet) for _ in range(8))
-            if not self.model.objects.filter(referral_code=code).exists():
-                return code
-        return None
 
     def create_user(self, email, password=None, **extra_fields):
         extra_fields.setdefault("is_staff", False)
@@ -58,7 +48,7 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
 
     class Status(models.TextChoices):
         ACTIVE = "active", "Active"
-        DORMANT = "dormant", "Dormant"  # no login for 6 months (PRD 5.1)
+        DORMANT = "dormant", "Dormant"  # no login for 6 months
         SUSPENDED = "suspended", "Suspended"
         DELETED = "deleted", "Deleted"  # soft-deleted, pending 30-day hard delete
 
@@ -66,14 +56,6 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
 
     email = models.EmailField(unique=True, db_index=True)
     email_verified = models.BooleanField(default=False)
-
-    referral_code = models.CharField(max_length=12, unique=True, blank=True, null=True, db_index=True)
-    referred_by = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="referred_users")
-
-    # Phase 2 (inert in Phase 1)
-    phone = models.CharField(max_length=20, blank=True, default="")
-    phone_verified = models.BooleanField(default=False)
-    phone_verified_at = models.DateTimeField(null=True, blank=True)
 
     date_of_birth = models.DateField(null=True, blank=True)  # self-attested, age >= 18
 
@@ -84,20 +66,13 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     )
     storage_region = models.CharField(max_length=16, default="ap-south")  # data residency
 
-    class Tier(models.TextChoices):
-        FREE = "free", "Free"
-        PAID_2TB = "paid_2tb", "Paid 2TB"
-        PAID_5TB = "paid_5tb", "Paid 5TB"
-
-    # Device backup settings (PRD 5.10).
+    # Device backup settings.
     auto_backup_enabled = models.BooleanField(default=False)
     backup_wifi_only = models.BooleanField(default=True)
     two_factor_enabled = models.BooleanField(default=False)
 
-    tier = models.CharField(max_length=10, choices=Tier.choices, default=Tier.FREE)
-    # Denormalized quota counters (PRD 5.3). quota_bytes is the effective limit
-    # (base tier + referral bonuses later); storage_used_bytes is committed usage.
-    quota_bytes = models.BigIntegerField(default=500 * 1024**3)      # Free: 500 GB
+    # Denormalized quota counters. Single storage tier (no billing).
+    quota_bytes = models.BigIntegerField(default=2 * 1024**4)        # 2 TB
     storage_used_bytes = models.BigIntegerField(default=0)
 
     is_staff = models.BooleanField(default=False)
@@ -118,7 +93,7 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
         return self.email
 
     def mark_deleted(self):
-        """DPDPA soft delete; hard delete cascades after 30 days (PRD 5.11)."""
+        """DPDPA soft delete; hard delete cascades after 30 days."""
         self.status = self.Status.DELETED
         self.is_active = False
         self.deleted_at = timezone.now()

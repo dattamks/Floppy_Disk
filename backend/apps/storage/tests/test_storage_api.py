@@ -123,10 +123,10 @@ def test_upload_initiate_blocks_when_over_quota(client, user):
     assert File.objects.filter(owner=user).count() == 0
 
 
-def test_upload_initiate_blocks_file_over_tier_cap(client, user):
+def test_upload_initiate_blocks_file_over_cap(client, user):
     resp = client.post(
         "/api/v1/storage/uploads",
-        {"name": "huge.bin", "size_bytes": 3 * GB},  # > 2GB free cap
+        {"name": "huge.bin", "size_bytes": 21 * GB},  # > 20GB per-file cap
         format="json",
     )
     assert resp.status_code == 400

@@ -23,16 +23,16 @@ Programmatic clients (the MCP server, integrations) authenticate with an
 **API key**: `Authorization: Bearer <key>` — which bypasses CSRF.
 
 Unauthenticated endpoints: `register`, `login`, `csrf`, `password-reset*`,
-`verify-email`, `public/share/*`, the Stream/Razorpay webhooks, and `health`.
+`verify-email`, `public/share/*`, and `health`.
 
 ## Conventions
 - **IDs** are UUIDs, except share `token` (a string).
-- **Sizes** are bytes; **money** is paise (₹1 = 100 paise).
+- **Sizes** are bytes.
 - **Errors**: `{ "detail": "…", "code": "…" }`. `detail` may be a string or a
   list (field validation). `code` appears on typed errors (`quota_exceeded`,
-  `file_too_large`, `scan_failed`, `paid_only`, `stream_unavailable`).
-- **Rate limits** (429): login & password-reset 10/day, register 20/day, report
-  10/hour, share-unlock 10/day.
+  `file_too_large`).
+- **Rate limits** (429): login & password-reset 10/day, register 20/day,
+  share-unlock 10/day.
 
 ## Upload flow (3 steps)
 ```bash
@@ -44,9 +44,9 @@ curl -X POST /api/v1/storage/uploads -H "X-CSRFToken: $CSRF" -b cookies \
 # 2) PUT the raw bytes to upload.url
 curl -X PUT "<upload.url>" --data-binary @cat.jpg -H "X-CSRFToken: $CSRF" -b cookies
 
-# 3) complete — malware scan, dedup, commit quota
+# 3) complete — dedup, commit quota
 curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" -b cookies
-# -> File (status: ready)   |   422 {code: scan_failed} if the scan blocks it
+# -> File (status: ready)   |   video -> status: processing (transcode)
 ```
 
 ## Endpoint index
@@ -57,7 +57,7 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | POST | `/register` | – | Email/password signup (18+); logs in |
 | POST | `/login` | – | Log in |
 | POST | `/logout` | ✓ | Log out |
-| GET | `/me` | ✓ | Current user (incl. `tier`, `billing_enabled`) |
+| GET | `/me` | ✓ | Current user (incl. `quota_bytes`) |
 | GET | `/csrf` | – | Prime the CSRF cookie |
 | POST | `/password-reset` | – | Request reset (no enumeration) |
 | POST | `/password-reset/confirm` | – | Confirm reset |
@@ -76,7 +76,7 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 ### Storage — `/api/v1/storage`
 | Method | Path | Summary |
 |---|---|---|
-| GET | `/usage` | Usage + effective quota (incl. referral bonuses) |
+| GET | `/usage` | Usage + storage quota |
 | GET / POST | `/folders` | List (by `?parent=`) / create |
 | DELETE | `/folders/{id}` | Soft-delete folder |
 | POST | `/folders/{id}/restore` | Restore folder |
@@ -106,7 +106,7 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 ### Sharing — `/api/v1/storage` & `/api/v1/public`
 | Method | Path | Summary |
 |---|---|---|
-| POST | `/storage/files/{id}/share` | Create public link (password = paid) |
+| POST | `/storage/files/{id}/share` | Create public link (optional password) |
 | GET | `/storage/shares` | List my links |
 | DELETE | `/storage/shares/{id}` | Revoke |
 | GET | `/public/share/{token}` | Resolve (no auth); 410 if expired/revoked |
@@ -114,34 +114,12 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | GET | `/public/share/{token}/download` | Download the bytes (no account; `?password=` for locked links) |
 
 
-### Moderation — `/api/v1/moderation`
-| Method | Path | Summary |
-|---|---|---|
-| POST | `/reports` | Flag / Report (Report isolates a file) |
-
-### Billing — `/api/v1/billing`
-| Method | Path | Summary |
-|---|---|---|
-| GET | `/plans` | Plan catalog |
-| POST | `/subscribe` | Subscribe (upgrades tier + quota) |
-| GET | `/subscription` | Current subscription |
-| POST | `/cancel` | Cancel (access to period end) |
-| POST | `/webhook` | Razorpay webhook (idempotent) |
-| GET | `/referral` | My referral code + stats |
-| POST | `/referral/apply` | Apply a code (referrer gets 50GB) |
-
 ### Notifications — `/api/v1/notifications`
 | Method | Path | Summary |
 |---|---|---|
 | GET | `/` | List + `unread_count` |
 | POST | `/{id}/read` | Mark one read |
 | POST | `/read-all` | Mark all read |
-
-### Legal — `/api/v1/legal`
-| Method | Path | Summary |
-|---|---|---|
-| GET | `/` | Policy versions + grievance officer contact (public) |
-| POST | `/grievance` | File a grievance (IT Rules 2021 redressal); returns a ticket |
 
 ### Ops
 | Method | Path | Summary |

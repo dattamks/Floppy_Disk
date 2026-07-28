@@ -27,9 +27,13 @@ class NotificationReadView(APIView):
         updated = Notification.objects.filter(
             pk=notification_id, user=request.user, is_read=False
         ).update(is_read=True)
-        if not updated:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        if updated:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        # Idempotent: re-marking an already-read notification is a no-op success,
+        # not a 404. Only a notification that doesn't exist for this user 404s.
+        if Notification.objects.filter(pk=notification_id, user=request.user).exists():
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_404_NOT_FOUND)
 
 
 class NotificationReadAllView(APIView):

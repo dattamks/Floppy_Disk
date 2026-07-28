@@ -101,4 +101,4 @@ jobs:
       - name: Load the server + list tools
         run: |
           python -c "import asyncio, floppy_mcp.server as s; \
-          n=len(asyncio.run(s.mcp.list_tools())); print('tools:', n); assert n >= 30"
+          n=len(asyncio.run(s.mcp.list_tools())); print('tools:', n); assert n >= 20, n"

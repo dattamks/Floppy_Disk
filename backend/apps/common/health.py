@@ -1,4 +1,4 @@
-"""Liveness/readiness endpoint for uptime checks (PRD 5.12 Ops)."""
+"""Liveness/readiness endpoint for uptime checks."""
 from django.db import connection
 from django.http import JsonResponse
 

@@ -22,7 +22,9 @@ class ApiKeyAuthentication(authentication.BaseAuthentication):
             )
         except ApiKey.DoesNotExist:
             raise exceptions.AuthenticationFailed("Invalid API key.")
-        if not key.user.is_active:
+        if not key.user.is_active or key.user.status in (
+            key.user.Status.SUSPENDED, key.user.Status.DELETED
+        ):
             raise exceptions.AuthenticationFailed("Account is inactive.")
         # Least-privilege: a read-only key may not use unsafe methods. Enforced
         # here (not a permission) so it holds even for views that override

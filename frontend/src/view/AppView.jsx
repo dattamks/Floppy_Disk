@@ -6,10 +6,10 @@ import AppShell from '../components/AppShell';
 import UploadModal from '../components/UploadModal';
 import NewFolderModal from '../components/NewFolderModal';
 import SettingsModal from '../components/SettingsModal';
+import NotificationsModal from '../components/NotificationsModal';
 import VideoModal from '../components/VideoModal';
 import ShareModal from '../components/ShareModal';
 import PreviewModal from '../components/PreviewModal';
-import VerifyModal from '../components/VerifyModal';
 import RenameModal from '../components/RenameModal';
 import MoveModal from '../components/MoveModal';
 import LinksModal from '../components/LinksModal';
@@ -270,7 +270,6 @@ export default function AppView({ V }) {
                       <span>
                         {V.storageUsedLabel} of {V.storageTotalLabel}
                       </span>
-                      <span>{V.tierLabel}</span>
                     </div>
                     <div
                       style={{
@@ -359,7 +358,7 @@ export default function AppView({ V }) {
                   }}
                 >
                   {' '}
-                  {UploadModal(V)} {SettingsModal(V)} {VerifyModal(V)} {NewFolderModal(V)}{' '}
+                  {UploadModal(V)} {SettingsModal(V)} {NotificationsModal(V)} {NewFolderModal(V)}{' '}
                   {PreviewModal(V)} {VideoModal(V)} {ShareModal(V)} {RenameModal(V)} {MoveModal(V)}{' '}
                   {LinksModal(V)}{' '}
                 </div>{' '}

@@ -1,8 +1,8 @@
 """
 BasicSearchService — portable substring search (dev/test; works on SQLite).
 
-Scope (PRD 5.4): the user's own files plus other users' *discoverable*,
-non-mature content. Always excludes trashed / quarantined / frozen files.
+Scope: the user's own files plus other users' *discoverable*,
+non-mature content. Always excludes trashed and not-yet-ready files.
 Production uses PostgresSearchService (ranked full-text); this is the drop-in
 that keeps dev + tests DB-agnostic.
 """
@@ -28,8 +28,7 @@ class BasicSearchService(SearchService):
             return []
 
         visible = File.objects.filter(
-            deleted_at__isnull=True, is_quarantined=False, is_frozen=False,
-            status=File.Status.READY,
+            deleted_at__isnull=True, status=File.Status.READY,
         ).filter(
             Q(owner_id=user_id)  # your own files (any discoverability)
             | Q(is_discoverable=True, is_mature_content=False)  # others' discoverable, non-mature

@@ -1,9 +1,9 @@
 """
-Sharing: public share links (PRD 5.4).
+Sharing: public share links.
 
 A ShareLink grants access to a File (or Folder) via an unguessable token.
-Optional expiry; optional password (a PAID-tier feature). Private per-user
-shares (SharePermission) are a later slice.
+Optional expiry; optional password. Private per-user shares (SharePermission)
+are a later slice.
 """
 import secrets
 import uuid
@@ -26,7 +26,7 @@ class ShareLink(TimeStampedModel):
     folder = models.ForeignKey("storage.Folder", null=True, blank=True, on_delete=models.CASCADE, related_name="share_links")
 
     token = models.CharField(max_length=32, unique=True, default=_make_token, editable=False)
-    password_hash = models.CharField(max_length=256, blank=True, default="")  # paid feature
+    password_hash = models.CharField(max_length=256, blank=True, default="")  # optional gate
     expires_at = models.DateTimeField(null=True, blank=True)
     revoked = models.BooleanField(default=False)
 

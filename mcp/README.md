@@ -4,7 +4,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes
 the Floppy Disk cloud-storage platform as tools. Any MCP-aware client — **Claude
 Code**, **n8n**, **Codex / OpenAI**, Claude Desktop, etc. — can then do
 everything a user does: browse and manage folders and files, upload and download
-media, create public share links, read notifications, and check billing.
+media, create public share links, and read notifications.
 
 Built with [FastMCP](https://github.com/jlowin/fastmcp) (Python) over the
 REST API documented in [`../docs/api/`](../docs/api).
@@ -119,8 +119,8 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 ## Tools
 
 **Account & usage**
-- `whoami` — the authenticated user (email, tier, billing_enabled)
-- `get_usage` — quota, used, available bytes + tier
+- `whoami` — the authenticated user (email, quota)
+- `get_usage` — quota, used, available bytes
 
 **Folders**
 - `list_folders(parent_id?)`, `create_folder(name, parent_id?)`
@@ -153,12 +153,6 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 **Notifications**
 - `list_notifications()`, `mark_notification_read(id)`, `mark_all_notifications_read()`
 
-**Moderation**
-- `report_content(target_id, target_type?, reason?, kind?, detail?)`
-
-**Billing**
-- `list_plans()`, `get_subscription()`, `get_referral()`
-
 ## Notes & limits
 
 - **Quota & size caps** are enforced server-side; `upload_file` raises with a
@@ -166,7 +160,7 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 - **`upload_file` / `download_file`** read/write files on the machine running the
   MCP server, not the client. For in-memory transfer use `upload_bytes`.
 - Errors surface the API's `{detail, code}` so failures are actionable.
-- A key inherits the owning user's tier and data. For integrations that only
+- A key inherits the owning user's data. For integrations that only
   need to read, mint a **read-only** key so it can't mutate anything:
   `python manage.py create_api_key you@example.com --name mcp-ro --read-only`
   (or `POST /auth/api-keys {"read_only": true}`). Treat a key like a password

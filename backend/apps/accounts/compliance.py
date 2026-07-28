@@ -1,19 +1,23 @@
 """
-DPDPA compliance: account deletion + data export (PRD 5.11).
+DPDPA compliance: account deletion + data export.
 
 - Deletion soft-deletes immediately; a daily job hard-deletes (cascading) after
-  30 days, but SKIPS any account under legal hold (open CSAM/quarantine).
+  30 days.
 - Data export builds a zip manifest of the user's data with an expiring link.
 """
 from __future__ import annotations
 
 import io
 import json
+import logging
 import zipfile
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 
 from apps.storage.lifecycle import purge_file
 from apps.storage.models import File, Folder
@@ -25,34 +29,35 @@ HARD_DELETE_AFTER = timedelta(days=30)
 EXPORT_TTL = timedelta(days=7)
 
 
-def has_legal_hold(user) -> bool:
-    """An account with quarantined content must not be hard-deleted (evidence)."""
-    return File.objects.filter(owner=user, is_quarantined=True).exists()
-
-
 def hard_delete_expired_accounts(*, now) -> int:
-    """Daily job: purge accounts soft-deleted > 30 days ago (skipping legal holds)."""
+    """Daily job: purge accounts soft-deleted > 30 days ago."""
     User = get_user_model()
     cutoff = now - HARD_DELETE_AFTER
     deleted = 0
     qs = User.objects.filter(status=User.Status.DELETED, deleted_at__lte=cutoff)
     for user in qs:
-        if has_legal_hold(user):
+        # Each account is purged atomically so a mid-loop failure can't leave one
+        # half-deleted (some blobs gone, user row still present) and doesn't abort
+        # the whole batch — the rest of the accounts still get processed.
+        try:
+            with transaction.atomic():
+                for f in list(File.objects.filter(owner=user)):
+                    purge_file(f)
+                user.delete()  # cascades folders, memberships, notifications, etc.
+        except Exception:  # noqa: BLE001 - isolate one bad account from the batch
+            logger.exception("Hard-delete failed for account %s", user.pk)
             continue
-        for f in list(File.objects.filter(owner=user)):
-            purge_file(f)
-        user.delete()  # cascades folders, memberships, notifications, etc.
         deleted += 1
     return deleted
 
 
 def build_export(user) -> tuple[DataExport, str]:
     """Assemble a data-export zip (manifest of the user's data) and store it."""
-    files = File.objects.filter(owner=user, deleted_at__isnull=True, is_quarantined=False)
+    files = File.objects.filter(owner=user, deleted_at__isnull=True)
     folders = Folder.objects.filter(owner=user, deleted_at__isnull=True)
     manifest = {
         "account": {
-            "id": str(user.id), "email": user.email, "tier": user.tier,
+            "id": str(user.id), "email": user.email,
             "created_at": user.created_at.isoformat(),
         },
         "files": [

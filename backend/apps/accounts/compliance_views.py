@@ -46,6 +46,23 @@ class ConsentView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def _as_bool(v) -> bool:
+    """Parse a client-supplied boolean.
+
+    `bool("false")` / `bool("0")` are both True, so form-encoded (or stringy
+    JSON) values silently flip a flag the wrong way — e.g. disabling
+    backup_wifi_only would instead enable it. Treat the usual false-y strings as
+    False and only real truthy values as True.
+    """
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.strip().lower() in ("1", "true", "yes", "on")
+    if v is None:
+        return False
+    return bool(v)
+
+
 class AccountSettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -62,7 +79,7 @@ class AccountSettingsView(APIView):
         changed = []
         for f in self.BOOL_FIELDS:
             if f in request.data:
-                setattr(u, f, bool(request.data[f]))
+                setattr(u, f, _as_bool(request.data[f]))
                 changed.append(f)
         for f in self.STRING_FIELDS:
             if f in request.data:

@@ -1,7 +1,7 @@
 import React from 'react';
 import { theme } from './lib/theme';
 import { api, firstError } from './api';
-import { humanSize, fmtStorage, TIER_LABELS, kindOf, previewKindOf, fmtDuration } from './lib/ui';
+import { humanSize, fmtStorage, kindOf, previewKindOf, fmtDuration } from './lib/ui';
 import { renderMarkdown } from './lib/markdown';
 import AppView from './view/AppView';
 
@@ -12,9 +12,7 @@ export default class App extends React.Component {
     authName: '',
     authEmail: '',
     authPassword: '',
-    authPhone: '',
     authDob: '',
-    authCode: '',
     authError: '',
     authBusy: false,
     usedGB: 4.6,
@@ -61,15 +59,11 @@ export default class App extends React.Component {
     selectedIds: [],
     moveBulk: false,
     settingsTab: 'profile',
-    verifyType: 'email',
-    verifyCode: '',
     profileName: '',
     profileUsername: '',
     profileBio: '',
     accountEmail: '',
-    accountPhone: '',
     emailVerified: false,
-    phoneVerified: false,
     twofa: false,
     pwCurrent: '',
     pwNew: '',
@@ -87,14 +81,12 @@ export default class App extends React.Component {
     videoDuration: 0,
     videoMuted: false,
     videoCC: true,
-    videoUpgradeHint: false,
     videoFullscreen: false,
     unreadCount: 0,
-    billingEnabled: false,
+    notifications: [],
     discoverResults: [],
     realUsedBytes: null,
     realQuotaBytes: null,
-    realTierLabel: null,
     ctxMenu: null,
     toastMsg: '',
   };
@@ -337,14 +329,16 @@ export default class App extends React.Component {
       const raw = localStorage.getItem('floppydisk-state');
       if (raw) {
         const d = JSON.parse(raw);
+        // Never rehydrate server-owned files: the server (loadStorage) is
+        // authoritative, so a file deleted server-side must not be resurrected
+        // from a stale local cache. Verified status likewise comes from /me.
+        const restored = (d.files || this.state.files).filter((f) => !f.real);
         this.setState({
-          files: d.files || this.state.files,
+          files: restored,
           usedGB: d.usedGB != null ? d.usedGB : this.state.usedGB,
           profileName: d.profileName || this.state.profileName,
           profileUsername: d.profileUsername || this.state.profileUsername,
           profileBio: d.profileBio || this.state.profileBio,
-          emailVerified: d.emailVerified != null ? d.emailVerified : this.state.emailVerified,
-          phoneVerified: d.phoneVerified != null ? d.phoneVerified : this.state.phoneVerified,
         });
       }
     } catch (e) {}
@@ -360,13 +354,13 @@ export default class App extends React.Component {
       localStorage.setItem(
         'floppydisk-state',
         JSON.stringify({
-          files: s.files,
+          // Only local/demo files are cached; server-owned files come from the
+          // server on load (see componentDidMount).
+          files: s.files.filter((f) => !f.real),
           usedGB: s.usedGB,
           profileName: s.profileName,
           profileUsername: s.profileUsername,
           profileBio: s.profileBio,
-          emailVerified: s.emailVerified,
-          phoneVerified: s.phoneVerified,
         })
       );
     } catch (e) {}
@@ -412,14 +406,8 @@ export default class App extends React.Component {
   setAuthPassword(e) {
     this.setState({ authPassword: e.target.value, authError: '' });
   }
-  setAuthPhone(e) {
-    this.setState({ authPhone: e.target.value, authError: '' });
-  }
   setAuthDob(e) {
     this.setState({ authDob: e.target.value, authError: '' });
-  }
-  setAuthCode(e) {
-    this.setState({ authCode: e.target.value, authError: '' });
   }
 
   // Adopt a User payload from the backend into the app's session state.
@@ -431,7 +419,6 @@ export default class App extends React.Component {
       accountEmail: user.email,
       emailVerified: !!user.email_verified,
       profileName: user.display_name || this.state.profileName,
-      billingEnabled: !!user.billing_enabled,
       twofa: !!user.two_factor_enabled,
     });
     this.loadStorage();
@@ -447,7 +434,6 @@ export default class App extends React.Component {
         this.setState({
           realUsedBytes: u.used_bytes != null ? u.used_bytes : 0,
           realQuotaBytes: u.quota_bytes != null ? u.quota_bytes : null,
-          realTierLabel: TIER_LABELS[u.tier] || (u.tier ? String(u.tier) : null),
         })
       )
       .catch(() => {});
@@ -456,7 +442,25 @@ export default class App extends React.Component {
   loadNotifications() {
     api
       .notifications()
-      .then((r) => this.setState({ unreadCount: r.unread_count || 0 }))
+      .then((r) =>
+        this.setState({ unreadCount: r.unread_count || 0, notifications: r.results || [] })
+      )
+      .catch(() => {});
+  }
+  openNotifications() {
+    this.loadNotifications();
+    this.setState({ modal: 'notifications' });
+  }
+  markNotificationRead(id) {
+    api
+      .markNotificationRead(id)
+      .then(() => this.loadNotifications())
+      .catch(() => {});
+  }
+  markAllNotificationsRead() {
+    api
+      .markAllNotificationsRead()
+      .then(() => this.loadNotifications())
       .catch(() => {});
   }
 
@@ -518,16 +522,8 @@ export default class App extends React.Component {
         });
     }
   }
-  authSkip() {
-    const v = this.state.authView;
-    if (v === 'verifyEmail') this.setState({ authView: 'verifyPhone', authCode: '' });
-    else this.setState({ authView: 'app' });
-  }
   toastForgot() {
     this.toast('Password reset link sent');
-  }
-  toastResend() {
-    this.toast('A new code has been sent');
   }
 
   go(filterKey) {
@@ -681,7 +677,7 @@ export default class App extends React.Component {
     this.setState({ pwConfirm: e.target.value });
   }
   updatePassword() {
-    const { pwNew, pwConfirm } = this.state;
+    const { pwCurrent, pwNew, pwConfirm } = this.state;
     if (!pwNew) {
       this.toast('Enter a new password');
       return;
@@ -690,27 +686,21 @@ export default class App extends React.Component {
       this.toast('Passwords do not match');
       return;
     }
-    this.setState({ pwCurrent: '', pwNew: '', pwConfirm: '' });
-    this.toast('Password updated');
+    api
+      .changePassword(pwCurrent, pwNew)
+      .then(() => {
+        this.setState({ pwCurrent: '', pwNew: '', pwConfirm: '' });
+        this.toast('Password updated');
+      })
+      .catch((err) => this.toast(firstError(err, 'Could not update password')));
   }
-  verifyEmailModal() {
-    this.setState({ modal: 'verify', verifyType: 'email', verifyCode: '' });
-  }
-  verifyPhoneModal() {
-    this.setState({ modal: 'verify', verifyType: 'phone', verifyCode: '' });
-  }
-  setVerifyCode(e) {
-    this.setState({ verifyCode: e.target.value });
-  }
-  confirmVerify() {
-    const t = this.state.verifyType;
-    if (t === 'email')
-      this.setState({ emailVerified: true, modal: 'settings', settingsTab: 'account' });
-    else this.setState({ phoneVerified: true, modal: 'settings', settingsTab: 'account' });
-    this.toast((t === 'email' ? 'Email' : 'Phone') + ' verified');
-  }
-  backToSettings() {
-    this.setState({ modal: 'settings', settingsTab: 'account' });
+  resendVerification() {
+    // Email verification is link-based: dispatch the email and let the user
+    // complete it via the link. Status comes from the backend (/me).
+    api
+      .resendVerification()
+      .then(() => this.toast('Verification email sent — check your inbox'))
+      .catch((err) => this.toast(firstError(err, 'Could not send verification email')));
   }
 
   openNewFolder() {
@@ -857,7 +847,6 @@ export default class App extends React.Component {
         this._videoEl.pause();
       } catch (e) {}
     }
-    this._activeMediaObj = null;
     this.setState({
       modal: null,
       activeFileId: null,
@@ -865,7 +854,6 @@ export default class App extends React.Component {
       videoProgress: 0,
       videoCurrent: 0,
       videoDuration: 0,
-      videoUpgradeHint: false,
       videoFullscreen: false,
       shareCopied: false,
       editing: false,
@@ -900,6 +888,7 @@ export default class App extends React.Component {
         api
           .play(file.id)
           .then((d) => {
+            if (this.state.activeFileId !== file.id) return; // a newer file was opened
             this._activeVideoSrc = d.url;
             if (d.poster) this._activePoster = d.poster;
             this.forceUpdate();
@@ -934,17 +923,25 @@ export default class App extends React.Component {
       api
         .fileDownload(file.id)
         .then((d) => {
+          if (this.state.activeFileId !== file.id) return; // a newer file was opened
           const url = (d && d.download_url) || '';
           if (isText) {
             return fetch(url)
-              .then((r) => r.text())
-              .then((txt) =>
-                this.setState({ previewUrl: url, previewText: txt, previewLoading: false })
-              );
+              .then((r) => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.text();
+              })
+              .then((txt) => {
+                if (this.state.activeFileId !== file.id) return;
+                this.setState({ previewUrl: url, previewText: txt, previewLoading: false });
+              });
           }
           this.setState({ previewUrl: url, previewLoading: false });
         })
-        .catch(() => this.setState({ previewLoading: false, previewError: 'Could not load file' }));
+        .catch(() => {
+          if (this.state.activeFileId !== file.id) return;
+          this.setState({ previewLoading: false, previewError: 'Could not load file' });
+        });
     } else {
       // Demo data carries hardcoded URLs/content.
       this.setState({ previewUrl: file.docUrl || file.audioSrc || file.poster || '' });
@@ -1199,7 +1196,6 @@ export default class App extends React.Component {
   }
   openShare(file, e) {
     if (e) e.stopPropagation();
-    this._activeMediaObj = null;
     this.setState({
       modal: 'share',
       activeFileId: file.id,
@@ -1218,24 +1214,11 @@ export default class App extends React.Component {
     }
   }
   openShareForActive() {
-    if (this._activeMediaObj && this.state.activeFileId === '__media') {
-      const m = this._activeMediaObj;
-      this.setState({
-        modal: 'share',
-        shareAccess: 'restricted',
-        sharePermission: 'view',
-        shareEmails: [],
-        shareEmailInput: '',
-        shareCopied: false,
-      });
-      return;
-    }
     const f = this.state.files.find((x) => x.id === this.state.activeFileId);
     if (f) this.openShare(f);
   }
   downloadActive() {
-    const f =
-      this._activeMediaObj || this.state.files.find((x) => x.id === this.state.activeFileId);
+    const f = this.state.files.find((x) => x.id === this.state.activeFileId);
     if (!f) return;
     if (f.real) {
       this.downloadFile(f);
@@ -1372,6 +1355,21 @@ export default class App extends React.Component {
     }
   }
   emptyTrash() {
+    // Permanently purge real trashed items server-side (releasing quota) — not
+    // just hiding them locally, which left them on the server to reappear on the
+    // next reload. Demo-only items are dropped from local state.
+    const trashed = this.state.files.filter((f) => f.trashed);
+    const real = trashed.filter((f) => f.real);
+    if (real.length) {
+      Promise.all(
+        real.map((f) =>
+          (f.kind === 'folder' ? api.purgeFolder(f.id) : api.purgeFile(f.id)).catch(() => {})
+        )
+      ).then(() => {
+        this.loadStorage();
+        this.loadUsage();
+      });
+    }
     this.setState((s) => ({ files: s.files.filter((f) => !f.trashed) }));
     this.toast('Trash emptied');
   }
@@ -1585,26 +1583,7 @@ export default class App extends React.Component {
       else if (!next && document.fullscreenElement) document.exitFullscreen();
     } catch (e) {}
   }
-  selectHD() {
-    this.setState({ videoUpgradeHint: true });
-    setTimeout(() => this.setState({ videoUpgradeHint: false }), 2500);
-  }
 
-  upgradeStorage() {
-    if (this._upgrading) return;
-    this._upgrading = true;
-    api
-      .subscribe('paid_2tb')
-      .then((res) => {
-        this._upgrading = false;
-        this.setState({ userTier: res.tier, quotaBytes: res.quota_bytes });
-        this.toast('Upgraded to 2TB — enjoy the extra space');
-      })
-      .catch((err) => {
-        this._upgrading = false;
-        this.toast(firstError(err, 'Upgrade failed'));
-      });
-  }
   toggleCC() {
     this.setState((s) => ({ videoCC: !s.videoCC }));
   }
@@ -1705,10 +1684,7 @@ export default class App extends React.Component {
       modal,
       activeFileId,
       settingsTab,
-      verifyType,
-      verifyCode,
       emailVerified,
-      phoneVerified,
       twofa,
       uploadQueue,
       shareAccess,
@@ -1723,7 +1699,6 @@ export default class App extends React.Component {
       videoDuration,
       videoMuted,
       videoCC,
-      videoUpgradeHint,
       videoFullscreen,
       toastMsg,
       discoverResults,
@@ -1755,7 +1730,7 @@ export default class App extends React.Component {
       const itemCount = isFolder
         ? files.filter((x) => x.parentId === f.id && !x.trashed).length
         : 0;
-      const daysLeft = f.trashed ? Math.max(0, 7 - (f.deletedDaysAgo || 0)) : null;
+      const daysLeft = f.trashed ? Math.max(0, 30 - (f.deletedDaysAgo || 0)) : null;
       return {
         ...f,
         isFolder,
@@ -1871,12 +1846,7 @@ export default class App extends React.Component {
         onOpen: () => this.openFile(f),
       }));
 
-    const activeRaw =
-      activeFileId === '__media'
-        ? this._activeMediaObj
-        : activeFileId
-          ? files.find((f) => f.id === activeFileId)
-          : null;
+    const activeRaw = activeFileId ? files.find((f) => f.id === activeFileId) : null;
     const activeFile = activeRaw ? decorate(activeRaw) : null;
 
     const navColor = (a) => (a ? theme.brand : theme.textMuted);
@@ -1957,15 +1927,11 @@ export default class App extends React.Component {
     const authTitles = {
       login: 'Welcome back',
       register: 'Create your account',
-      verifyEmail: 'Verify your email',
-      verifyPhone: 'Verify your phone',
       forgot: 'Reset password',
     };
     const authSubs = {
       login: 'Sign in to your Floppy Disk account',
-      register: 'Start with 5 GB free storage',
-      verifyEmail: 'We sent a 6-digit code to ' + (st.authEmail || 'your email'),
-      verifyPhone: 'Add your phone for account recovery',
+      register: 'Create a Floppy Disk account',
       forgot: 'Enter your email and we\u2019ll send a reset link',
     };
 
@@ -1983,40 +1949,28 @@ export default class App extends React.Component {
       showDemoCreds: !!(import.meta && import.meta.env && import.meta.env.DEV),
       authIsRegister: authView === 'register',
       authIsForgot: authView === 'forgot',
-      authIsVerifyEmail: authView === 'verifyEmail',
-      authIsVerifyPhone: authView === 'verifyPhone',
-      authIsVerify: authView === 'verifyEmail' || authView === 'verifyPhone',
       authNeedsEmail: authView === 'login' || authView === 'register' || authView === 'forgot',
       authNeedsPassword: authView === 'login' || authView === 'register',
       authName: st.authName,
       authEmail: st.authEmail,
       authPassword: st.authPassword,
-      authPhone: st.authPhone,
       authDob: st.authDob,
-      authCode: st.authCode,
       authBusy: st.authBusy,
       setAuthName: (e) => this.setAuthName(e),
       setAuthEmail: (e) => this.setAuthEmail(e),
       setAuthPassword: (e) => this.setAuthPassword(e),
-      setAuthPhone: (e) => this.setAuthPhone(e),
       setAuthDob: (e) => this.setAuthDob(e),
-      setAuthCode: (e) => this.setAuthCode(e),
       authPrimary: () => this.authPrimary(),
       authPrimaryLabel:
         {
           login: 'Sign in',
           register: 'Create account',
-          verifyEmail: 'Verify email',
-          verifyPhone: 'Verify phone',
           forgot: 'Send reset link',
         }[authView] || 'Continue',
-      authSkip: () => this.authSkip(),
-      authSkipLabel: authView === 'verifyEmail' ? 'Skip' : 'Skip for now',
       gotoRegister: () => this.gotoRegister(),
       gotoLogin: () => this.gotoLogin(),
       logout: () => this.logout(),
       toastForgot: () => this.toastForgot(),
-      toastResend: () => this.toastResend(),
       setDesktop: () => this.setDesktop(),
       setMobile: () => this.setMobile(),
       deskTabBg: isMobile ? 'transparent' : '#5145E5',
@@ -2034,8 +1988,13 @@ export default class App extends React.Component {
       closeDrawer: () => this.closeDrawer(),
       stop: (e) => this.stop(e),
       openSettings: () => this.openSettings(),
-      upgradeStorage: () => this.upgradeStorage(),
-      billingEnabled: st.billingEnabled,
+      unreadCount: st.unreadCount,
+      hasUnread: st.unreadCount > 0,
+      notifications: st.notifications,
+      hasNotifications: (st.notifications || []).length > 0,
+      openNotifications: () => this.openNotifications(),
+      markNotificationRead: (id) => this.markNotificationRead(id),
+      markAllNotificationsRead: () => this.markAllNotificationsRead(),
       visibleFiles,
       hasFiles: !isEmpty,
       isEmpty,
@@ -2116,7 +2075,6 @@ export default class App extends React.Component {
       storageTotalLabel: fmtStorage(storageTotalGB),
       storagePct,
       storageBarColor: storagePct > 90 ? '#E5484D' : storagePct > 75 ? '#D97706' : '#5145E5',
-      tierLabel: st.realTierLabel || 'Free',
       ctxMenuView,
       closeCtxMenu: () => this.closeCtxMenu(),
       openUpload: () => this.openUpload(),
@@ -2141,7 +2099,7 @@ export default class App extends React.Component {
       modalOpen: !!modal,
       isUploadModal: modal === 'upload',
       isSettingsModal: modal === 'settings',
-      isVerifyModal: modal === 'verify',
+      isNotificationsModal: modal === 'notifications',
       isPreviewModal: modal === 'preview',
       isVideoModal: modal === 'video',
       isShareModal: modal === 'share',
@@ -2249,13 +2207,9 @@ export default class App extends React.Component {
       saveProfile: () => this.saveProfile(),
       toastPhoto: () => this.toastPhoto(),
       accountEmail: st.accountEmail,
-      accountPhone: st.accountPhone,
       emailVerified,
       emailNotVerified: !emailVerified,
-      phoneVerified,
-      phoneNotVerified: !phoneVerified,
-      verifyEmailModal: () => this.verifyEmailModal(),
-      verifyPhoneModal: () => this.verifyPhoneModal(),
+      resendVerification: () => this.resendVerification(),
       toastDelete: () => this.toastDelete(),
       pwCurrent: st.pwCurrent,
       pwNew: st.pwNew,
@@ -2268,12 +2222,6 @@ export default class App extends React.Component {
       twofaX: twofa ? 20 : 2,
       toggle2fa: () => this.toggle2fa(),
       toastSessions: () => this.toastSessions(),
-      verifyType,
-      verifyTarget: verifyType === 'email' ? st.accountEmail : st.accountPhone,
-      verifyCode,
-      setVerifyCode: (e) => this.setVerifyCode(e),
-      confirmVerify: () => this.confirmVerify(),
-      backToSettings: () => this.backToSettings(),
       activeFile,
       openShareForActive: () => this.openShareForActive(),
       downloadActive: () => this.downloadActive(),
@@ -2295,11 +2243,9 @@ export default class App extends React.Component {
       scrubVideo: (e) => this.scrubVideo(e),
       toggleMute: () => this.toggleMute(),
       toggleCC: () => this.toggleCC(),
-      selectHD: () => this.selectHD(),
       toggleTheater: () => this.toggleTheater(),
       videoFullscreen,
       videoNotFullscreen: !videoFullscreen,
-      videoUpgradeHint,
       volumeColor: videoMuted ? '#E5484D' : theater ? '#fff' : '#15171C',
       ccColor: videoCC ? (theater ? '#B9B2FF' : '#5145E5') : '#9AA1AC',
       ccBorder: videoCC ? '#C7C3F5' : theater ? '#3A3D44' : '#E5E7EC',

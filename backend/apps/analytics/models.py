@@ -1,5 +1,5 @@
 """
-Custom product analytics (PRD 5.12) — no third-party vendor.
+Custom product analytics — no third-party vendor.
 
 AnalyticsEvent stores a typed event name + a JSONB properties bag. `month` is
 denormalized (YYYY-MM) to make monthly partitioning / retention trivial later.

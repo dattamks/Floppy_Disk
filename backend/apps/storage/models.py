@@ -17,25 +17,22 @@ from django.utils import timezone
 
 from apps.common.models import TimeStampedModel
 
-# Per-file upload caps by tier (PRD 5.3).
-FREE_MAX_FILE_BYTES = 2 * 1024**3      # 2 GB
-PAID_MAX_FILE_BYTES = 20 * 1024**3     # 20 GB
+# Per-file upload cap (single storage tier, no billing).
+MAX_FILE_BYTES = 20 * 1024**3          # 20 GB
 
 
 class StorageObject(TimeStampedModel):
     """Physical blob, content-hash addressed, deduplicated within a region."""
 
     class Status(models.TextChoices):
-        SCANNING = "scanning", "Scanning"
         READY = "ready", "Ready"
-        QUARANTINED = "quarantined", "Quarantined"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     content_hash = models.CharField(max_length=64, db_index=True)  # sha256 hex
     region = models.CharField(max_length=16)
     size_bytes = models.BigIntegerField()
     ref_count = models.PositiveIntegerField(default=0)
-    status = models.CharField(max_length=12, choices=Status.choices, default=Status.SCANNING)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.READY)
     object_key = models.CharField(max_length=512, blank=True, default="")
 
     class Meta:
@@ -71,10 +68,8 @@ class Folder(TimeStampedModel):
 class File(TimeStampedModel):
     class Status(models.TextChoices):
         PENDING = "pending", "Pending upload"
-        SCANNING = "scanning", "Scanning"
         PROCESSING = "processing", "Processing"  # video transcoding in progress
         READY = "ready", "Ready"
-        FAILED = "failed", "Failed"
 
     class Kind(models.TextChoices):
         FILE = "file", "File"
@@ -95,8 +90,6 @@ class File(TimeStampedModel):
     # Set when this file was trashed by trashing its ancestor folder (that
     # folder's id): hidden from the Trash view, restored with the folder.
     trashed_root = models.UUIDField(null=True, blank=True, db_index=True)
-    # Reversible isolation: set by a failed malware scan or a Report (PRD 5.7).
-    is_quarantined = models.BooleanField(default=False)
     # Self-hosted video playback: a browser-playable H.264/AAC MP4 rendition
     # transcoded with FFmpeg (points at storage_object when the upload was
     # already web-playable), an optional JPEG poster frame, and probed metadata.
@@ -109,11 +102,8 @@ class File(TimeStampedModel):
     duration_seconds = models.FloatField(null=True, blank=True)
     width = models.PositiveIntegerField(null=True, blank=True)
     height = models.PositiveIntegerField(null=True, blank=True)
-    # Frozen after a lapsed subscription: cannot view/share, can still download/
-    # delete; purged if the account stays lapsed long enough (PRD 5.3).
-    is_frozen = models.BooleanField(default=False)
-    # Discovery (PRD 5.4): discoverable content is searchable/browsable by others;
-    # mature-tagged content is never surfaced in discovery (PRD 5.5).
+    # Discovery: discoverable content is searchable/browsable by others;
+    # mature-tagged content is never surfaced in discovery.
     is_discoverable = models.BooleanField(default=False, db_index=True)
     is_mature_content = models.BooleanField(default=False)
 

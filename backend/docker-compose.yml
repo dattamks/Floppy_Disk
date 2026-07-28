@@ -1,5 +1,5 @@
-# Local development stack. Mirrors the POC service topology:
-# web (Django) + celery worker + celery beat + postgres + redis + clamav.
+# Local development stack:
+# web (Django) + celery worker + celery beat + postgres + redis.
 services:
   postgres:
     image: postgres:16-alpine
@@ -27,17 +27,6 @@ services:
       timeout: 3s
       retries: 5
 
-  clamav:
-    image: clamav/clamav:stable
-    ports:
-      - "3310:3310"
-    healthcheck:
-      test: ["CMD-SHELL", "echo PING | nc -w 5 localhost 3310 | grep -q PONG"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s   # initial virus-db download
-
   web:
     build: .
     command: >
@@ -48,7 +37,6 @@ services:
       DATABASE_URL: postgres://floppy:floppy@postgres:5432/floppy
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
-      CLAMAV_HOST: clamav
     env_file:
       - .env
     ports:
@@ -69,7 +57,6 @@ services:
       DATABASE_URL: postgres://floppy:floppy@postgres:5432/floppy
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
-      CLAMAV_HOST: clamav
     env_file:
       - .env
     volumes:

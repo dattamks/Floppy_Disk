@@ -33,6 +33,25 @@ def test_backup_settings_default_and_update(user):
     assert user.backup_wifi_only is False
 
 
+def test_string_false_disables_flag(user):
+    """Form-encoded / stringy 'false' must turn a flag OFF, not ON.
+
+    bool('false') is True, so the old coercion flipped 'disable wifi-only' into
+    'enable wifi-only' — backing up over cellular against the user's choice.
+    """
+    user.backup_wifi_only = True
+    user.auto_backup_enabled = True
+    user.save(update_fields=["backup_wifi_only", "auto_backup_enabled"])
+
+    c = _client(user)
+    resp = c.patch("/api/v1/auth/account/settings",
+                   {"backup_wifi_only": "false", "auto_backup_enabled": "0"}, format="json")
+    assert resp.status_code == 200
+    user.refresh_from_db()
+    assert user.backup_wifi_only is False
+    assert user.auto_backup_enabled is False
+
+
 def test_profile_and_2fa_settings_persist(user):
     c = _client(user)
     resp = c.patch("/api/v1/auth/account/settings",
@@ -60,7 +79,6 @@ def test_camera_backup_folder_is_created_once(user):
 def test_backup_upload_over_quota_pauses_and_notifies(user):
     user.quota_bytes = 1 * GB
     user.storage_used_bytes = 1 * GB
-    user.tier = User.Tier.PAID_2TB  # so the per-file cap isn't what trips it
     user.save()
     c = _client(user)
     folder = c.get("/api/v1/storage/camera-backup").json()

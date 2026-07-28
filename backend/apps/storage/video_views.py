@@ -17,7 +17,7 @@ from .services.base import get_storage_service
 def _owned_video(request, file_id):
     return File.objects.filter(
         pk=file_id, owner=request.user, deleted_at__isnull=True,
-        is_quarantined=False, kind=File.Kind.VIDEO,
+        kind=File.Kind.VIDEO,
     ).select_related("playable_object", "poster_object", "storage_object").first()
 
 

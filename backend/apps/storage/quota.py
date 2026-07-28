@@ -1,5 +1,5 @@
 """
-Reserve-then-commit quota (PRD 5.3).
+Reserve-then-commit quota.
 
 Closes the TOCTOU race where concurrent uploads all pass a stale
 `storage_used_bytes` check: quota is atomically reserved when a presigned upload
@@ -10,7 +10,7 @@ from datetime import timedelta
 from django.db import models, transaction
 from django.utils import timezone
 
-from .models import FREE_MAX_FILE_BYTES, PAID_MAX_FILE_BYTES, File, StorageReservation
+from .models import MAX_FILE_BYTES, File, StorageReservation
 
 RESERVATION_TTL = timedelta(hours=1)
 
@@ -24,11 +24,11 @@ class QuotaExceeded(QuotaError):
 
 
 class FileTooLarge(QuotaError):
-    """The requested file exceeds the per-file cap for the user's tier."""
+    """The requested file exceeds the per-file cap."""
 
 
 def per_file_cap(user) -> int:
-    return FREE_MAX_FILE_BYTES if user.tier == user.Tier.FREE else PAID_MAX_FILE_BYTES
+    return MAX_FILE_BYTES
 
 
 def _live_reserved_bytes(user) -> int:
@@ -42,9 +42,8 @@ def _live_reserved_bytes(user) -> int:
 
 
 def _quota_limit(user) -> int:
-    """Effective quota = base tier quota + active referral bonuses (PRD 5.3)."""
-    from apps.billing.referrals import effective_quota
-    return effective_quota(user)
+    """The account's storage quota."""
+    return user.quota_bytes
 
 
 def available_bytes(user) -> int:
@@ -64,7 +63,7 @@ def reserve(user, *, size_bytes: int, file: File | None = None) -> StorageReserv
         raise QuotaError("size_bytes must be positive")
     if size_bytes > per_file_cap(user):
         raise FileTooLarge(
-            f"File exceeds the {per_file_cap(user) // 1024**3} GB per-file limit for your tier."
+            f"File exceeds the {per_file_cap(user) // 1024**3} GB per-file limit."
         )
 
     # Lock the owner row: serializes concurrent reservations for this user.
@@ -84,16 +83,41 @@ def reserve(user, *, size_bytes: int, file: File | None = None) -> StorageReserv
 
 
 @transaction.atomic
-def commit(reservation: StorageReservation) -> None:
-    """Convert a live reservation into confirmed usage (idempotent-ish)."""
+def commit(reservation: StorageReservation, *, actual_bytes: int | None = None) -> None:
+    """Convert a live reservation into confirmed usage (idempotent-ish).
+
+    Charges `actual_bytes` (the real uploaded size) when given, rather than the
+    client-*claimed* size the reservation was opened with. Committing the claimed
+    size lets a caller reserve 1 byte and upload gigabytes (quota under-count),
+    and leaves permanent drift when the real size differs — because purge later
+    refunds the file's real `size_bytes`, not the reserved amount.
+    """
     res = StorageReservation.objects.select_for_update().get(pk=reservation.pk)
     if res.status != StorageReservation.Status.ACTIVE:
         return  # already committed or expired
+    charge = res.bytes if actual_bytes is None else actual_bytes
     user = res.owner.__class__.objects.select_for_update().get(pk=res.owner_id)
-    user.storage_used_bytes = models.F("storage_used_bytes") + res.bytes
+    user.storage_used_bytes = models.F("storage_used_bytes") + charge
     user.save(update_fields=["storage_used_bytes", "updated_at"])
+    res.bytes = charge  # keep the reservation consistent with what was charged
     res.status = StorageReservation.Status.COMMITTED
-    res.save(update_fields=["status", "updated_at"])
+    res.save(update_fields=["bytes", "status", "updated_at"])
+
+
+@transaction.atomic
+def charge_usage(user, size_bytes: int) -> None:
+    """Directly add committed usage for `user` (no reservation).
+
+    Used when an upload completes after its reservation already expired: the
+    bytes are real and on disk, so they must be counted — otherwise a later
+    purge subtracts a size that was never added and drives storage_used_bytes
+    negative (free quota).
+    """
+    if size_bytes <= 0:
+        return
+    locked = user.__class__.objects.select_for_update().get(pk=user.pk)
+    locked.storage_used_bytes = models.F("storage_used_bytes") + size_bytes
+    locked.save(update_fields=["storage_used_bytes", "updated_at"])
 
 
 def release_expired() -> int:

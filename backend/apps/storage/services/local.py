@@ -23,7 +23,13 @@ class LocalStorageService(StorageService):
         return base
 
     def _path(self, region: str, object_key: str) -> Path:
-        path = self._base() / region / object_key
+        root = (self._base() / region).resolve()
+        path = (root / object_key).resolve()
+        # Reject path traversal: a crafted object_key ("../../etc/passwd") must
+        # not escape the region root. This is the only functional backend, so
+        # the guard runs in real deployments, not just dev.
+        if path != root and root not in path.parents:
+            raise ValueError("Invalid object_key")
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
