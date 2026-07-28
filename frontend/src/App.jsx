@@ -83,6 +83,7 @@ export default class App extends React.Component {
     videoCC: true,
     videoFullscreen: false,
     unreadCount: 0,
+    notifications: [],
     discoverResults: [],
     realUsedBytes: null,
     realQuotaBytes: null,
@@ -441,7 +442,25 @@ export default class App extends React.Component {
   loadNotifications() {
     api
       .notifications()
-      .then((r) => this.setState({ unreadCount: r.unread_count || 0 }))
+      .then((r) =>
+        this.setState({ unreadCount: r.unread_count || 0, notifications: r.results || [] })
+      )
+      .catch(() => {});
+  }
+  openNotifications() {
+    this.loadNotifications();
+    this.setState({ modal: 'notifications' });
+  }
+  markNotificationRead(id) {
+    api
+      .markNotificationRead(id)
+      .then(() => this.loadNotifications())
+      .catch(() => {});
+  }
+  markAllNotificationsRead() {
+    api
+      .markAllNotificationsRead()
+      .then(() => this.loadNotifications())
       .catch(() => {});
   }
 
@@ -1969,6 +1988,13 @@ export default class App extends React.Component {
       closeDrawer: () => this.closeDrawer(),
       stop: (e) => this.stop(e),
       openSettings: () => this.openSettings(),
+      unreadCount: st.unreadCount,
+      hasUnread: st.unreadCount > 0,
+      notifications: st.notifications,
+      hasNotifications: (st.notifications || []).length > 0,
+      openNotifications: () => this.openNotifications(),
+      markNotificationRead: (id) => this.markNotificationRead(id),
+      markAllNotificationsRead: () => this.markAllNotificationsRead(),
       visibleFiles,
       hasFiles: !isEmpty,
       isEmpty,
@@ -2073,6 +2099,7 @@ export default class App extends React.Component {
       modalOpen: !!modal,
       isUploadModal: modal === 'upload',
       isSettingsModal: modal === 'settings',
+      isNotificationsModal: modal === 'notifications',
       isPreviewModal: modal === 'preview',
       isVideoModal: modal === 'video',
       isShareModal: modal === 'share',
