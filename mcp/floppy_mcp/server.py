@@ -5,11 +5,30 @@ Exposes the Floppy Disk cloud-storage API as MCP tools so MCP-aware clients
 folders and files, upload and download media, share links, and read
 notifications.
 
+Aligned with the MCP 2026-07-28 spec:
+
+* **Stateless core.** The server runs with `stateless_http=True` — no
+  `initialize` handshake, no `Mcp-Session-Id`, no per-session state. Every tool
+  is a single, self-contained REST call under the caller's Bearer key, so
+  requests are independent and the server scales horizontally. The stateless
+  request framing, `MCP-Protocol-Version` negotiation, header routing
+  (`Mcp-Method`/`Mcp-Name`), and cacheable list directives are implemented by
+  the SDK transport layer; the tool definitions below stay transport-agnostic.
+* **Streamable HTTP, no legacy SSE.** Remote clients use the `streamable-http`
+  transport; the deprecated HTTP+SSE transport is not offered.
+* **No deprecated server-initiated features.** The server uses none of Roots,
+  Sampling, or Logging, so it needs no MRTR (multi-round-trip) fallbacks — tool
+  calls never open a server->client stream.
+* **Auth.** Bearer API key (see below). We deliberately do not run an OAuth
+  flow, so the 2026-07-28 OAuth hardening (RFC 9207 `iss`, CIMD) does not apply;
+  a folder-scoped key additionally confines every tool to one folder subtree.
+
 Auth: set FLOPPY_API_KEY (a Bearer API key) and optionally FLOPPY_API_BASE_URL
 (default http://localhost:8000/api/v1). Mint a key with
 `python manage.py create_api_key <email>`.
 
-Run:  fastmcp run floppy_mcp.server   (or: python -m floppy_mcp.server)
+Run (local, default):   python -m floppy_mcp.server
+Run (remote HTTP):       FLOPPY_MCP_TRANSPORT=streamable-http python -m floppy_mcp.server
 """
 from __future__ import annotations
 
@@ -42,8 +61,13 @@ mcp = FastMCP(
         "Tools for the Floppy Disk cloud-storage platform. Use get_usage to see "
         "quota, list_folders/list_files to browse, upload_file/download_file to "
         "move media, and create_share_link to get a public URL. IDs are UUIDs; "
-        "sizes are bytes. Uploading enforces quota and a per-file size cap."
+        "sizes are bytes. Uploading enforces quota and a per-file size cap. If "
+        "the API key is folder-scoped, every tool is confined to that folder's "
+        "subtree (calls outside it return not-found)."
     ),
+    # MCP 2026-07-28 stateless core: no session handshake, no Mcp-Session-Id.
+    # Each tool call is an independent, self-contained REST request.
+    stateless_http=True,
 )
 
 _client: Optional[FloppyClient] = None
@@ -371,9 +395,34 @@ def mark_all_notifications_read() -> dict:
 
 
 def main() -> None:
-    """Entry point: run over stdio (default) or the transport from FLOPPY_MCP_TRANSPORT."""
-    transport = os.environ.get("FLOPPY_MCP_TRANSPORT", "stdio")
-    mcp.run(transport=transport)
+    """Entry point.
+
+    Transport is chosen by FLOPPY_MCP_TRANSPORT:
+      * "stdio" (default) — local clients (Claude Code, Codex) spawn the server
+        and talk over stdin/stdout.
+      * "streamable-http" (aliases: "http") — remote clients connect over
+        Streamable HTTP; host/port from FLOPPY_MCP_HOST / FLOPPY_MCP_PORT.
+
+    The legacy HTTP+SSE transport was deprecated in the MCP 2026-07-28 spec and
+    is intentionally not offered.
+    """
+    transport = os.environ.get("FLOPPY_MCP_TRANSPORT", "stdio").strip().lower()
+    if transport == "stdio":
+        mcp.run(transport="stdio")
+    elif transport in ("http", "streamable-http", "streamable_http"):
+        host = os.environ.get("FLOPPY_MCP_HOST", "127.0.0.1")
+        port = int(os.environ.get("FLOPPY_MCP_PORT", "8765"))
+        mcp.run(transport="streamable-http", host=host, port=port)
+    elif transport == "sse":
+        raise SystemExit(
+            "The HTTP+SSE transport was deprecated in MCP 2026-07-28 and is not "
+            "supported. Set FLOPPY_MCP_TRANSPORT=streamable-http instead."
+        )
+    else:
+        raise SystemExit(
+            f"Unknown FLOPPY_MCP_TRANSPORT={transport!r}. "
+            "Use 'stdio' (default) or 'streamable-http'."
+        )
 
 
 if __name__ == "__main__":

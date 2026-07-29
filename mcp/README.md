@@ -9,6 +9,24 @@ media, create public share links, and read notifications.
 Built with [FastMCP](https://github.com/jlowin/fastmcp) (Python) over the
 REST API documented in [`../docs/api/`](../docs/api).
 
+### Protocol
+
+Tracks the **MCP 2026-07-28** spec:
+
+- **Stateless core** — runs with `stateless_http=True`: no `initialize`
+  handshake, no `Mcp-Session-Id`, no per-session state. Each tool call is one
+  self-contained REST request under your Bearer key, so the server scales
+  horizontally and works on serverless hosts.
+- **Streamable HTTP** for remote clients; the deprecated **HTTP+SSE** transport
+  is not offered.
+- **No deprecated server-initiated features** (Roots / Sampling / Logging), so
+  no multi-round-trip fallbacks are needed — a tool call never opens a
+  server→client stream.
+
+Stateless request framing, `MCP-Protocol-Version` negotiation, header routing
+(`Mcp-Method` / `Mcp-Name`), and cacheable list directives are handled by the
+FastMCP transport layer; the tools stay transport-agnostic.
+
 ## How it works
 
 The server is a thin, authenticated wrapper over `/api/v1`. It authenticates
@@ -52,7 +70,9 @@ Copy `.env.example` to `.env` (or export the vars):
 |---|---|---|
 | `FLOPPY_API_KEY` | — (required) | Bearer API key from step 1 |
 | `FLOPPY_API_BASE_URL` | `http://localhost:8000/api/v1` | API base, incl. `/api/v1` |
-| `FLOPPY_MCP_TRANSPORT` | `stdio` | `stdio`, `http`, or `sse` |
+| `FLOPPY_MCP_TRANSPORT` | `stdio` | `stdio` (local) or `streamable-http` (remote) |
+| `FLOPPY_MCP_HOST` | `127.0.0.1` | bind host for `streamable-http` |
+| `FLOPPY_MCP_PORT` | `8765` | bind port for `streamable-http` |
 
 ### 4. Run
 
@@ -92,17 +112,18 @@ claude mcp add floppy-disk \
 
 ### n8n
 
-n8n's MCP Client node speaks stdio and HTTP/SSE. For a remote setup, run the
-server with an HTTP transport and point the node at it:
+For a remote setup, run the server with the Streamable HTTP transport and point
+the node at it:
 
 ```bash
-FLOPPY_MCP_TRANSPORT=http FLOPPY_API_KEY=fd_xxx \
+FLOPPY_MCP_TRANSPORT=streamable-http FLOPPY_API_KEY=fd_xxx \
   FLOPPY_API_BASE_URL=https://your-host/api/v1 \
+  FLOPPY_MCP_PORT=8765 \
   python -m floppy_mcp.server
 ```
 
-Then add an **MCP Client** node with the server URL (default FastMCP HTTP port),
-and call tools like `upload_file`, `create_share_link`, `list_files`.
+Then add an **MCP Client** node pointing at the server URL (host:port above) and
+call tools like `upload_file`, `create_share_link`, `list_files`.
 
 ### Codex / OpenAI
 
@@ -165,3 +186,9 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
   `python manage.py create_api_key you@example.com --name mcp-ro --read-only`
   (or `POST /auth/api-keys {"read_only": true}`). Treat a key like a password
   and revoke unused ones.
+- **Folder-scoped keys.** A key can be confined to a single folder subtree:
+  `POST /auth/api-keys {"root_folder": "<folder-id>"}`. Every tool then only
+  sees/acts within that folder (calls outside it return not-found), and — once
+  the knowledge-graph layer lands — the graph exposed to that key is likewise
+  limited to its subtree. This lets you give one LLM the whole store and another
+  only a specific folder.
