@@ -19,17 +19,26 @@ def test_server_module_loads():
     assert callable(server.main)
 
 
-def test_server_is_stateless():
-    """2026-07-28 stateless core: no session handshake / Mcp-Session-Id.
+def test_streamable_http_runs_stateless(monkeypatch):
+    """2026-07-28 stateless core: the HTTP transport must run stateless_http=True.
 
-    The flag lives in a slightly different place across fastmcp minor versions,
-    so probe the common locations rather than pin one internal path.
+    In fastmcp 3.x this is a runtime option (not a constructor kwarg), so assert
+    main() actually forwards it to mcp.run for the streamable-http transport.
     """
-    candidates = [
-        getattr(server.mcp, "stateless_http", None),
-        getattr(getattr(server.mcp, "settings", None), "stateless_http", None),
-    ]
-    assert True in candidates, "expected stateless_http=True on the FastMCP instance"
+    calls = {}
+    monkeypatch.setattr(server.mcp, "run", lambda **kw: calls.update(kw))
+    monkeypatch.setenv("FLOPPY_MCP_TRANSPORT", "streamable-http")
+    server.main()
+    assert calls.get("transport") == "streamable-http"
+    assert calls.get("stateless_http") is True
+
+
+def test_stdio_is_default(monkeypatch):
+    calls = {}
+    monkeypatch.setattr(server.mcp, "run", lambda **kw: calls.update(kw))
+    monkeypatch.delenv("FLOPPY_MCP_TRANSPORT", raising=False)
+    server.main()
+    assert calls.get("transport") == "stdio"
 
 
 def _registered_tool_names():

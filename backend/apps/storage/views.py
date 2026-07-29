@@ -36,6 +36,24 @@ def _object_key(user_id, file_id) -> str:
     return f"{user_id}/{file_id}"
 
 
+def _folder_filter_param(request, key="folder"):
+    """Parse a folder/parent query param. Returns (value, ok):
+      (None, True)      -> absent (list the storage root)
+      (uuid_str, True)  -> a syntactically valid id
+      (None, False)     -> present but malformed — caller should return [] rather
+                           than let the DB raise (a bad ?folder= must not 500).
+    """
+    import uuid as _uuid
+
+    raw = request.query_params.get(key) or None
+    if raw is None:
+        return None, True
+    try:
+        return str(_uuid.UUID(raw)), True
+    except (ValueError, TypeError):
+        return None, False
+
+
 _STREAM_BLOCK = 64 * 1024
 
 
@@ -97,7 +115,9 @@ class FolderListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        parent = request.query_params.get("parent") or None
+        parent, ok = _folder_filter_param(request, "parent")
+        if not ok:
+            return Response([])  # malformed ?parent= -> empty, never a 500
         # A scoped key browses downward from its own root id; it can't use an
         # out-of-scope folder (or the storage root) as a browse anchor.
         if not folder_in_scope(request, parent):
@@ -386,7 +406,9 @@ class FileListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        folder = request.query_params.get("folder") or None
+        folder, ok = _folder_filter_param(request, "folder")
+        if not ok:
+            return Response([])  # malformed ?folder= -> empty, never a 500
         # A scoped key browses downward from its own root id; an out-of-scope
         # anchor (or the storage root) yields nothing.
         if not folder_in_scope(request, folder):

@@ -184,6 +184,8 @@ export default function TopBarDesktop(V) {
       </button>{' '}
       <button
         onClick={V.openSettings}
+        aria-label="Settings"
+        title="Settings"
         style={{
           width: '34px',
           height: '34px',

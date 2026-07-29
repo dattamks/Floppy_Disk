@@ -139,3 +139,11 @@ def test_usage_endpoint_reports_quota(client, user):
     data = resp.json()
     assert data["quota_bytes"] == user.quota_bytes
     assert data["used_bytes"] == 0
+
+
+def test_malformed_folder_param_does_not_500(client):
+    """A non-UUID ?folder=/?parent= must return an empty list, never crash."""
+    assert client.get("/api/v1/storage/files?folder=not-a-uuid").status_code == 200
+    assert client.get("/api/v1/storage/files?folder=not-a-uuid").json() == []
+    assert client.get("/api/v1/storage/folders?parent=%2E%2E%2Fetc").status_code == 200
+    assert client.get("/api/v1/storage/folders?parent=12345").json() == []

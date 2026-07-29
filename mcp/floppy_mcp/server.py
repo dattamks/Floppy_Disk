@@ -65,9 +65,6 @@ mcp = FastMCP(
         "the API key is folder-scoped, every tool is confined to that folder's "
         "subtree (calls outside it return not-found)."
     ),
-    # MCP 2026-07-28 stateless core: no session handshake, no Mcp-Session-Id.
-    # Each tool call is an independent, self-contained REST request.
-    stateless_http=True,
 )
 
 _client: Optional[FloppyClient] = None
@@ -452,7 +449,10 @@ def main() -> None:
     elif transport in ("http", "streamable-http", "streamable_http"):
         host = os.environ.get("FLOPPY_MCP_HOST", "127.0.0.1")
         port = int(os.environ.get("FLOPPY_MCP_PORT", "8765"))
-        mcp.run(transport="streamable-http", host=host, port=port)
+        # MCP 2026-07-28 stateless core: no session handshake, no Mcp-Session-Id.
+        # In fastmcp 3.x stateless_http is a runtime option (not a constructor
+        # kwarg); each tool call is an independent, self-contained REST request.
+        mcp.run(transport="streamable-http", host=host, port=port, stateless_http=True)
     elif transport == "sse":
         raise SystemExit(
             "The HTTP+SSE transport was deprecated in MCP 2026-07-28 and is not "
