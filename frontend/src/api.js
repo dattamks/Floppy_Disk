@@ -126,6 +126,9 @@ export const api = {
   markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: 'POST' }),
   markAllNotificationsRead: () => request('/notifications/read-all', { method: 'POST' }),
 
+  // Knowledge graph
+  graphRelated: (fileId) => request(`/graph/related/${fileId}`),
+
   // API keys (programmatic / MCP access). `root_folder` (a folder id) confines
   // the key to that folder's subtree — including the knowledge graph.
   listApiKeys: () => request('/auth/api-keys'),

@@ -172,3 +172,31 @@ def test_graph_search_is_scoped(user, tree):
     token = _scoped_key(user, tree["acme"])
     body = _bearer(token).get("/api/v1/graph/search?q=salaries").json()
     assert body["results"] == []  # Finance file is out of scope
+
+
+# --- content-based REFERENCES edges -----------------------------------------
+
+def _upload(client, name, content: bytes, folder=None):
+    payload = {"name": name, "size_bytes": len(content), "kind": "doc"}
+    if folder is not None:
+        payload["folder"] = str(folder.id)
+    init = client.post("/api/v1/storage/uploads", payload, format="json").json()
+    fid = init["file"]["id"]
+    client.put(init["upload"]["url"], data=content, content_type="application/octet-stream")
+    client.post(f"/api/v1/storage/uploads/{fid}/complete")
+    return fid
+
+
+def test_reference_edge_from_file_content(user):
+    from apps.graph.models import GraphEdge, GraphNode
+
+    c = _session(user)
+    _upload(c, "target.txt", b"I am the target.")
+    src = _upload(c, "index.txt", b"See target.txt for details.")
+    rebuild_user_graph(user)
+
+    src_node = GraphNode.objects.get(owner=user, file_id=src)
+    refs = GraphEdge.objects.filter(owner=user, source=src_node, rel=GraphEdge.Rel.REFERENCES)
+    assert refs.count() == 1
+    assert refs.first().target.label == "target.txt"
+    assert refs.first().provenance == "extracted"

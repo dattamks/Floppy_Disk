@@ -68,6 +68,10 @@ export default class App extends React.Component {
     pwCurrent: '',
     pwNew: '',
     pwConfirm: '',
+    // Related files (knowledge graph).
+    relatedList: [],
+    relatedLoading: false,
+    relatedForName: '',
     // API keys (Developer tab).
     apiKeys: [],
     apiKeysLoading: false,
@@ -631,6 +635,23 @@ export default class App extends React.Component {
   }
   setSettingsSecurity() {
     this.setState({ settingsTab: 'security' });
+  }
+  openRelated(f) {
+    this.setState({
+      modal: 'related',
+      relatedForName: f.name,
+      relatedList: [],
+      relatedLoading: true,
+    });
+    api
+      .graphRelated(f.id)
+      .then((body) =>
+        this.setState({ relatedList: (body && body.related) || [], relatedLoading: false })
+      )
+      .catch((err) => {
+        this.setState({ relatedLoading: false });
+        this.toast(firstError(err, 'No related files yet'));
+      });
   }
   setSettingsDeveloper() {
     this.setState({ settingsTab: 'developer' });
@@ -1943,6 +1964,9 @@ export default class App extends React.Component {
         items.push({ label: 'Move to…', fn: () => this.openMove(f) });
         items.push({ label: f.starred ? 'Unstar' : 'Star', fn: () => this.toggleStar(f.id) });
         items.push({ label: 'Share link', fn: () => this.openShare(f) });
+        if (f.kind !== 'folder') {
+          items.push({ label: 'Related files', fn: () => this.openRelated(f) });
+        }
         items.push({ label: 'Move to trash', danger: true, fn: () => this.deleteForever(f.id) });
       }
       ctxMenuView = { x: st.ctxMenu.x, y: st.ctxMenu.y, name: f.name, items };
@@ -2165,6 +2189,10 @@ export default class App extends React.Component {
       isUploadModal: modal === 'upload',
       isSettingsModal: modal === 'settings',
       isNotificationsModal: modal === 'notifications',
+      isRelatedModal: modal === 'related',
+      relatedList: st.relatedList,
+      relatedLoading: st.relatedLoading,
+      relatedForName: st.relatedForName,
       isPreviewModal: modal === 'preview',
       isVideoModal: modal === 'video',
       isShareModal: modal === 'share',

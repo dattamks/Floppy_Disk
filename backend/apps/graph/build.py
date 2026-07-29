@@ -32,6 +32,9 @@ _STOPWORDS = {
 }
 # A token shared by more than this many files is noise, not a relationship.
 _MAX_TOKEN_GROUP = 8
+# REFERENCES scanning: only read small text/doc blobs, and cap fan-out per file.
+_MAX_SCAN_BYTES = 64 * 1024
+_MAX_REFS_PER_FILE = 25
 
 
 def _tokens(name: str) -> set[str]:
@@ -117,6 +120,12 @@ def rebuild_user_graph(user) -> dict:
             _add(hub, file_node[other.id], GraphEdge.Rel.SHARED_TOKEN,
                  Provenance.INFERRED, f'both named "{tok}"')
 
+    # REFERENCES: a small text/doc file that literally names another file.
+    # Deterministic (plain substring match), best-effort (skips on any read
+    # error), and bounded (doc-kind + size cap + per-file fan-out cap) so a
+    # rebuild never turns into a big storage read.
+    _add_reference_edges(files, file_node, _add)
+
     GraphEdge.objects.bulk_create(edges)
 
     GraphBuild.objects.update_or_create(
@@ -124,6 +133,55 @@ def rebuild_user_graph(user) -> dict:
         defaults={"built_at": timezone.now(), "node_count": len(nodes), "edge_count": len(edges)},
     )
     return {"nodes": len(nodes), "edges": len(edges)}
+
+
+def _add_reference_edges(files, file_node, add) -> None:
+    """Scan small text/doc files for literal mentions of other files' names."""
+    from .models import GraphEdge, Provenance
+
+    # Targets worth matching: names distinctive enough not to match by accident.
+    targets = [(f.name, f) for f in files if f.name and len(f.name) >= 4]
+    if len(targets) < 2:
+        return
+
+    storage = _read_storage()
+    if storage is None:
+        return
+
+    for src in files:
+        if src.kind != File.Kind.DOC or not src.storage_object_id:
+            continue
+        obj = src.storage_object
+        if not obj or (obj.size_bytes or 0) > _MAX_SCAN_BYTES:
+            continue
+        try:
+            raw = storage.read_bytes(region=obj.region, object_key=obj.object_key)
+        except Exception:  # noqa: BLE001 - best-effort; a missing/unreadable blob is fine
+            continue
+        text = raw.decode("utf-8", "ignore").lower()
+        if not text:
+            continue
+        made = 0
+        for name, tgt in targets:
+            if tgt.id == src.id:
+                continue
+            if name.lower() in text:
+                add(file_node[src.id], file_node[tgt.id], GraphEdge.Rel.REFERENCES,
+                    Provenance.EXTRACTED, f'text names "{name}"')
+                made += 1
+                if made >= _MAX_REFS_PER_FILE:
+                    break
+
+
+def _read_storage():
+    """The storage backend if it can read bytes here (local dev/self-host), else
+    None — REFERENCES scanning is skipped rather than fetching from remote R2."""
+    try:
+        from apps.storage.services.base import get_storage_service
+        storage = get_storage_service()
+    except Exception:  # noqa: BLE001
+        return None
+    return storage if hasattr(storage, "read_bytes") else None
 
 
 def ensure_fresh(user) -> None:

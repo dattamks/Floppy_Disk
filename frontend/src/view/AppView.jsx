@@ -7,6 +7,7 @@ import UploadModal from '../components/UploadModal';
 import NewFolderModal from '../components/NewFolderModal';
 import SettingsModal from '../components/SettingsModal';
 import NotificationsModal from '../components/NotificationsModal';
+import RelatedModal from '../components/RelatedModal';
 import VideoModal from '../components/VideoModal';
 import ShareModal from '../components/ShareModal';
 import PreviewModal from '../components/PreviewModal';
@@ -358,7 +359,8 @@ export default function AppView({ V }) {
                   }}
                 >
                   {' '}
-                  {UploadModal(V)} {SettingsModal(V)} {NotificationsModal(V)} {NewFolderModal(V)}{' '}
+                  {UploadModal(V)} {SettingsModal(V)} {NotificationsModal(V)} {RelatedModal(V)}{' '}
+                  {NewFolderModal(V)}{' '}
                   {PreviewModal(V)} {VideoModal(V)} {ShareModal(V)} {RenameModal(V)} {MoveModal(V)}{' '}
                   {LinksModal(V)}{' '}
                 </div>{' '}
