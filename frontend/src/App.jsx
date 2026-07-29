@@ -68,6 +68,14 @@ export default class App extends React.Component {
     pwCurrent: '',
     pwNew: '',
     pwConfirm: '',
+    // API keys (Developer tab).
+    apiKeys: [],
+    apiKeysLoading: false,
+    keyFolders: [],
+    newKeyName: '',
+    newKeyReadOnly: false,
+    newKeyFolder: '', // '' = full storage; otherwise a folder id
+    newKeyToken: '', // show-once secret after creation
     uploadQueue: [],
     shareAccess: 'restricted',
     sharePermission: 'view',
@@ -612,6 +620,7 @@ export default class App extends React.Component {
       modal: 'settings',
       settingsTab: 'profile',
       drawerOpen: false,
+      newKeyToken: '',
     });
   }
   setSettingsProfile() {
@@ -622,6 +631,62 @@ export default class App extends React.Component {
   }
   setSettingsSecurity() {
     this.setState({ settingsTab: 'security' });
+  }
+  setSettingsDeveloper() {
+    this.setState({ settingsTab: 'developer' });
+    this.loadApiKeys();
+    // Folders for the scope picker (top-level list is enough to choose a root).
+    api
+      .listFolders()
+      .then((folders) => this.setState({ keyFolders: Array.isArray(folders) ? folders : [] }))
+      .catch(() => this.setState({ keyFolders: [] }));
+  }
+  loadApiKeys() {
+    this.setState({ apiKeysLoading: true });
+    api
+      .listApiKeys()
+      .then((keys) => this.setState({ apiKeys: Array.isArray(keys) ? keys : [], apiKeysLoading: false }))
+      .catch((err) => {
+        this.setState({ apiKeysLoading: false });
+        this.toast(firstError(err, 'Could not load API keys'));
+      });
+  }
+  setNewKeyName(e) {
+    this.setState({ newKeyName: e.target.value });
+  }
+  toggleNewKeyReadOnly() {
+    this.setState({ newKeyReadOnly: !this.state.newKeyReadOnly });
+  }
+  setNewKeyFolder(e) {
+    this.setState({ newKeyFolder: e.target.value });
+  }
+  createApiKey() {
+    const { newKeyName, newKeyReadOnly, newKeyFolder } = this.state;
+    api
+      .createApiKey({ name: newKeyName, readOnly: newKeyReadOnly, rootFolder: newKeyFolder || null })
+      .then((created) => {
+        this.setState({
+          newKeyToken: (created && created.key) || '',
+          newKeyName: '',
+          newKeyReadOnly: false,
+          newKeyFolder: '',
+        });
+        this.loadApiKeys();
+        this.toast('API key created — copy it now, it won’t be shown again');
+      })
+      .catch((err) => this.toast(firstError(err, 'Could not create API key')));
+  }
+  dismissNewKeyToken() {
+    this.setState({ newKeyToken: '' });
+  }
+  revokeApiKey(id) {
+    api
+      .revokeApiKey(id)
+      .then(() => {
+        this.loadApiKeys();
+        this.toast('API key revoked');
+      })
+      .catch((err) => this.toast(firstError(err, 'Could not revoke key')));
   }
   setProfileName(e) {
     this.setState({ profileName: e.target.value });
@@ -2189,15 +2254,33 @@ export default class App extends React.Component {
       stIsProfile: settingsTab === 'profile',
       stIsAccount: settingsTab === 'account',
       stIsSecurity: settingsTab === 'security',
+      stIsDeveloper: settingsTab === 'developer',
       setSettingsProfile: () => this.setSettingsProfile(),
       setSettingsAccount: () => this.setSettingsAccount(),
       setSettingsSecurity: () => this.setSettingsSecurity(),
+      setSettingsDeveloper: () => this.setSettingsDeveloper(),
       stProfileBg: settingsTab === 'profile' ? '#FFFFFF' : 'transparent',
       stProfileColor: settingsTab === 'profile' ? '#15171C' : '#656B76',
       stAccountBg: settingsTab === 'account' ? '#FFFFFF' : 'transparent',
       stAccountColor: settingsTab === 'account' ? '#15171C' : '#656B76',
       stSecurityBg: settingsTab === 'security' ? '#FFFFFF' : 'transparent',
       stSecurityColor: settingsTab === 'security' ? '#15171C' : '#656B76',
+      stDeveloperBg: settingsTab === 'developer' ? '#FFFFFF' : 'transparent',
+      stDeveloperColor: settingsTab === 'developer' ? '#15171C' : '#656B76',
+      // Developer / API keys
+      apiKeys: st.apiKeys,
+      apiKeysLoading: st.apiKeysLoading,
+      keyFolders: st.keyFolders,
+      newKeyName: st.newKeyName,
+      newKeyReadOnly: st.newKeyReadOnly,
+      newKeyFolder: st.newKeyFolder,
+      newKeyToken: st.newKeyToken,
+      setNewKeyName: (e) => this.setNewKeyName(e),
+      toggleNewKeyReadOnly: () => this.toggleNewKeyReadOnly(),
+      setNewKeyFolder: (e) => this.setNewKeyFolder(e),
+      createApiKey: () => this.createApiKey(),
+      dismissNewKeyToken: () => this.dismissNewKeyToken(),
+      revokeApiKey: (id) => this.revokeApiKey(id),
       profileName: st.profileName,
       profileUsername: st.profileUsername,
       profileBio: st.profileBio,
