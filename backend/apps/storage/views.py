@@ -22,6 +22,7 @@ from .lifecycle import _release_object, purge_file, purge_folder
 from .models import File, Folder, StorageObject, StorageReservation
 from .naming import unique_name
 from .quota import FileTooLarge, QuotaExceeded, available_bytes, commit, reserve
+from .scoping import folder_in_scope, is_scoped, scope_files, scope_folders, scoped_folder_ids
 from .serializers import (
     FileSerializer,
     FolderCreateSerializer,
@@ -97,13 +98,25 @@ class FolderListCreateView(APIView):
 
     def get(self, request):
         parent = request.query_params.get("parent") or None
-        qs = Folder.objects.filter(owner=request.user, deleted_at__isnull=True, parent=parent).order_by("name")
+        # A scoped key browses downward from its own root id; it can't use an
+        # out-of-scope folder (or the storage root) as a browse anchor.
+        if not folder_in_scope(request, parent):
+            return Response([])
+        qs = scope_folders(
+            Folder.objects.filter(owner=request.user, deleted_at__isnull=True, parent=parent),
+            request,
+        ).order_by("name")
         return Response(FolderSerializer(qs, many=True).data)
 
     def post(self, request):
         serializer = FolderCreateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         parent = serializer.validated_data.get("parent")
+        # A folder-scoped key may only create inside its subtree (a parentless
+        # folder would land at the storage root, outside the key's reach).
+        if not folder_in_scope(request, parent.pk if parent else None):
+            return Response({"detail": "This key can only create folders inside its allowed folder."},
+                            status=status.HTTP_400_BAD_REQUEST)
         name = unique_name(
             serializer.validated_data["name"], _active_folder_names(request.user, parent)
         )
@@ -152,13 +165,21 @@ class FolderDetailView(APIView):
     def patch(self, request, folder_id):
         """Rename and/or move a folder (Drive-style). Auto-suffixes on collision."""
         try:
-            folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=True)
+            folder = scope_folders(
+                Folder.objects.filter(pk=folder_id, owner=request.user, deleted_at__isnull=True),
+                request,
+            ).get()
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         fields = []
         if "parent" in request.data:
             parent_id = request.data["parent"] or None
+            # Destination must be within the key's scope (a parentless move would
+            # relocate the folder to the storage root, outside a scoped key).
+            if not folder_in_scope(request, parent_id):
+                return Response({"detail": "Destination is outside this key's allowed folder."},
+                                status=status.HTTP_400_BAD_REQUEST)
             parent = None
             if parent_id:
                 parent = Folder.objects.filter(
@@ -195,7 +216,10 @@ class FolderDetailView(APIView):
 
     def delete(self, request, folder_id):
         try:
-            folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=True)
+            folder = scope_folders(
+                Folder.objects.filter(pk=folder_id, owner=request.user, deleted_at__isnull=True),
+                request,
+            ).get()
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         now = timezone.now()
@@ -224,6 +248,12 @@ class CameraBackupFolderView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        # Camera Backup is a top-level (parentless) folder, so a folder-scoped
+        # key can never legitimately reach it — refuse rather than silently
+        # create a folder outside the key's scope.
+        if is_scoped(request):
+            return Response({"detail": "This key is limited to a folder and cannot use device backup."},
+                            status=status.HTTP_403_FORBIDDEN)
         folder, _ = Folder.objects.get_or_create(
             owner=request.user, name=CAMERA_BACKUP_NAME, parent=None, deleted_at__isnull=True,
         )
@@ -237,6 +267,7 @@ class SearchView(APIView):
         from apps.search.services.base import get_search_service
         results = get_search_service().search(
             query=request.query_params.get("q", ""), user_id=request.user.id,
+            folder_ids=scoped_folder_ids(request),
         )
         return Response({"results": results})
 
@@ -246,7 +277,10 @@ class FileDiscoverableView(APIView):
 
     def post(self, request, file_id):
         try:
-            file = File.objects.get(pk=file_id, owner=request.user, deleted_at__isnull=True)
+            file = scope_files(
+                File.objects.filter(pk=file_id, owner=request.user, deleted_at__isnull=True),
+                request,
+            ).get()
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         if "is_discoverable" in request.data:
@@ -265,9 +299,12 @@ class FileDownloadView(APIView):
 
     def get(self, request, file_id):
         try:
-            file = File.objects.select_related("storage_object").get(
-                pk=file_id, owner=request.user, deleted_at__isnull=True,
-            )
+            file = scope_files(
+                File.objects.select_related("storage_object").filter(
+                    pk=file_id, owner=request.user, deleted_at__isnull=True,
+                ),
+                request,
+            ).get()
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         if not file.storage_object_id or file.status != File.Status.READY:
@@ -285,12 +322,12 @@ class FileContentView(APIView):
 
     @transaction.atomic
     def put(self, request, file_id):
-        file = (
+        file = scope_files(
             File.objects.select_for_update()
             .select_related("storage_object")
-            .filter(pk=file_id, owner=request.user, deleted_at__isnull=True)
-            .first()
-        )
+            .filter(pk=file_id, owner=request.user, deleted_at__isnull=True),
+            request,
+        ).first()
         if file is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
         # Only a fully-committed file can be edited. Editing a PENDING file (whose
@@ -350,10 +387,15 @@ class FileListView(APIView):
 
     def get(self, request):
         folder = request.query_params.get("folder") or None
+        # A scoped key browses downward from its own root id; an out-of-scope
+        # anchor (or the storage root) yields nothing.
+        if not folder_in_scope(request, folder):
+            return Response([])
         # Exclude PENDING files: an upload that was initiated but never completed
         # has no bytes yet and must not appear as a 0-byte file in the listing.
-        qs = File.objects.filter(
-            owner=request.user, deleted_at__isnull=True, folder=folder,
+        qs = scope_files(
+            File.objects.filter(owner=request.user, deleted_at__isnull=True, folder=folder),
+            request,
         ).exclude(status=File.Status.PENDING).select_related("poster_object").order_by("-created_at")
         return Response(FileSerializer(qs, many=True).data)
 
@@ -376,13 +418,21 @@ class FileDetailView(APIView):
     def patch(self, request, file_id):
         """Rename and/or move a file between folders. Auto-suffixes on collision."""
         try:
-            file = File.objects.get(pk=file_id, owner=request.user, deleted_at__isnull=True)
+            file = scope_files(
+                File.objects.filter(pk=file_id, owner=request.user, deleted_at__isnull=True),
+                request,
+            ).get()
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
         fields = []
         if "folder" in request.data:
             folder_id = request.data["folder"] or None
+            # Destination must be within the key's scope (moving to the storage
+            # root — folder=None — is outside a scoped key).
+            if not folder_in_scope(request, folder_id):
+                return Response({"detail": "Destination is outside this key's allowed folder."},
+                                status=status.HTTP_400_BAD_REQUEST)
             folder = None
             if folder_id:
                 folder = Folder.objects.filter(
@@ -416,7 +466,10 @@ class FileDetailView(APIView):
     def delete(self, request, file_id):
         """Soft-delete (move to trash). Still counts toward quota until purged."""
         try:
-            file = File.objects.get(pk=file_id, owner=request.user, deleted_at__isnull=True)
+            file = scope_files(
+                File.objects.filter(pk=file_id, owner=request.user, deleted_at__isnull=True),
+                request,
+            ).get()
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         file.deleted_at = timezone.now()
@@ -429,7 +482,10 @@ class FileRestoreView(APIView):
 
     def post(self, request, file_id):
         try:
-            file = File.objects.get(pk=file_id, owner=request.user, deleted_at__isnull=False)
+            file = scope_files(
+                File.objects.filter(pk=file_id, owner=request.user, deleted_at__isnull=False),
+                request,
+            ).get()
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         file.deleted_at = None
@@ -445,7 +501,10 @@ class FilePurgeView(APIView):
     def post(self, request, file_id):
         """Permanently delete a trashed file (releases quota, decrements ref_count)."""
         try:
-            file = File.objects.get(pk=file_id, owner=request.user, deleted_at__isnull=False)
+            file = scope_files(
+                File.objects.filter(pk=file_id, owner=request.user, deleted_at__isnull=False),
+                request,
+            ).get()
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         purge_file(file)
@@ -458,7 +517,10 @@ class FolderPurgeView(APIView):
     def post(self, request, folder_id):
         """Permanently delete a trashed folder and everything under it."""
         try:
-            folder = Folder.objects.get(pk=folder_id, owner=request.user, deleted_at__isnull=False)
+            folder = scope_folders(
+                Folder.objects.filter(pk=folder_id, owner=request.user, deleted_at__isnull=False),
+                request,
+            ).get()
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         purge_folder(folder)
@@ -474,10 +536,13 @@ class FolderRestoreView(APIView):
             # subfolder trashed as part of an ancestor (trashed_root set) is
             # hidden from Trash and must come back with that ancestor, never
             # independently (which would orphan it under a still-trashed parent).
-            folder = Folder.objects.get(
-                pk=folder_id, owner=request.user,
-                deleted_at__isnull=False, trashed_root__isnull=True,
-            )
+            folder = scope_folders(
+                Folder.objects.filter(
+                    pk=folder_id, owner=request.user,
+                    deleted_at__isnull=False, trashed_root__isnull=True,
+                ),
+                request,
+            ).get()
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         # Restore everything trashed together with this folder (but NOT items the
@@ -504,11 +569,17 @@ class TrashView(APIView):
     def get(self, request):
         # Only top-level trashed items — children trashed via an ancestor folder
         # (trashed_root set) come back with that folder, not on their own.
-        folders = Folder.objects.filter(
-            owner=request.user, deleted_at__isnull=False, trashed_root__isnull=True
+        folders = scope_folders(
+            Folder.objects.filter(
+                owner=request.user, deleted_at__isnull=False, trashed_root__isnull=True
+            ),
+            request,
         ).order_by("-deleted_at")
-        files = File.objects.filter(
-            owner=request.user, deleted_at__isnull=False, trashed_root__isnull=True
+        files = scope_files(
+            File.objects.filter(
+                owner=request.user, deleted_at__isnull=False, trashed_root__isnull=True
+            ),
+            request,
         ).order_by("-deleted_at")
         return Response({
             "folders": FolderSerializer(folders, many=True).data,
@@ -523,6 +594,13 @@ class UploadInitiateView(APIView):
         serializer = UploadInitiateSerializer(data=request.data, context={"request": request})
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+
+        # A folder-scoped key can only upload inside its subtree (an upload with
+        # no folder would land at the storage root, outside the key's reach).
+        target = data.get("folder")
+        if not folder_in_scope(request, target.pk if target else None):
+            return Response({"detail": "This key can only upload inside its allowed folder."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         name = unique_name(data["name"], _active_file_names(request.user, data.get("folder")))
         file = File.objects.create(
@@ -566,7 +644,10 @@ class UploadCompleteView(APIView):
 
     def post(self, request, file_id):
         try:
-            file = File.objects.get(pk=file_id, owner=request.user, status=File.Status.PENDING)
+            file = scope_files(
+                File.objects.filter(pk=file_id, owner=request.user, status=File.Status.PENDING),
+                request,
+            ).get()
         except File.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
@@ -642,8 +723,44 @@ class DevBlobView(APIView):
             return True
         return len(parts) >= 2 and parts[0] == "exports" and parts[1] == uid
 
+    @staticmethod
+    def _file_for_key(user, object_key):
+        """Best-effort: the File a blob key belongs to (original, edited, or a
+        video rendition/poster). Used to enforce folder scope on the local
+        delivery path."""
+        import uuid as _uuid
+        from django.db.models import Q
+
+        f = File.objects.filter(
+            Q(storage_object__object_key=object_key)
+            | Q(playable_object__object_key=object_key)
+            | Q(poster_object__object_key=object_key),
+            owner=user,
+        ).first()
+        if f:
+            return f
+        parts = object_key.split("/")
+        if len(parts) >= 2 and parts[0] == str(user.id):
+            candidate = parts[1].split(".")[0]  # "<file_id>[.hash|.play|.poster]"
+            try:
+                _uuid.UUID(candidate)
+            except ValueError:
+                return None
+            return File.objects.filter(pk=candidate, owner=user).first()
+        return None
+
+    def _blocked_by_scope(self, request, object_key) -> bool:
+        """A folder-scoped key may only touch blobs for files in its subtree
+        (and never account-level exports)."""
+        if not is_scoped(request):
+            return False
+        if object_key.split("/")[:1] == ["exports"]:
+            return True
+        f = self._file_for_key(request.user, object_key)
+        return f is None or not folder_in_scope(request, f.folder_id)
+
     def put(self, request, region, object_key):
-        if not self._owns_key(request.user, object_key):
+        if not self._owns_key(request.user, object_key) or self._blocked_by_scope(request, object_key):
             return Response(status=status.HTTP_404_NOT_FOUND)
         storage = get_storage_service()
         if not hasattr(storage, "save_bytes"):
@@ -656,7 +773,7 @@ class DevBlobView(APIView):
 
     def get(self, request, region, object_key):
         """Serve a locally-stored blob with HTTP Range support (video seeking)."""
-        if not self._owns_key(request.user, object_key):
+        if not self._owns_key(request.user, object_key) or self._blocked_by_scope(request, object_key):
             return Response(status=status.HTTP_404_NOT_FOUND)
         storage = get_storage_service()
         if not hasattr(storage, "local_path"):

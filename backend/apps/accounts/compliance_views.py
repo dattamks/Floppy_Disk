@@ -98,11 +98,14 @@ class ApiKeyListCreateView(APIView):
         keys = ApiKey.objects.filter(user=request.user, revoked=False).order_by("-created_at")
         return Response([
             {"id": str(k.id), "name": k.name, "prefix": k.prefix, "scopes": k.scopes,
+             "root_folder": str(k.root_folder_id) if k.root_folder_id else None,
              "last_used_at": k.last_used_at, "created_at": k.created_at}
             for k in keys
         ])
 
     def post(self, request):
+        from apps.storage.models import Folder
+
         from .models import ApiKey
         # Least-privilege: `read_only: true` (or `scopes: "read"`) mints a key that
         # can fetch but not mutate. Defaults to full read+write.
@@ -110,10 +113,25 @@ class ApiKeyListCreateView(APIView):
             scopes = "read"
         else:
             scopes = request.data.get("scopes") or "read,write"
+        # Optional folder scope: confine the key to one folder's subtree. Must be
+        # a live folder the caller owns (never another user's).
+        root_folder = None
+        root_folder_id = request.data.get("root_folder") or None
+        if root_folder_id:
+            root_folder = Folder.objects.filter(
+                pk=root_folder_id, owner=request.user, deleted_at__isnull=True
+            ).first()
+            if root_folder is None:
+                return Response({"detail": "Folder not found."}, status=status.HTTP_400_BAD_REQUEST)
         key, token = ApiKey.create_for(request.user, name=request.data.get("name", ""), scopes=scopes)
+        if root_folder is not None:
+            key.root_folder = root_folder
+            key.save(update_fields=["root_folder"])
         # The full token is returned exactly once.
         return Response({"id": str(key.id), "name": key.name, "prefix": key.prefix,
-                         "scopes": key.scopes, "key": token},
+                         "scopes": key.scopes,
+                         "root_folder": str(key.root_folder_id) if key.root_folder_id else None,
+                         "key": token},
                         status=status.HTTP_201_CREATED)
 
 

@@ -1,9 +1,9 @@
 """
-Accounts: custom email-first User (Phase 1) + device tracking.
+Accounts: custom email-first User + programmatic API keys + device tracking.
 
-Phase 1 uses email/password. Phone/OTP fields exist but are inert until the
-Phase 2 auth stack (Cognito + DLT SMS) lands — kept here so the schema is
-forward-compatible and migrations don't churn later.
+Authentication is email/password for the SPA and Bearer API keys for
+programmatic clients (MCP / automation). API keys may be scoped read-only and
+optionally restricted to a single folder subtree (see ApiKey.root_folder).
 """
 import uuid
 
@@ -116,6 +116,15 @@ class ApiKey(TimeStampedModel):
     # "write" is required for POST/PUT/PATCH/DELETE. Least-privilege: mint a
     # read-only key ("read") for integrations that only need to fetch.
     scopes = models.CharField(max_length=64, default="read,write")
+    # Optional folder scope (least-privilege by location). NULL = full account
+    # access. When set, the key may only see/act within this folder's subtree —
+    # enforced by apps.storage.scoping. Lets an owner hand one LLM the whole
+    # store and another only a single folder; the knowledge graph reuses the
+    # same filter, so a scoped key's graph is likewise limited to its subtree.
+    root_folder = models.ForeignKey(
+        "storage.Folder", null=True, blank=True, on_delete=models.CASCADE,
+        related_name="scoped_api_keys",
+    )
     revoked = models.BooleanField(default=False)
     last_used_at = models.DateTimeField(null=True, blank=True)
 
