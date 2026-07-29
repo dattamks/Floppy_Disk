@@ -374,6 +374,46 @@ def revoke_share_link(share_id: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Knowledge graph (deterministic, LLM-free context surface)
+# ---------------------------------------------------------------------------
+@mcp.tool
+def get_graph() -> dict:
+    """Get the storage knowledge graph as GraphRAG-ready graph.json.
+
+    Nodes are files/folders; edges are typed and provenance-tagged ("extracted"
+    = explicit like containment, "inferred" = derived like a shared name token),
+    each with a plain-language `reason`. Use this to understand how the files
+    relate before searching or acting. If the API key is folder-scoped, the graph
+    is limited to that folder's subtree (cross-scope edges are clipped).
+    """
+    return client().get("graph/")
+
+
+@mcp.tool
+def graph_search(query: str) -> dict:
+    """Graph-aware search: name matches, each returned with its neighbors in the
+    graph, so you get a hit plus its surrounding context in one call."""
+    return client().get("graph/search", params={"q": query})
+
+
+@mcp.tool
+def get_related_files(file_id: str) -> dict:
+    """What relates to this file in the graph (containing folder, shared-token
+    siblings, references) — each edge explained. Scoped like everything else."""
+    return client().get(f"graph/related/{_uid(file_id, 'file_id')}")
+
+
+@mcp.tool
+def rebuild_graph() -> dict:
+    """Force a full rebuild of the knowledge graph from the current files.
+
+    Normally unnecessary — the graph refreshes itself when files change. A
+    folder-scoped key cannot rebuild the whole graph.
+    """
+    return client().post("graph/rebuild")
+
+
+# ---------------------------------------------------------------------------
 # Notifications
 # ---------------------------------------------------------------------------
 @mcp.tool

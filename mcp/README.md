@@ -171,6 +171,17 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 > `promote_video_to_stream` (video streaming) was deactivated — see
 > [`../docs/deactivated-features.md`](../docs/deactivated-features.md).
 
+**Knowledge graph** (deterministic, LLM-free context for AIs)
+- `get_graph()` — the whole store as GraphRAG-ready graph.json (nodes + typed,
+  provenance-tagged edges, each with a plain-language reason)
+- `graph_search(query)` — name matches, each with its graph neighbors
+- `get_related_files(file_id)` — what relates to a file, every edge explained
+- `rebuild_graph()` — force a rebuild (normally automatic)
+
+> The graph is built globally over your files but read through the same folder
+> scope as everything else: a folder-scoped key sees only its subtree's nodes,
+> and cross-scope edges are clipped.
+
 **Notifications**
 - `list_notifications()`, `mark_notification_read(id)`, `mark_all_notifications_read()`
 
