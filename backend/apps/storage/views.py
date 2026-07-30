@@ -745,6 +745,15 @@ class DevBlobView(APIView):
             return True
         return len(parts) >= 2 and parts[0] == "exports" and parts[1] == uid
 
+    def _can_read(self, user, object_key: str) -> bool:
+        """Authorize a blob read. Own-namespace keys pass directly; a key under
+        another user's namespace is allowed only when this user owns a File that
+        references it — which is exactly the content-addressed dedup case (a
+        second uploader's File reuses the first uploader's StorageObject, whose
+        object_key stays under the first uploader). Without this, an owner can't
+        download their own deduplicated file."""
+        return self._owns_key(user, object_key) or self._file_for_key(user, object_key) is not None
+
     @staticmethod
     def _file_for_key(user, object_key):
         """Best-effort: the File a blob key belongs to (original, edited, or a
@@ -795,7 +804,7 @@ class DevBlobView(APIView):
 
     def get(self, request, region, object_key):
         """Serve a locally-stored blob with HTTP Range support (video seeking)."""
-        if not self._owns_key(request.user, object_key) or self._blocked_by_scope(request, object_key):
+        if not self._can_read(request.user, object_key) or self._blocked_by_scope(request, object_key):
             return Response(status=status.HTTP_404_NOT_FOUND)
         storage = get_storage_service()
         if not hasattr(storage, "local_path"):
