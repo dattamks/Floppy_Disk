@@ -7,7 +7,7 @@ import AppView from './view/AppView';
 
 export default class App extends React.Component {
   state = {
-    files: this.buildFiles(),
+    files: [],
     authView: 'login',
     authName: '',
     authEmail: '',
@@ -103,201 +103,6 @@ export default class App extends React.Component {
     toastMsg: '',
   };
 
-  buildFiles() {
-    const P = (s) => `https://picsum.photos/seed/${s}/640/420`;
-    const V = 'https://storage.googleapis.com/gtv-videos-bucket/sample/';
-    const PDF = 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf';
-    return [
-      { id: 'f-shoots', name: 'Product Shoots', kind: 'folder', parentId: null, trashed: false },
-      { id: 'f-team', name: 'Team Recordings', kind: 'folder', parentId: null, trashed: false },
-      { id: 'f-docs', name: 'Client Docs', kind: 'folder', parentId: null, trashed: false },
-      { id: 'f-backup', name: 'Personal Backup', kind: 'folder', parentId: null, trashed: false },
-      {
-        id: 'file-keynote',
-        name: 'Q3-brand-keynote.mp4',
-        kind: 'video',
-        parentId: null,
-        size: '842 MB',
-        modified: '2d ago',
-        duration: '9:56',
-        poster: P('keynote'),
-        videoSrc: V + 'BigBuckBunny.mp4',
-        watchedPct: 35,
-        shared: true,
-        starred: false,
-        trashed: false,
-        recentRank: 1,
-      },
-      {
-        id: 'file-family',
-        name: 'family-reunion.jpg',
-        kind: 'image',
-        parentId: null,
-        size: '4.2 MB',
-        modified: '1w ago',
-        poster: P('family'),
-        shared: false,
-        starred: true,
-        trashed: false,
-        recentRank: 3,
-      },
-      {
-        id: 'file-invoice',
-        name: 'invoice-oct.pdf',
-        kind: 'doc',
-        parentId: null,
-        size: '210 KB',
-        modified: '3d ago',
-        docUrl: PDF,
-        shared: true,
-        starred: false,
-        trashed: false,
-        recentRank: 5,
-      },
-      {
-        id: 'file-memo',
-        name: 'voice-memo.mp3',
-        kind: 'audio',
-        parentId: null,
-        size: '3.8 MB',
-        modified: '5d ago',
-        audioSrc: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3',
-        shared: false,
-        starred: false,
-        trashed: false,
-        recentRank: 8,
-      },
-      {
-        id: 'file-hero1',
-        name: 'hero-shot-01.jpg',
-        kind: 'image',
-        parentId: 'f-shoots',
-        size: '6.1 MB',
-        modified: '4h ago',
-        poster: P('hero1'),
-        shared: true,
-        starred: false,
-        trashed: false,
-        recentRank: 2,
-      },
-      {
-        id: 'file-hero2',
-        name: 'hero-shot-02.jpg',
-        kind: 'image',
-        parentId: 'f-shoots',
-        size: '5.8 MB',
-        modified: '4h ago',
-        poster: P('hero2'),
-        shared: false,
-        starred: false,
-        trashed: false,
-        recentRank: 7,
-      },
-      {
-        id: 'file-turntable',
-        name: 'product-turntable.mp4',
-        kind: 'video',
-        parentId: 'f-shoots',
-        size: '96 MB',
-        modified: '4h ago',
-        duration: '0:45',
-        poster: P('turntable'),
-        videoSrc: V + 'ForBiggerJoyrides.mp4',
-        watchedPct: 0,
-        shared: false,
-        starred: false,
-        trashed: false,
-        recentRank: 6,
-      },
-      {
-        id: 'file-lighting',
-        name: 'lighting-notes.pdf',
-        kind: 'doc',
-        parentId: 'f-shoots',
-        size: '88 KB',
-        modified: '1d ago',
-        docUrl: PDF,
-        shared: false,
-        starred: false,
-        trashed: false,
-        recentRank: 9,
-      },
-      {
-        id: 'file-standup',
-        name: 'standup-mon.mp4',
-        kind: 'video',
-        parentId: 'f-team',
-        size: '210 MB',
-        modified: '1d ago',
-        duration: '15:00',
-        poster: P('standup'),
-        videoSrc: V + 'ForBiggerBlazes.mp4',
-        watchedPct: 60,
-        shared: false,
-        starred: false,
-        trashed: false,
-        recentRank: 4,
-      },
-      {
-        id: 'file-review',
-        name: 'design-review.mp4',
-        kind: 'video',
-        parentId: 'f-team',
-        size: '340 MB',
-        modified: '2d ago',
-        duration: '15:00',
-        poster: P('review'),
-        videoSrc: V + 'ForBiggerEscapes.mp4',
-        watchedPct: 12,
-        shared: false,
-        starred: false,
-        trashed: false,
-        recentRank: 10,
-      },
-      {
-        id: 'file-onboarding',
-        name: 'onboarding-walkthrough.mp4',
-        kind: 'video',
-        parentId: 'f-team',
-        size: '150 MB',
-        modified: '6d ago',
-        duration: '15:00',
-        poster: P('onboard'),
-        videoSrc: V + 'ForBiggerFun.mp4',
-        watchedPct: 90,
-        shared: false,
-        starred: false,
-        trashed: false,
-        recentRank: 11,
-      },
-      {
-        id: 'file-olddraft',
-        name: 'old-draft.pdf',
-        kind: 'doc',
-        parentId: null,
-        size: '44 KB',
-        modified: '5d ago',
-        docUrl: PDF,
-        shared: false,
-        starred: false,
-        trashed: true,
-        deletedDaysAgo: 5,
-      },
-      {
-        id: 'file-meme',
-        name: 'meme.png',
-        kind: 'image',
-        parentId: null,
-        size: '1.1 MB',
-        modified: '1d ago',
-        poster: P('meme'),
-        shared: false,
-        starred: false,
-        trashed: true,
-        deletedDaysAgo: 1,
-      },
-    ];
-  }
 
   toast(msg) {
     this.setState({ toastMsg: msg });
@@ -341,12 +146,10 @@ export default class App extends React.Component {
       const raw = localStorage.getItem('floppydisk-state');
       if (raw) {
         const d = JSON.parse(raw);
-        // Never rehydrate server-owned files: the server (loadStorage) is
-        // authoritative, so a file deleted server-side must not be resurrected
-        // from a stale local cache. Verified status likewise comes from /me.
-        const restored = (d.files || this.state.files).filter((f) => !f.real);
+        // Files/folders are never restored from local cache: the server
+        // (loadStorage) is authoritative, so nothing is resurrected from a
+        // stale cache. Only lightweight profile/usage prefs are rehydrated.
         this.setState({
-          files: restored,
           usedGB: d.usedGB != null ? d.usedGB : this.state.usedGB,
           profileName: d.profileName || this.state.profileName,
           profileUsername: d.profileUsername || this.state.profileUsername,
@@ -366,9 +169,8 @@ export default class App extends React.Component {
       localStorage.setItem(
         'floppydisk-state',
         JSON.stringify({
-          // Only local/demo files are cached; server-owned files come from the
-          // server on load (see componentDidMount).
-          files: s.files.filter((f) => !f.real),
+          // Files/folders are server-owned and reloaded on start — never cached
+          // here. Only lightweight prefs are persisted.
           usedGB: s.usedGB,
           profileName: s.profileName,
           profileUsername: s.profileUsername,
@@ -1527,71 +1329,6 @@ export default class App extends React.Component {
       });
   }
 
-  simulateUpload() {
-    const P = (s) => `https://picsum.photos/seed/${s}/640/420`;
-    const specs = [
-      {
-        name: 'sunset-clip.mp4',
-        kind: 'video',
-        poster: P('sunset' + Date.now()),
-        videoSrc: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4',
-        duration: '0:15',
-      },
-      {
-        name: 'contract-final.pdf',
-        kind: 'doc',
-        docUrl: 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf',
-      },
-    ];
-    const items = specs.map((n, i) => ({ ...n, id: 'up-' + Date.now() + '-' + i, progress: 0 }));
-    this.setState((s) => ({
-      uploadQueue: [
-        ...s.uploadQueue,
-        ...items.map((it) => ({ id: it.id, name: it.name, progress: 0 })),
-      ],
-    }));
-    items.forEach((item) => {
-      const timer = setInterval(() => {
-        this.setState((s) => {
-          const q = s.uploadQueue.map((u) =>
-            u.id === item.id
-              ? { ...u, progress: Math.min(100, u.progress + Math.round(10 + Math.random() * 20)) }
-              : u
-          );
-          const done = q.find((u) => u.id === item.id && u.progress >= 100);
-          if (done) {
-            clearInterval(timer);
-            const nf = {
-              id: item.id,
-              name: item.name,
-              kind: item.kind,
-              parentId: s.currentFolderId,
-              size: item.kind === 'video' ? '128 MB' : '1.4 MB',
-              modified: 'Just now',
-              duration: item.duration || null,
-              poster: item.poster,
-              videoSrc: item.videoSrc,
-              docUrl: item.docUrl,
-              watchedPct: 0,
-              shared: false,
-              starred: false,
-              trashed: false,
-              recentRank: 0,
-            };
-            setTimeout(() => {
-              this.setState((s2) => ({
-                files: [nf, ...s2.files],
-                uploadQueue: s2.uploadQueue.filter((u) => u.id !== item.id),
-              }));
-              this.addUsage(item.kind === 'video' ? 0.13 : 0.01);
-            }, 500);
-          }
-          return { uploadQueue: q };
-        });
-      }, 350);
-    });
-  }
-
   audioRef(el) {
     if (el && this._activeAudioSrc && el.src !== this._activeAudioSrc)
       el.src = this._activeAudioSrc;
@@ -2276,7 +2013,6 @@ export default class App extends React.Component {
         active: o.id === st.moveDestId,
       })),
       closeModal: () => this.closeModal(),
-      simulateUpload: () => this.simulateUpload(),
       uploadQueueView: uploadQueue.map((u) => ({ name: u.name, progress: u.progress })),
       settingsTab,
       stIsProfile: settingsTab === 'profile',

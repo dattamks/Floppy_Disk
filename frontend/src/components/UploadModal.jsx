@@ -65,19 +65,6 @@ export default function UploadModal(V) {
         multiple
         style={{ display: 'none' }}
       />{' '}
-      <button
-        onClick={V.simulateUpload}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: theme.textFaint,
-          fontSize: '11.5px',
-          cursor: 'pointer',
-          alignSelf: 'center',
-        }}
-      >
-        or add sample files
-      </button>{' '}
       {(V.uploadQueueView || []).map((u, $index) => (
         <React.Fragment key={$index}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
