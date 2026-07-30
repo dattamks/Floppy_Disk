@@ -1,24 +1,29 @@
 import React from 'react';
 import { theme } from '../lib/theme';
 
-// Interactive force-directed knowledge graph (no external libs).
-// Physics: many-body repulsion + link springs + mild centering gravity, settled
-// over a cooling schedule (d3-force style). Interactions: wheel-zoom, drag-pan,
-// drag-a-node, hover-to-highlight-neighbors, click-a-file-to-open. Nodes are
-// sized by degree; labels stay a constant screen size and appear on hover / when
-// zoomed. Simulation stops when cool and only re-runs on interaction, so the
-// view is crisp and cheap once settled.
+// Interactive force-directed knowledge graph rendered to <canvas> (scales to
+// hundreds/thousands of nodes; no external libs). Physics: many-body repulsion +
+// link springs + centering gravity over a cooling schedule, with auto-fit.
+// Interactions: wheel-zoom, drag-pan, drag a node, hover-highlight neighbors,
+// click (delegated to onNodeClick). Supports type filters, a local-graph focus
+// with adjustable depth, color-by-folder groups, and search highlighting — all
+// applied at draw time over a stable layout (no jarring re-simulation).
 
-const FOLDER_COLOR = theme.brand || '#5145E5';
-const FILE_COLOR = '#4C82F7';
+const FOLDER_RING = '#ffffff';
 const INFERRED = '#E8912D';
-const EXTRACTED = '#B7BDC7';
+const EXTRACTED = '#C2C8D2';
 const TEXT = theme.text || '#15171C';
+const DIM = '#C9CED6';
+// Distinct, legible group palette (color-by-folder).
+const PALETTE = [
+  '#5145E5', '#2F9E6E', '#E5484D', '#E8912D', '#4C82F7',
+  '#9C4DCC', '#0E9BA6', '#C2410C', '#7C8B1B', '#B4235E',
+];
 
-const LINK_DIST = 78;
-const CHARGE = 2600; // repulsion strength
-const CENTER = 0.02; // gravity toward middle
-const DAMP = 0.82; // velocity decay
+const LINK_DIST = 80;
+const CHARGE = 2600;
+const CENTER = 0.02;
+const DAMP = 0.82;
 const ALPHA_MIN = 0.004;
 const ALPHA_DECAY = 0.965;
 
@@ -26,16 +31,23 @@ export default class GraphCanvas extends React.Component {
   constructor(props) {
     super(props);
     this.wrapRef = React.createRef();
-    this.state = { k: 1, tx: 0, ty: 0, hover: null, w: 900, h: 560, tick: 0 };
+    this.canvasRef = React.createRef();
+    this.k = 1;
+    this.tx = 0;
+    this.ty = 0;
+    this.hover = null;
+    this.w = 900;
+    this.h = 560;
+    this._userMoved = false;
     this._init(props);
-    this._pan = null;
-    this._drag = null;
-    this._downAt = null;
   }
 
   componentDidMount() {
     this._measure();
-    this._onResize = () => this._measure();
+    this._onResize = () => {
+      this._measure();
+      this._draw();
+    };
     window.addEventListener('resize', this._onResize);
     this.alpha = 1;
     this._start();
@@ -46,9 +58,17 @@ export default class GraphCanvas extends React.Component {
       this._init(this.props);
       this.alpha = 1;
       this._userMoved = false;
-      this.setState({ k: 1, tx: 0, ty: 0, hover: null });
+      this.k = 1;
+      this.tx = 0;
+      this.ty = 0;
+      this.hover = null;
       this._start();
+      return;
     }
+    // Filters / focus / query changed: keep layout, re-fit visible, redraw.
+    this._visibleCache = null;
+    if (!this._userMoved) this._applyFit();
+    this._draw();
   }
 
   componentWillUnmount() {
@@ -56,14 +76,29 @@ export default class GraphCanvas extends React.Component {
     window.removeEventListener('resize', this._onResize);
   }
 
+  // Public: re-frame the graph (Reset view button).
+  resetView() {
+    this._userMoved = false;
+    this._applyFit();
+    this._draw();
+  }
+
   _measure() {
     const el = this.wrapRef.current;
-    if (el) this.setState({ w: el.clientWidth || 900, h: el.clientHeight || 560 });
+    const cv = this.canvasRef.current;
+    if (!el || !cv) return;
+    this.w = el.clientWidth || 900;
+    this.h = el.clientHeight || 560;
+    this.dpr = window.devicePixelRatio || 1;
+    cv.width = this.w * this.dpr;
+    cv.height = this.h * this.dpr;
+    cv.style.width = this.w + 'px';
+    cv.style.height = this.h + 'px';
   }
 
   _init(props) {
     const data = props.data || {};
-    const rawNodes = (data.nodes || []).slice(0, 250);
+    const rawNodes = data.nodes || [];
     const idset = new Set(rawNodes.map((n) => n.id));
     const deg = {};
     (data.edges || []).forEach((e) => {
@@ -72,19 +107,25 @@ export default class GraphCanvas extends React.Component {
         deg[e.target] = (deg[e.target] || 0) + 1;
       }
     });
-    // Seed positions on a spread-out spiral so the sim untangles quickly.
+    // Folder-group colors: a file and its folder share the folder id.
+    const groups = new Map();
+    const groupColor = (n) => {
+      const key = n.kind === 'folder' ? n.folder_id || n.id : n.folder_id || 'root';
+      if (!groups.has(key)) groups.set(key, PALETTE[groups.size % PALETTE.length]);
+      return groups.get(key);
+    };
     this.nodes = rawNodes.map((n, i) => {
-      const a = i * 2.399963; // golden angle
+      const a = i * 2.399963;
       const r = 12 * Math.sqrt(i);
       return {
         id: n.id,
         node: n,
         deg: deg[n.id] || 0,
+        color: groupColor(n),
         x: r * Math.cos(a),
         y: r * Math.sin(a),
         vx: 0,
         vy: 0,
-        fixed: false,
       };
     });
     this.byId = {};
@@ -98,54 +139,89 @@ export default class GraphCanvas extends React.Component {
       this.adj[e.source].add(e.target);
       this.adj[e.target].add(e.source);
     });
+    this._visibleCache = null;
+  }
+
+  filterKind(n) {
+    if (n.node.kind === 'folder') return 'folder';
+    const t = n.node.type;
+    return ['doc', 'image', 'video', 'audio'].includes(t) ? t : 'file';
   }
 
   radius(n) {
-    return 4.5 + Math.min(9, Math.sqrt(n.deg) * 2.2);
+    return 4.5 + Math.min(10, Math.sqrt(n.deg) * 2.3);
+  }
+
+  // Set of visible node ids given type filters + local-graph focus/depth.
+  _visible() {
+    if (this._visibleCache) return this._visibleCache;
+    const { kinds, focusId, depth } = this.props;
+    let allowed = new Set(this.nodes.map((n) => n.id));
+    if (focusId && this.byId[focusId]) {
+      allowed = new Set([focusId]);
+      let frontier = [focusId];
+      for (let d = 0; d < (depth || 1); d++) {
+        const next = [];
+        for (const id of frontier) {
+          for (const nb of this.adj[id]) {
+            if (!allowed.has(nb)) {
+              allowed.add(nb);
+              next.push(nb);
+            }
+          }
+        }
+        frontier = next;
+      }
+    }
+    const vis = new Set();
+    for (const n of this.nodes) {
+      if (!allowed.has(n.id)) continue;
+      if (kinds && !kinds[this.filterKind(n)]) continue;
+      vis.add(n.id);
+    }
+    this._visibleCache = vis;
+    return vis;
   }
 
   _start() {
     cancelAnimationFrame(this._raf);
     const step = () => {
       this._simTick();
-      // Obsidian-style: keep the whole graph framed as it settles (until the
-      // user takes over with a pan/zoom/drag).
-      const fit = this._userMoved || this._drag ? null : this._fitTransform();
-      this.setState((s) => ({ tick: s.tick + 1, ...(fit || {}) }));
+      if (!this._userMoved && !this._drag) this._applyFit();
+      this._draw();
       const busy = this.alpha > ALPHA_MIN || this._drag;
       if (busy) this._raf = requestAnimationFrame(step);
     };
     this._raf = requestAnimationFrame(step);
   }
 
-  _fitTransform() {
-    if (!this.nodes.length) return null;
+  _reheat(a = 0.4) {
+    this.alpha = Math.max(this.alpha, a);
+    this._start();
+  }
+
+  _applyFit() {
+    const vis = this._visible();
+    const pts = this.nodes.filter((n) => vis.has(n.id));
+    if (!pts.length) return;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const n of this.nodes) {
+    for (const n of pts) {
       minX = Math.min(minX, n.x);
       minY = Math.min(minY, n.y);
       maxX = Math.max(maxX, n.x);
       maxY = Math.max(maxY, n.y);
     }
-    const { w, h } = this.state;
     const pad = 96;
     const gw = maxX - minX || 1;
     const gh = maxY - minY || 1;
-    const k = Math.min(2.2, Math.max(0.3, Math.min((w - pad) / gw, (h - pad) / gh)));
-    const cx = (minX + maxX) / 2;
-    const cy = (minY + maxY) / 2;
-    return { k, tx: -cx * k, ty: -cy * k };
-  }
-
-  _reheat(a = 0.5) {
-    this.alpha = Math.max(this.alpha, a);
-    this._start();
+    this.k = Math.min(2.4, Math.max(0.15, Math.min((this.w - pad) / gw, (this.h - pad) / gh)));
+    this.tx = -((minX + maxX) / 2) * this.k;
+    this.ty = -((minY + maxY) / 2) * this.k;
   }
 
   _simTick() {
     const nodes = this.nodes;
     const a = this.alpha;
-    // Repulsion (O(n^2); n capped at 250).
     for (let i = 0; i < nodes.length; i++) {
       const ni = nodes[i];
       for (let j = i + 1; j < nodes.length; j++) {
@@ -168,20 +244,16 @@ export default class GraphCanvas extends React.Component {
         nj.vy -= fy;
       }
     }
-    // Link springs.
     for (const e of this.edges) {
       const dx = e.t.x - e.s.x;
       const dy = e.t.y - e.s.y;
       const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
       const f = ((d - LINK_DIST) / d) * a * 0.5;
-      const fx = dx * f;
-      const fy = dy * f;
-      e.s.vx += fx;
-      e.s.vy += fy;
-      e.t.vx -= fx;
-      e.t.vy -= fy;
+      e.s.vx += dx * f;
+      e.s.vy += dy * f;
+      e.t.vx -= dx * f;
+      e.t.vy -= dy * f;
     }
-    // Centering gravity + integrate.
     for (const n of nodes) {
       if (n === this._drag) continue;
       n.vx -= n.x * CENTER * a;
@@ -194,21 +266,86 @@ export default class GraphCanvas extends React.Component {
     this.alpha *= ALPHA_DECAY;
   }
 
+  // --- drawing -------------------------------------------------------------
+  _draw() {
+    const cv = this.canvasRef.current;
+    if (!cv) return;
+    const ctx = cv.getContext('2d');
+    const { w, h, k, tx, ty, dpr = 1 } = this;
+    const vis = this._visible();
+    const q = (this.props.query || '').trim().toLowerCase();
+    const hover = this.hover;
+    const neigh = hover ? this.adj[hover] : null;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * (w / 2 + tx), dpr * (h / 2 + ty));
+
+    // edges
+    for (const e of this.edges) {
+      if (!vis.has(e.source) || !vis.has(e.target)) continue;
+      const active = hover && (e.source === hover || e.target === hover);
+      const faded = hover && !active;
+      ctx.beginPath();
+      ctx.moveTo(e.s.x, e.s.y);
+      ctx.lineTo(e.t.x, e.t.y);
+      ctx.strokeStyle = e.provenance === 'inferred' ? INFERRED : EXTRACTED;
+      ctx.globalAlpha = faded ? 0.1 : 0.7;
+      ctx.lineWidth = (active ? 2 : 1) / k;
+      if (e.provenance === 'inferred') ctx.setLineDash([4 / k, 3 / k]);
+      else ctx.setLineDash([]);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+
+    // nodes
+    const showAll = vis.size <= 40 || k > 1.7;
+    ctx.font = `${11 / k}px 'IBM Plex Sans',sans-serif`;
+    ctx.textBaseline = 'middle';
+    for (const n of this.nodes) {
+      if (!vis.has(n.id)) continue;
+      const r = this.radius(n);
+      const isFolder = n.node.kind === 'folder';
+      const active = n.id === hover;
+      const isNeighbor = neigh && neigh.has(n.id);
+      const match = q && n.node.label.toLowerCase().includes(q);
+      const faded = (hover && !active && !isNeighbor) || (q && !match);
+      ctx.globalAlpha = faded ? 0.2 : 1;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+      ctx.fillStyle = this.props.colorByFolder ? n.color : isFolder ? PALETTE[0] : '#4C82F7';
+      ctx.fill();
+      ctx.lineWidth = (active || match ? 2.2 : 1.4) / k;
+      ctx.strokeStyle = active ? TEXT : match ? '#E5484D' : FOLDER_RING;
+      ctx.stroke();
+      if (showAll || active || isNeighbor || match) {
+        ctx.globalAlpha = faded ? 0.3 : 1;
+        ctx.fillStyle = TEXT;
+        const label = n.node.label.length > 24 ? n.node.label.slice(0, 23) + '…' : n.node.label;
+        ctx.fillText(label, n.x + r + 3 / k, n.y);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
   // --- interaction ---------------------------------------------------------
   _toSim(clientX, clientY) {
     const el = this.wrapRef.current.getBoundingClientRect();
-    const { k, tx, ty, w, h } = this.state;
     return {
-      x: (clientX - el.left - w / 2 - tx) / k,
-      y: (clientY - el.top - h / 2 - ty) / k,
+      x: (clientX - el.left - this.w / 2 - this.tx) / this.k,
+      y: (clientY - el.top - this.h / 2 - this.ty) / this.k,
     };
   }
 
   _hitNode(clientX, clientY) {
     const p = this._toSim(clientX, clientY);
+    const vis = this._visible();
     let best = null;
     let bestD = Infinity;
     for (const n of this.nodes) {
+      if (!vis.has(n.id)) continue;
       const dx = n.x - p.x;
       const dy = n.y - p.y;
       const d = dx * dx + dy * dy;
@@ -224,14 +361,15 @@ export default class GraphCanvas extends React.Component {
   onWheel = (e) => {
     e.preventDefault();
     this._userMoved = true;
-    const { k, tx, ty, w, h } = this.state;
     const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-    const nk = Math.min(4, Math.max(0.25, k * factor));
+    const nk = Math.min(4, Math.max(0.2, this.k * factor));
     const el = this.wrapRef.current.getBoundingClientRect();
-    const cx = e.clientX - el.left - w / 2;
-    const cy = e.clientY - el.top - h / 2;
-    // Keep the point under the cursor fixed while zooming.
-    this.setState({ k: nk, tx: cx - ((cx - tx) * nk) / k, ty: cy - ((cy - ty) * nk) / k });
+    const cx = e.clientX - el.left - this.w / 2;
+    const cy = e.clientY - el.top - this.h / 2;
+    this.tx = cx - ((cx - this.tx) * nk) / this.k;
+    this.ty = cy - ((cy - this.ty) * nk) / this.k;
+    this.k = nk;
+    this._draw();
   };
 
   onPointerDown = (e) => {
@@ -240,12 +378,11 @@ export default class GraphCanvas extends React.Component {
     const hit = this._hitNode(e.clientX, e.clientY);
     if (hit) {
       this._userMoved = true;
-      hit.fixed = true;
       this._drag = hit;
       this._reheat(0.3);
     } else {
       this._userMoved = true;
-      this._pan = { x: e.clientX, y: e.clientY, tx: this.state.tx, ty: this.state.ty };
+      this._pan = { x: e.clientX, y: e.clientY, tx: this.tx, ty: this.ty };
     }
   };
 
@@ -263,41 +400,35 @@ export default class GraphCanvas extends React.Component {
       return;
     }
     if (this._pan) {
-      this.setState({
-        tx: this._pan.tx + (e.clientX - this._pan.x),
-        ty: this._pan.ty + (e.clientY - this._pan.y),
-      });
+      this.tx = this._pan.tx + (e.clientX - this._pan.x);
+      this.ty = this._pan.ty + (e.clientY - this._pan.y);
+      this._draw();
       return;
     }
     const hit = this._hitNode(e.clientX, e.clientY);
     const id = hit ? hit.id : null;
-    if (id !== this.state.hover) this.setState({ hover: id });
+    if (id !== this.hover) {
+      this.hover = id;
+      const cv = this.canvasRef.current;
+      if (cv) cv.style.cursor = id ? 'pointer' : 'grab';
+      this._draw();
+    }
   };
 
   onPointerUp = (e) => {
     if (this._drag) {
-      this._drag.fixed = false;
       this._drag = null;
-      this._reheat(0.1);
+      this._reheat(0.08);
     }
-    // A click (no drag) on a file node opens it.
     if (this._downAt && !this._downAt.moved) {
       const hit = this._hitNode(e.clientX, e.clientY);
-      if (hit && hit.node.file_id && this.props.onOpenFile) this.props.onOpenFile(hit.node.file_id);
+      if (hit && this.props.onNodeClick) this.props.onNodeClick(hit.node);
     }
     this._pan = null;
     this._downAt = null;
   };
 
   render() {
-    const { k, tx, ty, hover, w, h } = this.state;
-    const nodes = this.nodes;
-    const edges = this.edges;
-    const neigh = hover ? this.adj[hover] : null;
-    const dim = (id) => hover && id !== hover && !(neigh && neigh.has(id));
-    const showAllLabels = nodes.length <= 26 || k > 1.7;
-    const fontSize = 11 / k;
-
     return (
       <div
         ref={this.wrapRef}
@@ -305,71 +436,25 @@ export default class GraphCanvas extends React.Component {
         onPointerDown={this.onPointerDown}
         onPointerMove={this.onPointerMove}
         onPointerUp={this.onPointerUp}
-        onPointerLeave={() => this.setState({ hover: null })}
+        onPointerLeave={() => {
+          if (this.hover) {
+            this.hover = null;
+            this._draw();
+          }
+        }}
         style={{
           width: '100%',
-          height: '62vh',
-          minHeight: '360px',
+          height: '60vh',
+          minHeight: '340px',
           background: theme.surface2 || '#F6F7F9',
           borderRadius: '12px',
           border: `1px solid ${theme.border}`,
           overflow: 'hidden',
-          cursor: this._pan ? 'grabbing' : 'grab',
+          cursor: 'grab',
           touchAction: 'none',
         }}
       >
-        <svg width={w} height={h} style={{ display: 'block' }}>
-          <g transform={`translate(${w / 2 + tx}, ${h / 2 + ty}) scale(${k})`}>
-            {edges.map((e, i) => {
-              const inferred = e.provenance === 'inferred';
-              const active = hover && (e.source === hover || e.target === hover);
-              const faded = hover && !active;
-              return (
-                <line
-                  key={i}
-                  x1={e.s.x}
-                  y1={e.s.y}
-                  x2={e.t.x}
-                  y2={e.t.y}
-                  stroke={inferred ? INFERRED : EXTRACTED}
-                  strokeWidth={(active ? 2 : 1) / k}
-                  strokeDasharray={inferred ? `${4 / k} ${3 / k}` : undefined}
-                  opacity={faded ? 0.12 : 0.7}
-                />
-              );
-            })}
-            {nodes.map((n) => {
-              const isFolder = n.node.kind === 'folder';
-              const r = this.radius(n);
-              const faded = dim(n.id);
-              const active = n.id === hover;
-              return (
-                <g key={n.id} opacity={faded ? 0.25 : 1}>
-                  <circle
-                    cx={n.x}
-                    cy={n.y}
-                    r={r}
-                    fill={isFolder ? FOLDER_COLOR : FILE_COLOR}
-                    stroke={active ? TEXT : '#fff'}
-                    strokeWidth={(active ? 2 : 1) / k}
-                  />
-                  {showAllLabels || active || (neigh && neigh.has(n.id)) ? (
-                    <text
-                      x={n.x + r + 3 / k}
-                      y={n.y + fontSize * 0.35}
-                      fontSize={fontSize}
-                      fill={TEXT}
-                      fontFamily="'IBM Plex Sans',sans-serif"
-                      style={{ pointerEvents: 'none' }}
-                    >
-                      {n.node.label.length > 22 ? n.node.label.slice(0, 21) + '…' : n.node.label}
-                    </text>
-                  ) : null}
-                </g>
-              );
-            })}
-          </g>
-        </svg>
+        <canvas ref={this.canvasRef} style={{ display: 'block' }} />
       </div>
     );
   }

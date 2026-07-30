@@ -104,8 +104,17 @@ test('Graphify + folder-scope playthrough (recorded)', async ({ page }) => {
   await test.step('Knowledge graph view (node/edge diagram)', async () => {
     await page.getByRole('button', { name: 'Knowledge graph' }).click();
     await expect(page.getByText(/nodes ·/)).toBeVisible({ timeout: 15000 });
+    // Controls are present (search, type filters, local-graph, reset).
+    await expect(page.getByPlaceholder('Search nodes…')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Local graph' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Reset view' })).toBeVisible();
     await beat(page, 3200); // let the force layout settle
     await shot(page, '07-graph-view.png');
+    // Exercise a type filter + search highlight.
+    await page.getByRole('button', { name: 'Audio' }).click();
+    await page.getByPlaceholder('Search nodes…').fill('invoice');
+    await beat(page, 700);
+    await shot(page, '08-graph-filtered.png');
     await page.keyboard.press('Escape');
   });
 
