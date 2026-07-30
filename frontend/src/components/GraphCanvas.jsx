@@ -1,37 +1,31 @@
 import React from 'react';
 import { theme } from '../lib/theme';
+import GraphSimWorker from '../lib/graphSim.worker.js?worker';
 
-// Interactive force-directed knowledge graph rendered to <canvas> (scales to
-// hundreds/thousands of nodes; no external libs). Physics: many-body repulsion +
-// link springs + centering gravity over a cooling schedule, with auto-fit.
-// Interactions: wheel-zoom, drag-pan, drag a node, hover-highlight neighbors,
-// click (delegated to onNodeClick). Supports type filters, a local-graph focus
-// with adjustable depth, color-by-folder groups, and search highlighting — all
-// applied at draw time over a stable layout (no jarring re-simulation).
+// Interactive force-directed knowledge graph (Barnes-Hut, O(n log n)). Physics
+// runs in a Web Worker so the UI stays smooth while large graphs settle; if no
+// worker tick arrives quickly (e.g. some dev servers don't wire module workers),
+// it transparently falls back to the same simulation on the main thread — so the
+// graph always works. This component owns rendering (canvas) + interaction.
+// Features: wheel-zoom, drag-pan, drag a node, hover-highlight, click-to-open,
+// type filters, local-graph focus + depth, color-by-folder, search highlight,
+// live force params, auto-fit.
 
 const FOLDER_RING = '#ffffff';
 const INFERRED = '#E8912D';
 const EXTRACTED = '#C2C8D2';
 const TEXT = theme.text || '#15171C';
-const DIM = '#C9CED6';
-// Distinct, legible group palette (color-by-folder).
 const PALETTE = [
   '#5145E5', '#2F9E6E', '#E5484D', '#E8912D', '#4C82F7',
   '#9C4DCC', '#0E9BA6', '#C2410C', '#7C8B1B', '#B4235E',
 ];
-
-const LINK_DIST = 80;
-const CHARGE = 2600;
-const CENTER = 0.02;
+const DEFAULTS = { charge: 2600, linkDist: 80, center: 0.02 };
 const DAMP = 0.82;
 const ALPHA_MIN = 0.004;
 const ALPHA_DECAY = 0.965;
-const THETA2 = 0.81; // Barnes-Hut opening criterion (theta ~ 0.9), squared
+const THETA2 = 0.81;
 
-// --- Barnes-Hut quadtree: O(n log n) many-body repulsion (scales to thousands
-// of nodes; a plain O(n^2) loop stalls past a few hundred). Each cell stores its
-// mass (node count) and center of mass; a cell far enough from a node is treated
-// as one aggregate body instead of visiting every node inside it.
+// --- Barnes-Hut quadtree (shared by the main-thread fallback) ---
 function makeCell(x, y, size) {
   return { x, y, size, mass: 0, cx: 0, cy: 0, node: null, children: null };
 }
@@ -45,7 +39,7 @@ function qtInsert(cell, n) {
     return;
   }
   if (!cell.children) {
-    if (cell.size < 0.5) return; // coincident cluster: keep as an aggregate leaf
+    if (cell.size < 0.5) return;
     cell.children = [null, null, null, null];
     const old = cell.node;
     cell.node = null;
@@ -74,13 +68,13 @@ function qtBuild(nodes) {
   for (const n of nodes) qtInsert(root, n);
   return root;
 }
-function qtForce(cell, n, alpha, charge) {
+function qtForce(cell, n, a, charge) {
   if (!cell || cell.mass === 0) return;
   let dx = cell.cx - n.x;
   let dy = cell.cy - n.y;
   let d2 = dx * dx + dy * dy;
   const leaf = !cell.children;
-  if (leaf && cell.node === n) return; // don't repel from self
+  if (leaf && cell.node === n) return;
   if (leaf || cell.size * cell.size < THETA2 * d2) {
     if (d2 < 0.01) {
       dx = (Math.random() - 0.5) * 0.1;
@@ -88,12 +82,12 @@ function qtForce(cell, n, alpha, charge) {
       d2 = dx * dx + dy * dy + 0.01;
     }
     const d = Math.sqrt(d2);
-    const f = (charge * alpha * cell.mass) / d2;
+    const f = (charge * a * cell.mass) / d2;
     n.vx += (-dx / d) * f;
     n.vy += (-dy / d) * f;
     return;
   }
-  for (let i = 0; i < 4; i++) qtForce(cell.children[i], n, alpha, charge);
+  for (let i = 0; i < 4; i++) qtForce(cell.children[i], n, a, charge);
 }
 
 export default class GraphCanvas extends React.Component {
@@ -118,20 +112,18 @@ export default class GraphCanvas extends React.Component {
       this._draw();
     };
     window.addEventListener('resize', this._onResize);
-    this.alpha = 1;
-    this._start();
+    this._startSim();
   }
 
   componentDidUpdate(prev) {
     if (prev.data !== this.props.data) {
       this._init(this.props);
-      this.alpha = 1;
       this._userMoved = false;
       this.k = 1;
       this.tx = 0;
       this.ty = 0;
       this.hover = null;
-      this._start();
+      this._startSim();
       return;
     }
     if (
@@ -139,25 +131,34 @@ export default class GraphCanvas extends React.Component {
       prev.linkDist !== this.props.linkDist ||
       prev.center !== this.props.center
     ) {
-      this._reheat(0.5); // physics changed — let it re-settle
+      if (this._mainThread) this._reheatMain(0.5);
+      else this._post({ type: 'params', ...this._params() });
       return;
     }
-    // Filters / focus / query changed: keep layout, re-fit visible, redraw.
     this._visibleCache = null;
     if (!this._userMoved) this._applyFit();
     this._draw();
   }
 
   componentWillUnmount() {
-    cancelAnimationFrame(this._raf);
     window.removeEventListener('resize', this._onResize);
+    clearTimeout(this._fallbackTimer);
+    cancelAnimationFrame(this._raf);
+    if (this.worker) this.worker.terminate();
   }
 
-  // Public: re-frame the graph (Reset view button).
   resetView() {
     this._userMoved = false;
     this._applyFit();
     this._draw();
+  }
+
+  _params() {
+    return {
+      charge: this.props.charge != null ? this.props.charge : DEFAULTS.charge,
+      linkDist: this.props.linkDist != null ? this.props.linkDist : DEFAULTS.linkDist,
+      center: this.props.center != null ? this.props.center : DEFAULTS.center,
+    };
   }
 
   _measure() {
@@ -184,7 +185,6 @@ export default class GraphCanvas extends React.Component {
         deg[e.target] = (deg[e.target] || 0) + 1;
       }
     });
-    // Folder-group colors: a file and its folder share the folder id.
     const groups = new Map();
     const groupColor = (n) => {
       const key = n.kind === 'folder' ? n.folder_id || n.id : n.folder_id || 'root';
@@ -194,16 +194,8 @@ export default class GraphCanvas extends React.Component {
     this.nodes = rawNodes.map((n, i) => {
       const a = i * 2.399963;
       const r = 12 * Math.sqrt(i);
-      return {
-        id: n.id,
-        node: n,
-        deg: deg[n.id] || 0,
-        color: groupColor(n),
-        x: r * Math.cos(a),
-        y: r * Math.sin(a),
-        vx: 0,
-        vy: 0,
-      };
+      return { id: n.id, i, node: n, deg: deg[n.id] || 0, color: groupColor(n),
+               x: r * Math.cos(a), y: r * Math.sin(a), vx: 0, vy: 0 };
     });
     this.byId = {};
     this.nodes.forEach((n) => (this.byId[n.id] = n));
@@ -219,6 +211,119 @@ export default class GraphCanvas extends React.Component {
     this._visibleCache = null;
   }
 
+  // Start the worker; if it doesn't tick promptly, fall back to main-thread sim.
+  _startSim() {
+    clearTimeout(this._fallbackTimer);
+    cancelAnimationFrame(this._raf);
+    this._mainThread = false;
+    this._gotTick = false;
+    try {
+      if (!this.worker) {
+        this.worker = new GraphSimWorker();
+        this.worker.addEventListener('message', (e) => {
+          if (e.data && e.data.type === 'tick') this._onTick(e.data.pos);
+        });
+      }
+      const n = this.nodes.length;
+      const xs = new Float32Array(n);
+      const ys = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        xs[i] = this.nodes[i].x;
+        ys[i] = this.nodes[i].y;
+      }
+      const edges = new Int32Array(this.edges.length * 2);
+      for (let i = 0; i < this.edges.length; i++) {
+        edges[i * 2] = this.edges[i].s.i;
+        edges[i * 2 + 1] = this.edges[i].t.i;
+      }
+      this.worker.postMessage({ type: 'init', xs, ys, edges, params: this._params() });
+      this._fallbackTimer = setTimeout(() => {
+        if (!this._gotTick) this._startMain();
+      }, 700);
+    } catch (err) {
+      this._startMain();
+    }
+  }
+
+  _post(msg) {
+    if (this.worker && !this._mainThread) this.worker.postMessage(msg);
+  }
+
+  _onTick(pos) {
+    if (this._mainThread) return; // worker recovered late; ignore
+    clearTimeout(this._fallbackTimer);
+    this._gotTick = true;
+    const nodes = this.nodes;
+    for (let i = 0; i < nodes.length && i * 2 + 1 < pos.length; i++) {
+      nodes[i].x = pos[i * 2];
+      nodes[i].y = pos[i * 2 + 1];
+    }
+    if (!this._userMoved && !this._drag) this._applyFit();
+    this._draw();
+    if (typeof window !== 'undefined') window.__gTick = (window.__gTick || 0) + 1;
+  }
+
+  // --- main-thread fallback simulation ---
+  _startMain() {
+    this._mainThread = true;
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
+    }
+    this.alpha = 1;
+    cancelAnimationFrame(this._raf);
+    const stepLoop = () => {
+      this._simTick();
+      if (!this._userMoved && !this._drag) this._applyFit();
+      this._draw();
+      if (typeof window !== 'undefined') window.__gTick = (window.__gTick || 0) + 1;
+      if (this.alpha > ALPHA_MIN || this._drag) this._raf = requestAnimationFrame(stepLoop);
+    };
+    this._raf = requestAnimationFrame(stepLoop);
+  }
+
+  _reheatMain(a = 0.4) {
+    this.alpha = Math.max(this.alpha || 0, a);
+    cancelAnimationFrame(this._raf);
+    const stepLoop = () => {
+      this._simTick();
+      if (!this._userMoved && !this._drag) this._applyFit();
+      this._draw();
+      if (this.alpha > ALPHA_MIN || this._drag) this._raf = requestAnimationFrame(stepLoop);
+    };
+    this._raf = requestAnimationFrame(stepLoop);
+  }
+
+  _simTick() {
+    const nodes = this.nodes;
+    const a = this.alpha;
+    const { charge, linkDist, center } = this._params();
+    const root = qtBuild(nodes);
+    for (const n of nodes) {
+      if (n !== this._drag) qtForce(root, n, a, charge);
+    }
+    for (const e of this.edges) {
+      const dx = e.t.x - e.s.x;
+      const dy = e.t.y - e.s.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+      const f = ((d - linkDist) / d) * a * 0.5;
+      e.s.vx += dx * f;
+      e.s.vy += dy * f;
+      e.t.vx -= dx * f;
+      e.t.vy -= dy * f;
+    }
+    for (const n of nodes) {
+      if (n === this._drag) continue;
+      n.vx -= n.x * center * a;
+      n.vy -= n.y * center * a;
+      n.vx *= DAMP;
+      n.vy *= DAMP;
+      n.x += n.vx;
+      n.y += n.vy;
+    }
+    this.alpha *= ALPHA_DECAY;
+  }
+
   filterKind(n) {
     if (n.node.kind === 'folder') return 'folder';
     const t = n.node.type;
@@ -229,7 +334,6 @@ export default class GraphCanvas extends React.Component {
     return 4.5 + Math.min(10, Math.sqrt(n.deg) * 2.3);
   }
 
-  // Set of visible node ids given type filters + local-graph focus/depth.
   _visible() {
     if (this._visibleCache) return this._visibleCache;
     const { kinds, focusId, depth } = this.props;
@@ -260,23 +364,6 @@ export default class GraphCanvas extends React.Component {
     return vis;
   }
 
-  _start() {
-    cancelAnimationFrame(this._raf);
-    const step = () => {
-      this._simTick();
-      if (!this._userMoved && !this._drag) this._applyFit();
-      this._draw();
-      const busy = this.alpha > ALPHA_MIN || this._drag;
-      if (busy) this._raf = requestAnimationFrame(step);
-    };
-    this._raf = requestAnimationFrame(step);
-  }
-
-  _reheat(a = 0.4) {
-    this.alpha = Math.max(this.alpha, a);
-    this._start();
-  }
-
   _applyFit() {
     const vis = this._visible();
     const pts = this.nodes.filter((n) => vis.has(n.id));
@@ -291,47 +378,11 @@ export default class GraphCanvas extends React.Component {
     const pad = 96;
     const gw = maxX - minX || 1;
     const gh = maxY - minY || 1;
-    this.k = Math.min(2.4, Math.max(0.15, Math.min((this.w - pad) / gw, (this.h - pad) / gh)));
+    this.k = Math.min(2.4, Math.max(0.1, Math.min((this.w - pad) / gw, (this.h - pad) / gh)));
     this.tx = -((minX + maxX) / 2) * this.k;
     this.ty = -((minY + maxY) / 2) * this.k;
   }
 
-  _simTick() {
-    const nodes = this.nodes;
-    const a = this.alpha;
-    const charge = this.props.charge != null ? this.props.charge : CHARGE;
-    const linkDist = this.props.linkDist != null ? this.props.linkDist : LINK_DIST;
-    const center = this.props.center != null ? this.props.center : CENTER;
-    // Repulsion via Barnes-Hut (O(n log n)).
-    const root = qtBuild(nodes);
-    for (const n of nodes) {
-      if (n !== this._drag) qtForce(root, n, a, charge);
-    }
-    // Link springs.
-    for (const e of this.edges) {
-      const dx = e.t.x - e.s.x;
-      const dy = e.t.y - e.s.y;
-      const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
-      const f = ((d - linkDist) / d) * a * 0.5;
-      e.s.vx += dx * f;
-      e.s.vy += dy * f;
-      e.t.vx -= dx * f;
-      e.t.vy -= dy * f;
-    }
-    // Centering gravity + integrate.
-    for (const n of nodes) {
-      if (n === this._drag) continue;
-      n.vx -= n.x * center * a;
-      n.vy -= n.y * center * a;
-      n.vx *= DAMP;
-      n.vy *= DAMP;
-      n.x += n.vx;
-      n.y += n.vy;
-    }
-    this.alpha *= ALPHA_DECAY;
-  }
-
-  // --- drawing -------------------------------------------------------------
   _draw() {
     const cv = this.canvasRef.current;
     if (!cv) return;
@@ -346,7 +397,6 @@ export default class GraphCanvas extends React.Component {
     ctx.clearRect(0, 0, w, h);
     ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * (w / 2 + tx), dpr * (h / 2 + ty));
 
-    // edges
     for (const e of this.edges) {
       if (!vis.has(e.source) || !vis.has(e.target)) continue;
       const active = hover && (e.source === hover || e.target === hover);
@@ -364,7 +414,6 @@ export default class GraphCanvas extends React.Component {
     ctx.setLineDash([]);
     ctx.globalAlpha = 1;
 
-    // nodes
     const showAll = vis.size <= 40 || k > 1.7;
     ctx.font = `${11 / k}px 'IBM Plex Sans',sans-serif`;
     ctx.textBaseline = 'middle';
@@ -395,7 +444,6 @@ export default class GraphCanvas extends React.Component {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
-  // --- interaction ---------------------------------------------------------
   _toSim(clientX, clientY) {
     const el = this.wrapRef.current.getBoundingClientRect();
     return {
@@ -444,7 +492,11 @@ export default class GraphCanvas extends React.Component {
     if (hit) {
       this._userMoved = true;
       this._drag = hit;
-      this._reheat(0.3);
+      const p = this._toSim(e.clientX, e.clientY);
+      hit.x = p.x;
+      hit.y = p.y;
+      if (this._mainThread) this._reheatMain(0.3);
+      else this._post({ type: 'drag', i: hit.i, x: p.x, y: p.y });
     } else {
       this._userMoved = true;
       this._pan = { x: e.clientX, y: e.clientY, tx: this.tx, ty: this.ty };
@@ -462,6 +514,8 @@ export default class GraphCanvas extends React.Component {
       this._drag.y = p.y;
       this._drag.vx = 0;
       this._drag.vy = 0;
+      if (!this._mainThread) this._post({ type: 'drag', i: this._drag.i, x: p.x, y: p.y });
+      this._draw();
       return;
     }
     if (this._pan) {
@@ -482,8 +536,11 @@ export default class GraphCanvas extends React.Component {
 
   onPointerUp = (e) => {
     if (this._drag) {
+      const wasDrag = this._drag;
       this._drag = null;
-      this._reheat(0.08);
+      if (this._mainThread) this._reheatMain(0.1);
+      else this._post({ type: 'dragEnd' });
+      void wasDrag;
     }
     if (this._downAt && !this._downAt.moved) {
       const hit = this._hitNode(e.clientX, e.clientY);
