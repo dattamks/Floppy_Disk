@@ -63,11 +63,17 @@ cd mcp && pip install -r requirements.txt && \
 - Make sure CI is green (`.github/workflows/ci.yml` runs backend, frontend, and
   MCP checks).
 - Describe what changed and why.
+- **Sign off your commits** with `git commit -s` (see below).
 
 ## Reporting security issues
 
 Please do **not** open a public issue for security vulnerabilities — see
 [`SECURITY.md`](SECURITY.md).
 
-By contributing, you agree that your contributions are licensed under the
-Apache License 2.0.
+## Contribution terms
+
+By contributing you agree to the project's [Contribution Terms](CONTRIBUTION_TERMS.md):
+your contributions are licensed under the Apache License 2.0 (inbound = outbound),
+and each commit must be signed off under the Developer Certificate of Origin —
+add a `Signed-off-by` line with `git commit -s`. See
+[`CONTRIBUTION_TERMS.md`](CONTRIBUTION_TERMS.md) for the full text.
