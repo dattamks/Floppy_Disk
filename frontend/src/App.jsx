@@ -1076,6 +1076,10 @@ export default class App extends React.Component {
         this.toast(firstError(err, 'Could not load the graph'));
       });
   }
+  openGraphFile(fileId) {
+    const file = (this.state.files || []).find((f) => f.id === fileId && !f.trashed);
+    if (file && file.kind !== 'folder') this.openFile(file);
+  }
   openLinks() {
     this.setState({ modal: 'links', drawerOpen: false, linksLoading: true, linksList: [] });
     api
@@ -1951,6 +1955,7 @@ export default class App extends React.Component {
       openLinks: () => this.openLinks(),
       isGraphModal: modal === 'graph',
       openGraph: () => this.openGraph(),
+      openGraphFile: (id) => this.openGraphFile(id),
       graphLoading: st.graphLoading,
       graphData: st.graphData,
       linksLoading: st.linksLoading,
@@ -2116,8 +2121,8 @@ export default class App extends React.Component {
       overlayBg: theater ? 'rgba(8,9,12,0.92)' : 'rgba(20,23,28,0.42)',
       overlayAlign: theater ? 'stretch' : d.modalAlign,
       overlayPad: theater ? 0 : d.modalPad,
-      boxW: theater ? '100%' : d.modalW,
-      boxMaxH: theater ? '100vh' : d.modalMaxH,
+      boxW: theater ? '100%' : modal === 'graph' ? 'min(1040px, 95vw)' : d.modalW,
+      boxMaxH: theater ? '100vh' : modal === 'graph' ? '92vh' : d.modalMaxH,
       boxBg: theater ? '#0B0C0F' : '#FFFFFF',
       boxBorder: theater ? 'none' : '1px solid #E5E7EC',
       boxRadius: theater ? '0px' : d.modalRadius,

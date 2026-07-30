@@ -104,7 +104,7 @@ test('Graphify + folder-scope playthrough (recorded)', async ({ page }) => {
   await test.step('Knowledge graph view (node/edge diagram)', async () => {
     await page.getByRole('button', { name: 'Knowledge graph' }).click();
     await expect(page.getByText(/nodes ·/)).toBeVisible({ timeout: 15000 });
-    await beat(page, 900);
+    await beat(page, 3200); // let the force layout settle
     await shot(page, '07-graph-view.png');
     await page.keyboard.press('Escape');
   });

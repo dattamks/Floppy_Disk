@@ -1,23 +1,13 @@
 import React from 'react';
 import { theme } from '../lib/theme';
+import GraphCanvas from './GraphCanvas';
 
-// Whole-storage knowledge graph as an SVG node-link diagram (no external libs).
-// Nodes on a circle; edges colored by provenance (extracted vs inferred).
+// Whole-storage knowledge graph, force-directed and interactive (GraphCanvas).
 // Renders when V.isGraphModal is set; data from GET /graph/.
-const MAX_NODES = 60; // keep the picture readable
-const SIZE = 620;
-const CX = SIZE / 2;
-const CY = SIZE / 2;
-const R = SIZE / 2 - 70;
-
 const FOLDER_COLOR = theme.brand || '#5145E5';
-const FILE_COLOR = '#5B8DEF';
+const FILE_COLOR = '#4C82F7';
 const INFERRED = '#E8912D';
-const EXTRACTED = theme.textFaint || '#9AA1AC';
-
-function truncate(s, n = 16) {
-  return s && s.length > n ? s.slice(0, n - 1) + '…' : s || '';
-}
+const EXTRACTED = '#B7BDC7';
 
 export default function GraphModal(V) {
   if (!V.isGraphModal) return null;
@@ -49,7 +39,6 @@ export default function GraphModal(V) {
   }
 
   const nodes = (g && g.nodes) || [];
-  const edges = (g && g.edges) || [];
   if (nodes.length === 0) {
     return (
       <React.Fragment>
@@ -61,71 +50,30 @@ export default function GraphModal(V) {
     );
   }
 
-  const shown = nodes.slice(0, MAX_NODES);
-  const pos = {};
-  shown.forEach((n, i) => {
-    const a = (2 * Math.PI * i) / shown.length - Math.PI / 2;
-    pos[n.id] = { x: CX + R * Math.cos(a), y: CY + R * Math.sin(a), a, node: n };
-  });
-  const visibleEdges = edges.filter((e) => pos[e.source] && pos[e.target]);
-
   return (
     <React.Fragment>
       {header}
-      <span style={{ fontSize: '12px', color: theme.textFaint }}>
-        {g.counts.nodes} nodes · {g.counts.edges} edges{g.scoped ? ' · scoped to your folder' : ''}
-        {nodes.length > MAX_NODES ? ` · showing first ${MAX_NODES}` : ''}
-      </span>
-      <div style={{ display: 'flex', gap: '14px', fontSize: '11.5px', color: theme.textMuted, flexWrap: 'wrap' }}>
-        <Legend color={FOLDER_COLOR} label="folder" />
-        <Legend color={FILE_COLOR} label="file" />
-        <Legend color={EXTRACTED} label="extracted edge" line />
-        <Legend color={INFERRED} label="inferred edge" line dashed />
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '10px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <span style={{ fontSize: '12px', color: theme.textFaint }}>
+          {g.counts.nodes} nodes · {g.counts.edges} edges{g.scoped ? ' · scoped to your folder' : ''} ·
+          drag to pan, scroll to zoom, drag a node, hover to focus, click a file to open
+        </span>
+        <div style={{ display: 'flex', gap: '13px', fontSize: '11.5px', color: theme.textMuted, flexWrap: 'wrap' }}>
+          <Legend color={FOLDER_COLOR} label="folder" />
+          <Legend color={FILE_COLOR} label="file" />
+          <Legend color={EXTRACTED} label="extracted" line />
+          <Legend color={INFERRED} label="inferred" line dashed />
+        </div>
       </div>
-      <div style={{ width: '100%', overflow: 'auto' }}>
-        <svg viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ width: '100%', maxWidth: '620px', display: 'block', margin: '0 auto' }}>
-          {visibleEdges.map((e, i) => {
-            const s = pos[e.source];
-            const t = pos[e.target];
-            const inferred = e.provenance === 'inferred';
-            return (
-              <line
-                key={`e${i}`}
-                x1={s.x}
-                y1={s.y}
-                x2={t.x}
-                y2={t.y}
-                stroke={inferred ? INFERRED : EXTRACTED}
-                strokeWidth={inferred ? 1.2 : 1}
-                strokeDasharray={inferred ? '4 3' : undefined}
-                opacity="0.55"
-              />
-            );
-          })}
-          {shown.map((n) => {
-            const p = pos[n.id];
-            const isFolder = n.kind === 'folder';
-            const color = isFolder ? FOLDER_COLOR : FILE_COLOR;
-            // Anchor labels left/right depending on which half of the circle.
-            const rightSide = Math.cos(p.a) >= 0;
-            return (
-              <g key={n.id}>
-                <circle cx={p.x} cy={p.y} r={isFolder ? 6.5 : 4.5} fill={color} />
-                <text
-                  x={p.x + (rightSide ? 9 : -9)}
-                  y={p.y + 3.5}
-                  fontSize="10.5"
-                  fill={theme.text || '#15171C'}
-                  textAnchor={rightSide ? 'start' : 'end'}
-                  fontFamily="'IBM Plex Sans',sans-serif"
-                >
-                  {truncate(n.label)}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
+      <GraphCanvas data={g} onOpenFile={V.openGraphFile} />
     </React.Fragment>
   );
 }
