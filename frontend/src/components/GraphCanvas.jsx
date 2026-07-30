@@ -260,7 +260,6 @@ export default class GraphCanvas extends React.Component {
     }
     if (!this._userMoved && !this._drag) this._applyFit();
     this._draw();
-    if (typeof window !== 'undefined') window.__gTick = (window.__gTick || 0) + 1;
   }
 
   // --- main-thread fallback simulation ---
@@ -276,7 +275,6 @@ export default class GraphCanvas extends React.Component {
       this._simTick();
       if (!this._userMoved && !this._drag) this._applyFit();
       this._draw();
-      if (typeof window !== 'undefined') window.__gTick = (window.__gTick || 0) + 1;
       if (this.alpha > ALPHA_MIN || this._drag) this._raf = requestAnimationFrame(stepLoop);
     };
     this._raf = requestAnimationFrame(stepLoop);
