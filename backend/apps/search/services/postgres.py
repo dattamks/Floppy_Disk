@@ -15,7 +15,7 @@ class PostgresSearchService(SearchService):
     def remove(self, *, doc_id):
         return None
 
-    def search(self, *, query, user_id, limit=50, offset=0):
+    def search(self, *, query, user_id, limit=50, offset=0, folder_ids=None):
         from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
 
         from apps.storage.models import File
@@ -26,12 +26,15 @@ class PostgresSearchService(SearchService):
 
         vector = SearchVector("name")
         sq = SearchQuery(query, search_type="websearch")
+        base = File.objects.filter(deleted_at__isnull=True, status=File.Status.READY)
+        if folder_ids is not None:
+            # Folder-scoped key: only the owner's files inside the allowed
+            # subtree — never other users' discoverable content.
+            base = base.filter(owner_id=user_id, folder_id__in=folder_ids)
+        else:
+            base = base.filter(Q(owner_id=user_id) | Q(is_discoverable=True, is_mature_content=False))
         visible = (
-            File.objects.filter(
-                deleted_at__isnull=True, status=File.Status.READY,
-            )
-            .filter(Q(owner_id=user_id) | Q(is_discoverable=True, is_mature_content=False))
-            .annotate(rank=SearchRank(vector, sq))
+            base.annotate(rank=SearchRank(vector, sq))
             .filter(rank__gt=0)
             .order_by("-rank", "-created_at")
         )

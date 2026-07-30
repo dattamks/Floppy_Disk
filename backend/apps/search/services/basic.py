@@ -20,19 +20,24 @@ class BasicSearchService(SearchService):
     def remove(self, *, doc_id):
         return None
 
-    def search(self, *, query, user_id, limit=50, offset=0):
+    def search(self, *, query, user_id, limit=50, offset=0, folder_ids=None):
         from apps.storage.models import File
 
         query = (query or "").strip()
         if not query:
             return []
 
-        visible = File.objects.filter(
-            deleted_at__isnull=True, status=File.Status.READY,
-        ).filter(
-            Q(owner_id=user_id)  # your own files (any discoverability)
-            | Q(is_discoverable=True, is_mature_content=False)  # others' discoverable, non-mature
-        ).filter(name__icontains=query).order_by("-created_at")
+        base = File.objects.filter(deleted_at__isnull=True, status=File.Status.READY)
+        if folder_ids is not None:
+            # Folder-scoped key: only the owner's files inside the allowed
+            # subtree — never other users' discoverable content.
+            base = base.filter(owner_id=user_id, folder_id__in=folder_ids)
+        else:
+            base = base.filter(
+                Q(owner_id=user_id)  # your own files (any discoverability)
+                | Q(is_discoverable=True, is_mature_content=False)  # others' discoverable, non-mature
+            )
+        visible = base.filter(name__icontains=query).order_by("-created_at")
 
         results = []
         for f in visible[offset:offset + limit]:

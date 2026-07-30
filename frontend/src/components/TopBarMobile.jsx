@@ -122,6 +122,8 @@ export default function TopBarMobile(V) {
       </button>{' '}
       <button
         onClick={V.openSettings}
+        aria-label="Settings"
+        title="Settings"
         style={{
           width: '32px',
           height: '32px',

@@ -6,8 +6,12 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 authors = [{ name = "Kashyap Sri Datta M" }]
+# fastmcp 3.x is the current major line: it carries the stateless_http core and
+# the streamable-http transport used for the MCP 2026-07-28 spec (and drops the
+# legacy HTTP+SSE transport). Pin to it so `stateless_http=True` and
+# `transport="streamable-http"` are available.
 dependencies = [
-    "fastmcp>=2.0",
+    "fastmcp>=3.4",
     "httpx>=0.27",
 ]
 

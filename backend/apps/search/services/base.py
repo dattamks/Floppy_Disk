@@ -20,8 +20,14 @@ class SearchService(ABC):
         """Remove a document from the index."""
 
     @abstractmethod
-    def search(self, *, query: str, user_id: str, limit: int = 50, offset: int = 0) -> list:
-        """Return ranked results the user is allowed to see (personal + discoverable)."""
+    def search(self, *, query: str, user_id: str, limit: int = 50, offset: int = 0,
+               folder_ids=None) -> list:
+        """Return ranked results the user is allowed to see (personal + discoverable).
+
+        `folder_ids` (a set/list) confines results to those folders — used by
+        folder-scoped API keys so a scoped key only searches its own subtree
+        (and never other users' discoverable content). None = unrestricted.
+        """
 
 
 def get_search_service() -> "SearchService":

@@ -1,0 +1,42 @@
+# Single-container Floppy Disk: builds the SPA, then serves it + the API from one
+# process. No Redis, no separate worker/beat, no external Postgres — SQLite and
+# in-process background jobs by default. Build from the repo root:
+#   docker build -f Dockerfile.standalone -t floppy-disk .
+#   docker run -p 8000:8000 -v floppydata:/data floppy-disk
+
+# --- stage 1: build the frontend ---
+FROM node:20-slim AS frontend
+WORKDIR /web
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npx vite build   # -> /web/dist
+
+# --- stage 2: runtime ---
+FROM python:3.12-slim
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DJANGO_SETTINGS_MODULE=config.settings.standalone \
+    FLOPPY_DATA_DIR=/data \
+    FRONTEND_DIST=/app/frontend_dist \
+    RUN_MAINTENANCE=0
+
+# ffmpeg powers self-hosted video transcoding (fully open-source); curl for healthcheck.
+RUN apt-get update && apt-get install -y --no-install-recommends curl ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY backend/requirements.txt ./
+RUN pip install --upgrade pip && pip install -r requirements.txt
+
+COPY backend/ ./
+COPY --from=frontend /web/dist /app/frontend_dist
+RUN mkdir -p /data && chmod +x scripts/standalone-entrypoint.sh
+
+VOLUME ["/data"]
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --retries=5 \
+  CMD curl -fsS http://localhost:8000/health/ || exit 1
+
+CMD ["sh", "scripts/standalone-entrypoint.sh"]

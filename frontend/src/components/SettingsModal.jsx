@@ -1,6 +1,7 @@
 import React from 'react';
 import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
+import ApiKeysPanel from './ApiKeysPanel';
 
 // Extracted from the design view; renders when V.isSettingsModal is set.
 export default function SettingsModal(V) {
@@ -87,6 +88,23 @@ export default function SettingsModal(V) {
           }}
         >
           Security
+        </button>{' '}
+        <button
+          onClick={V.setSettingsDeveloper}
+          style={{
+            flex: '1',
+            border: 'none',
+            borderRadius: '7px',
+            padding: '7px',
+            fontSize: '12.5px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            fontFamily: "'IBM Plex Sans',sans-serif",
+            background: V.stDeveloperBg,
+            color: V.stDeveloperColor,
+          }}
+        >
+          Developer
         </button>{' '}
       </div>{' '}
       {V.stIsProfile ? (
@@ -428,6 +446,7 @@ export default function SettingsModal(V) {
           </button>{' '}
         </React.Fragment>
       ) : null}{' '}
+      {V.stIsDeveloper ? ApiKeysPanel(V) : null}{' '}
     </React.Fragment>
   ) : null;
 }

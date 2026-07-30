@@ -69,13 +69,12 @@ test('full user journey: sign up → upload → share → play → trash → log
   await expect(page.locator('body')).toContainText(/share|link|floppy\.disk\/s\//i);
   await page.keyboard.press('Escape');
 
-  // 6. Back to My Files and play a video
-  await page.getByText('My Files', { exact: true }).first().click();
-  await page.getByText('Q3-brand-keynote.mp4', { exact: false }).first().click();
-  await expect(page.locator('video')).toBeVisible();
-  await page.keyboard.press('Escape');
+  // 6. Move the uploaded file to trash via its context menu (accounts start
+  //    empty now — no demo seed — so we trash the file we just uploaded).
+  await page.getByText('beach-sunset.png', { exact: false }).first().click({ button: 'right' });
+  await page.getByTestId('ctx-menu').getByRole('button', { name: 'Move to trash' }).click();
 
-  // 7. Trash shows the retention notice
+  // 7. Trash shows the item with the retention notice
   await page.getByText('Trash', { exact: false }).first().click();
   await expect(page.getByText(/kept for|days? left|retention/i).first()).toBeVisible();
 

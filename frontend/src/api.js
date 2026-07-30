@@ -125,4 +125,22 @@ export const api = {
   notifications: () => request('/notifications/'),
   markNotificationRead: (id) => request(`/notifications/${id}/read`, { method: 'POST' }),
   markAllNotificationsRead: () => request('/notifications/read-all', { method: 'POST' }),
+
+  // Knowledge graph
+  graph: () => request('/graph/'),
+  graphRelated: (fileId) => request(`/graph/related/${fileId}`),
+
+  // API keys (programmatic / MCP access). `root_folder` (a folder id) confines
+  // the key to that folder's subtree — including the knowledge graph.
+  listApiKeys: () => request('/auth/api-keys'),
+  createApiKey: ({ name, readOnly, rootFolder } = {}) =>
+    request('/auth/api-keys', {
+      method: 'POST',
+      body: {
+        name: name || '',
+        read_only: !!readOnly,
+        ...(rootFolder ? { root_folder: rootFolder } : {}),
+      },
+    }),
+  revokeApiKey: (id) => request(`/auth/api-keys/${id}`, { method: 'DELETE' }),
 };
