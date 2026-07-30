@@ -32,6 +32,10 @@ class GraphView extends React.Component {
       local: false,
       focusId: null,
       depth: 1,
+      showForces: false,
+      charge: 2600, // repulsion
+      linkDist: 80,
+      center: 0.02, // gravity
     };
   }
 
@@ -132,10 +136,33 @@ class GraphView extends React.Component {
               ))}
             </React.Fragment>
           ) : null}
+          <button onClick={() => this.setState((s) => ({ showForces: !s.showForces }))} style={chip(this.state.showForces)}>
+            Forces
+          </button>
           <button onClick={() => this.canvasRef.current && this.canvasRef.current.resetView()} style={chip(false)}>
             Reset view
           </button>
         </div>
+        {this.state.showForces ? (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '16px',
+              padding: '8px 12px',
+              background: theme.surface2,
+              border: `1px solid ${theme.border}`,
+              borderRadius: '10px',
+            }}
+          >
+            <Slider label="Repulsion" min={500} max={8000} step={100} value={this.state.charge}
+                    onChange={(v) => this.setState({ charge: v })} />
+            <Slider label="Link distance" min={30} max={220} step={5} value={this.state.linkDist}
+                    onChange={(v) => this.setState({ linkDist: v })} />
+            <Slider label="Gravity" min={0} max={0.12} step={0.005} value={this.state.center}
+                    onChange={(v) => this.setState({ center: v })} />
+          </div>
+        ) : null}
         {/* status line */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
           <span style={{ fontSize: '12px', color: theme.textFaint }}>
@@ -164,6 +191,9 @@ class GraphView extends React.Component {
           colorByFolder
           focusId={local ? focusId : null}
           depth={depth}
+          charge={this.state.charge}
+          linkDist={this.state.linkDist}
+          center={this.state.center}
           onNodeClick={this.onNodeClick}
         />
       </React.Fragment>
@@ -183,6 +213,25 @@ function chip(active) {
     cursor: 'pointer',
     fontFamily: "'IBM Plex Sans',sans-serif",
   };
+}
+
+function Slider({ label, min, max, step, value, onChange }) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: '3px', fontSize: '11.5px', color: theme.textMuted }}>
+      <span>
+        {label}: <strong style={{ color: theme.text }}>{value}</strong>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        style={{ width: '150px' }}
+      />
+    </label>
+  );
 }
 
 function Legend({ color, label, line, dashed }) {

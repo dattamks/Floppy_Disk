@@ -26,6 +26,75 @@ const CENTER = 0.02;
 const DAMP = 0.82;
 const ALPHA_MIN = 0.004;
 const ALPHA_DECAY = 0.965;
+const THETA2 = 0.81; // Barnes-Hut opening criterion (theta ~ 0.9), squared
+
+// --- Barnes-Hut quadtree: O(n log n) many-body repulsion (scales to thousands
+// of nodes; a plain O(n^2) loop stalls past a few hundred). Each cell stores its
+// mass (node count) and center of mass; a cell far enough from a node is treated
+// as one aggregate body instead of visiting every node inside it.
+function makeCell(x, y, size) {
+  return { x, y, size, mass: 0, cx: 0, cy: 0, node: null, children: null };
+}
+function qtInsert(cell, n) {
+  const m = cell.mass;
+  cell.cx = (cell.cx * m + n.x) / (m + 1);
+  cell.cy = (cell.cy * m + n.y) / (m + 1);
+  cell.mass = m + 1;
+  if (m === 0) {
+    cell.node = n;
+    return;
+  }
+  if (!cell.children) {
+    if (cell.size < 0.5) return; // coincident cluster: keep as an aggregate leaf
+    cell.children = [null, null, null, null];
+    const old = cell.node;
+    cell.node = null;
+    qtPlace(cell, old);
+  }
+  qtPlace(cell, n);
+}
+function qtPlace(cell, n) {
+  const half = cell.size / 2;
+  const qx = n.x >= cell.x + half ? 1 : 0;
+  const qy = n.y >= cell.y + half ? 1 : 0;
+  const idx = qy * 2 + qx;
+  if (!cell.children[idx]) cell.children[idx] = makeCell(cell.x + qx * half, cell.y + qy * half, half);
+  qtInsert(cell.children[idx], n);
+}
+function qtBuild(nodes) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const n of nodes) {
+    if (n.x < x0) x0 = n.x;
+    if (n.y < y0) y0 = n.y;
+    if (n.x > x1) x1 = n.x;
+    if (n.y > y1) y1 = n.y;
+  }
+  if (!isFinite(x0)) return null;
+  const root = makeCell(x0, y0, Math.max(x1 - x0, y1 - y0, 1) + 1);
+  for (const n of nodes) qtInsert(root, n);
+  return root;
+}
+function qtForce(cell, n, alpha, charge) {
+  if (!cell || cell.mass === 0) return;
+  let dx = cell.cx - n.x;
+  let dy = cell.cy - n.y;
+  let d2 = dx * dx + dy * dy;
+  const leaf = !cell.children;
+  if (leaf && cell.node === n) return; // don't repel from self
+  if (leaf || cell.size * cell.size < THETA2 * d2) {
+    if (d2 < 0.01) {
+      dx = (Math.random() - 0.5) * 0.1;
+      dy = (Math.random() - 0.5) * 0.1;
+      d2 = dx * dx + dy * dy + 0.01;
+    }
+    const d = Math.sqrt(d2);
+    const f = (charge * alpha * cell.mass) / d2;
+    n.vx += (-dx / d) * f;
+    n.vy += (-dy / d) * f;
+    return;
+  }
+  for (let i = 0; i < 4; i++) qtForce(cell.children[i], n, alpha, charge);
+}
 
 export default class GraphCanvas extends React.Component {
   constructor(props) {
@@ -63,6 +132,14 @@ export default class GraphCanvas extends React.Component {
       this.ty = 0;
       this.hover = null;
       this._start();
+      return;
+    }
+    if (
+      prev.charge !== this.props.charge ||
+      prev.linkDist !== this.props.linkDist ||
+      prev.center !== this.props.center
+    ) {
+      this._reheat(0.5); // physics changed — let it re-settle
       return;
     }
     // Filters / focus / query changed: keep layout, re-fit visible, redraw.
@@ -222,42 +299,30 @@ export default class GraphCanvas extends React.Component {
   _simTick() {
     const nodes = this.nodes;
     const a = this.alpha;
-    for (let i = 0; i < nodes.length; i++) {
-      const ni = nodes[i];
-      for (let j = i + 1; j < nodes.length; j++) {
-        const nj = nodes[j];
-        let dx = ni.x - nj.x;
-        let dy = ni.y - nj.y;
-        let d2 = dx * dx + dy * dy;
-        if (d2 < 0.01) {
-          dx = (Math.random() - 0.5) * 0.1;
-          dy = (Math.random() - 0.5) * 0.1;
-          d2 = dx * dx + dy * dy;
-        }
-        const f = (CHARGE * a) / d2;
-        const d = Math.sqrt(d2);
-        const fx = (dx / d) * f;
-        const fy = (dy / d) * f;
-        ni.vx += fx;
-        ni.vy += fy;
-        nj.vx -= fx;
-        nj.vy -= fy;
-      }
+    const charge = this.props.charge != null ? this.props.charge : CHARGE;
+    const linkDist = this.props.linkDist != null ? this.props.linkDist : LINK_DIST;
+    const center = this.props.center != null ? this.props.center : CENTER;
+    // Repulsion via Barnes-Hut (O(n log n)).
+    const root = qtBuild(nodes);
+    for (const n of nodes) {
+      if (n !== this._drag) qtForce(root, n, a, charge);
     }
+    // Link springs.
     for (const e of this.edges) {
       const dx = e.t.x - e.s.x;
       const dy = e.t.y - e.s.y;
       const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
-      const f = ((d - LINK_DIST) / d) * a * 0.5;
+      const f = ((d - linkDist) / d) * a * 0.5;
       e.s.vx += dx * f;
       e.s.vy += dy * f;
       e.t.vx -= dx * f;
       e.t.vy -= dy * f;
     }
+    // Centering gravity + integrate.
     for (const n of nodes) {
       if (n === this._drag) continue;
-      n.vx -= n.x * CENTER * a;
-      n.vy -= n.y * CENTER * a;
+      n.vx -= n.x * center * a;
+      n.vy -= n.y * center * a;
       n.vx *= DAMP;
       n.vy *= DAMP;
       n.x += n.vx;
