@@ -10,6 +10,10 @@ Single storage tier, no subscriptions. Apache-2.0.
 > (Cloudflare Stream) was replaced by **self-hosted transcoding**. See
 > [`docs/deactivated-features.md`](docs/deactivated-features.md).
 
+> **📦 Just want to install it?** Follow the [**Setup Guide**](docs/SETUP.md) —
+> one container, one command, covering self-hosting, development, and AI/MCP
+> integration.
+
 ## Repository layout
 
 ```
