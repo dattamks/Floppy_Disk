@@ -395,8 +395,29 @@ export default class GraphCanvas extends React.Component {
     ctx.clearRect(0, 0, w, h);
     ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * (w / 2 + tx), dpr * (h / 2 + ty));
 
+    // Viewport culling (sim-space bounds of what's on screen, + margin). Keeps
+    // per-frame draw cost proportional to what's visible, not the whole graph —
+    // this is what lets big graphs stay smooth when zoomed in.
+    const margin = 48 / k;
+    const vxMin = (-w / 2 - tx) / k - margin;
+    const vxMax = (w / 2 - tx) / k + margin;
+    const vyMin = (-h / 2 - ty) / k - margin;
+    const vyMax = (h / 2 - ty) / k + margin;
+    const inView = (x, y) => x >= vxMin && x <= vxMax && y >= vyMin && y <= vyMax;
+
     for (const e of this.edges) {
       if (!vis.has(e.source) || !vis.has(e.target)) continue;
+      // Skip edges wholly off one side of the viewport (segment can't cross it).
+      if (
+        !inView(e.s.x, e.s.y) &&
+        !inView(e.t.x, e.t.y) &&
+        ((e.s.x < vxMin && e.t.x < vxMin) ||
+          (e.s.x > vxMax && e.t.x > vxMax) ||
+          (e.s.y < vyMin && e.t.y < vyMin) ||
+          (e.s.y > vyMax && e.t.y > vyMax))
+      ) {
+        continue;
+      }
       const active = hover && (e.source === hover || e.target === hover);
       const faded = hover && !active;
       ctx.beginPath();
@@ -415,8 +436,10 @@ export default class GraphCanvas extends React.Component {
     const showAll = vis.size <= 40 || k > 1.7;
     ctx.font = `${11 / k}px 'IBM Plex Sans',sans-serif`;
     ctx.textBaseline = 'middle';
+    const lod = this.nodes.length > 3000; // heavy graph: draw dots only, no rings
     for (const n of this.nodes) {
       if (!vis.has(n.id)) continue;
+      if (!inView(n.x, n.y)) continue; // cull off-screen nodes
       const r = this.radius(n);
       const isFolder = n.node.kind === 'folder';
       const active = n.id === hover;
@@ -428,9 +451,11 @@ export default class GraphCanvas extends React.Component {
       ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
       ctx.fillStyle = this.props.colorByFolder ? n.color : isFolder ? PALETTE[0] : '#4C82F7';
       ctx.fill();
-      ctx.lineWidth = (active || match ? 2.2 : 1.4) / k;
-      ctx.strokeStyle = active ? TEXT : match ? '#E5484D' : FOLDER_RING;
-      ctx.stroke();
+      if (!lod || active || match) {
+        ctx.lineWidth = (active || match ? 2.2 : 1.4) / k;
+        ctx.strokeStyle = active ? TEXT : match ? '#E5484D' : FOLDER_RING;
+        ctx.stroke();
+      }
       if (showAll || active || isNeighbor || match) {
         ctx.globalAlpha = faded ? 0.3 : 1;
         ctx.fillStyle = TEXT;
