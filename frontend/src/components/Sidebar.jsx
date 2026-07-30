@@ -163,6 +163,31 @@ export default function Sidebar(V) {
           </svg>
           Manage links
         </button>{' '}
+        <button
+          onClick={V.openGraph}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '11px',
+            padding: '10px 11px',
+            borderRadius: '9px',
+            border: 'none',
+            background: 'none',
+            color: theme.textMuted,
+            fontSize: '13.5px',
+            cursor: 'pointer',
+            textAlign: 'left',
+            fontFamily: "'IBM Plex Sans',sans-serif",
+          }}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+            <circle cx="6" cy="6" r="2.4" stroke="currentColor" strokeWidth="1.7" />
+            <circle cx="18" cy="7" r="2.4" stroke="currentColor" strokeWidth="1.7" />
+            <circle cx="12" cy="17" r="2.4" stroke="currentColor" strokeWidth="1.7" />
+            <path d="M7.8 7.2 10.4 15M16.6 8.6 13.2 15.4M8 6.4h7.6" stroke="currentColor" strokeWidth="1.6" />
+          </svg>
+          Knowledge graph
+        </button>{' '}
         <div style={{ flex: '1' }} />{' '}
         <div
           style={{

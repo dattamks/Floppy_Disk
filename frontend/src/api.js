@@ -127,6 +127,7 @@ export const api = {
   markAllNotificationsRead: () => request('/notifications/read-all', { method: 'POST' }),
 
   // Knowledge graph
+  graph: () => request('/graph/'),
   graphRelated: (fileId) => request(`/graph/related/${fileId}`),
 
   // API keys (programmatic / MCP access). `root_folder` (a folder id) confines

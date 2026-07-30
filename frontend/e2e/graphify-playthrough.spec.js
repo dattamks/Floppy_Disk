@@ -101,6 +101,14 @@ test('Graphify + folder-scope playthrough (recorded)', async ({ page }) => {
     await beat(page, 300);
   });
 
+  await test.step('Knowledge graph view (node/edge diagram)', async () => {
+    await page.getByRole('button', { name: 'Knowledge graph' }).click();
+    await expect(page.getByText(/nodes ·/)).toBeVisible({ timeout: 15000 });
+    await beat(page, 900);
+    await shot(page, '07-graph-view.png');
+    await page.keyboard.press('Escape');
+  });
+
   await test.step('Developer: mint a full-access key', async () => {
     await page.getByRole('button', { name: 'Settings' }).click();
     await page.getByRole('button', { name: 'Developer' }).click();

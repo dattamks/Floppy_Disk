@@ -68,6 +68,9 @@ export default class App extends React.Component {
     pwCurrent: '',
     pwNew: '',
     pwConfirm: '',
+    // Knowledge graph (whole-graph view).
+    graphData: null,
+    graphLoading: false,
     // Related files (knowledge graph).
     relatedList: [],
     relatedLoading: false,
@@ -1063,6 +1066,16 @@ export default class App extends React.Component {
   }
 
   // --- Share-link management -------------------------------------------------
+  openGraph() {
+    this.setState({ modal: 'graph', drawerOpen: false, graphLoading: true, graphData: null });
+    api
+      .graph()
+      .then((g) => this.setState({ graphData: g, graphLoading: false }))
+      .catch((err) => {
+        this.setState({ graphLoading: false });
+        this.toast(firstError(err, 'Could not load the graph'));
+      });
+  }
   openLinks() {
     this.setState({ modal: 'links', drawerOpen: false, linksLoading: true, linksList: [] });
     api
@@ -1936,6 +1949,10 @@ export default class App extends React.Component {
       // Share-link management.
       isLinksModal: modal === 'links',
       openLinks: () => this.openLinks(),
+      isGraphModal: modal === 'graph',
+      openGraph: () => this.openGraph(),
+      graphLoading: st.graphLoading,
+      graphData: st.graphData,
       linksLoading: st.linksLoading,
       linksEmpty: !st.linksLoading && (st.linksList || []).length === 0,
       linksView: (st.linksList || []).map((l) => ({
