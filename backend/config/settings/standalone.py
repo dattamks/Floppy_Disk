@@ -1,0 +1,85 @@
+"""
+Standalone (single-deployment) settings.
+
+Run the ENTIRE product as ONE process — no Redis, no separate Celery worker or
+beat, no external Postgres required:
+
+* **SQLite by default** (point DATABASE_URL at Postgres if you'd rather).
+* **Background jobs run in-process** (Celery eager) — no broker.
+* **Periodic maintenance** runs on a lightweight in-process thread (see
+  apps.common.apps), replacing Celery beat.
+* **Django serves the built SPA** (frontend/dist) at the root, so a single
+  server delivers both the API and the app.
+* **A persistent SECRET_KEY is generated on first run** and stored under the
+  data dir, so nothing needs configuring for sessions to survive restarts.
+
+Everything persists under one directory (FLOPPY_DATA_DIR) — bind-mount that and
+the whole instance is durable. This is the recommended way to self-host.
+"""
+from pathlib import Path
+
+from .base import *  # noqa: F401,F403
+from .base import BASE_DIR, env
+
+DEBUG = env.bool("DJANGO_DEBUG", default=False)
+
+# One directory holds the database, blobs, and the secret key.
+DATA_DIR = Path(env("FLOPPY_DATA_DIR", default=str(BASE_DIR / "data")))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+DATABASES = {
+    "default": env.db("DATABASE_URL", default=f"sqlite:///{DATA_DIR / 'floppy.sqlite3'}"),
+}
+DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
+
+DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(DATA_DIR / "storage"))
+
+# No broker: tasks (e.g. video transcode) run inline in the web process.
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = False
+
+# Marks single-process mode; apps.common starts the maintenance thread when set.
+STANDALONE = True
+
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"])
+
+# Auto-provision a durable secret on first boot so self-hosters configure nothing
+# (sessions / verify tokens then survive restarts). Override with DJANGO_SECRET_KEY.
+_env_key = env("DJANGO_SECRET_KEY", default="")
+if _env_key and _env_key != "insecure-dev-key-change-me":
+    SECRET_KEY = _env_key
+else:
+    _keyfile = DATA_DIR / "secret_key"
+    if _keyfile.exists():
+        SECRET_KEY = _keyfile.read_text().strip()
+    else:
+        from django.core.management.utils import get_random_secret_key
+
+        SECRET_KEY = get_random_secret_key()
+        _keyfile.write_text(SECRET_KEY)
+        try:
+            _keyfile.chmod(0o600)
+        except OSError:  # pragma: no cover - best effort on odd filesystems
+            pass
+
+# Security: don't force HTTPS (a self-host may be plain-http on a LAN or behind
+# the user's own TLS proxy). Turn these on via env for a public TLS deployment.
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=False)
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    # Console backend by default: verification/reset emails print to the log, so
+    # a solo self-host works with no SMTP configured.
+    default="django.core.mail.backends.console.EmailBackend",
+)
+
+# Serve the built SPA (frontend/dist) at the root via WhiteNoise; unknown,
+# non-API routes fall through to the SPA index (see config/urls.py).
+FRONTEND_DIST = Path(env("FRONTEND_DIST", default=str(BASE_DIR.parent / "frontend" / "dist")))
+SERVE_SPA = FRONTEND_DIST.exists()
+if SERVE_SPA:
+    WHITENOISE_ROOT = str(FRONTEND_DIST)
+    WHITENOISE_INDEX_FILE = True

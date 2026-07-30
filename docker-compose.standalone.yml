@@ -1,0 +1,23 @@
+# The whole product as ONE container. No Redis, no worker, no beat, no external
+# database. Just:  docker compose -f docker-compose.standalone.yml up --build
+# Then open http://localhost:8000 . Data persists in the `floppydata` volume.
+services:
+  floppy:
+    build:
+      context: .
+      dockerfile: Dockerfile.standalone
+    ports:
+      - "8000:8000"
+    environment:
+      # Nothing is required. Optionally set these for a public deployment:
+      # DJANGO_SECRET_KEY: "…"        # else one is generated + persisted in /data
+      # ALLOWED_HOSTS: "files.example.com"
+      # SECURE_SSL_REDIRECT: "true"   # if you terminate TLS in front
+      # DATABASE_URL: "postgres://…"  # else SQLite in /data
+      WEB_CONCURRENCY: "3"
+    volumes:
+      - floppydata:/data
+    restart: unless-stopped
+
+volumes:
+  floppydata:

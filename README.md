@@ -76,7 +76,39 @@ poster frame. Playback is served over the existing HTTP **Range** endpoint —
 progressive download + native seeking, no CDN or streaming SaaS. The original
 file is always kept alongside the rendition.
 
-## Backend — run
+## Run it — one container (recommended for self-hosting)
+
+The whole product runs as a **single deployment** — no Redis, no separate Celery
+worker/beat, no external database to set up:
+
+```bash
+docker compose -f docker-compose.standalone.yml up --build
+# open http://localhost:8000
+```
+
+That one container builds the SPA, then serves it and the API from one gunicorn.
+It uses **SQLite** and runs background jobs (video transcode, periodic
+maintenance) **in-process**, all persisted in the `floppydata` volume. A secure
+`SECRET_KEY` is generated and stored on first run, so there's nothing to
+configure. Point `DATABASE_URL` at Postgres or set `ALLOWED_HOSTS`/TLS envs only
+if you want to; see `docker-compose.standalone.yml`.
+
+Under the hood this is the `config.settings.standalone` profile
+(`CELERY_TASK_ALWAYS_EAGER`, SQLite, Django-served SPA). To run it without Docker:
+
+```bash
+cd backend && pip install -r requirements.txt
+cd ../frontend && npm ci && npx vite build          # build the SPA once
+cd ../backend
+DJANGO_SETTINGS_MODULE=config.settings.standalone python manage.py migrate
+DJANGO_SETTINGS_MODULE=config.settings.standalone gunicorn config.wsgi:application --bind 0.0.0.0:8000
+# maintenance jobs: `python manage.py maintenance` (cron it), or they run
+# in-process automatically when serving.
+```
+
+## Backend — run (development, multi-service)
+
+For local development the full compose stack runs each piece separately:
 
 ```bash
 cd backend
