@@ -153,7 +153,13 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 - `list_files(folder_id?)`, `delete_file`, `restore_file`, `purge_file`
 - `rename_file(file_id, name)`, `move_file(file_id, folder_id?)`
 - `set_file_discoverable(file_id, discoverable, mature?)`
-- `list_trash()`, `search_files(query)`
+- `list_trash()`, `search_files(query)` - matches names **and** document contents
+
+**Notes / editing**
+- `create_note(name, content?, folder_id?)` - a Markdown note in one call; use
+  `[[wiki-links]]` to connect notes in the knowledge graph
+- `edit_file_content(file_id, content)` - replace a text/Markdown document's
+  contents in place (re-indexed for search; graph refreshed)
 
 **Upload / download**
 - `upload_file(path, folder_id?, name?)` - full 3-step flow from a local file

@@ -80,7 +80,8 @@ def test_expected_tools_registered():
     if names is None:
         pytest.skip("cannot introspect tools on this fastmcp version")
     assert len(names) >= 20, f"expected >=20 tools, got {len(names)}"
-    for expected in ("whoami", "list_files", "upload_file", "create_share_link", "search_files"):
+    for expected in ("whoami", "list_files", "upload_file", "create_share_link", "search_files",
+                     "create_note", "edit_file_content", "get_graph", "get_related_files"):
         assert expected in names, f"missing tool: {expected}"
 
 

@@ -73,6 +73,9 @@ class FloppyClient:
     def post(self, path: str, **kw) -> Any:
         return self.request("POST", path, **kw)
 
+    def put(self, path: str, **kw) -> Any:
+        return self.request("PUT", path, **kw)
+
     def patch(self, path: str, **kw) -> Any:
         return self.request("PATCH", path, **kw)
 

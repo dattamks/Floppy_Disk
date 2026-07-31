@@ -217,12 +217,42 @@ def list_trash() -> dict:
 
 @mcp.tool
 def search_files(query: str) -> dict:
-    """Search your files plus public discoverable (non-mature) files by name.
+    """Search your files plus public discoverable (non-mature) files.
 
-    Returns {"results": [...]} where each result has id, name, kind, size_bytes,
-    is_own, and is_discoverable.
+    Matches file names *and* document contents (text/Markdown/JSON etc. are
+    indexed on upload/edit). Returns {"results": [...]} where each result has
+    id, name, kind, size_bytes, is_own, and is_discoverable.
     """
     return client().get("storage/search", params={"q": query})
+
+
+@mcp.tool
+def create_note(
+    name: str,
+    content: str = "",
+    folder_id: Optional[str] = None,
+) -> dict:
+    """Create a Markdown note in one call and return the ready File.
+
+    A note is a `.md` document (`.md` is appended if missing). Use
+    `[[Other note]]` wiki-links to connect notes in the knowledge graph.
+    """
+    body: dict = {"name": name, "content": content}
+    if folder_id:
+        body["folder"] = _uid(folder_id, "folder_id")
+    return client().post("storage/notes", json=body)
+
+
+@mcp.tool
+def edit_file_content(file_id: str, content: str) -> dict:
+    """Replace a text document's contents in place (edit-in-place save).
+
+    For text/Markdown documents (e.g. notes). Returns the updated File; the
+    content is re-indexed for search and the knowledge graph is refreshed.
+    """
+    return client().put(
+        f"storage/files/{_uid(file_id, 'file_id')}/content", json={"content": content}
+    )
 
 
 # ---------------------------------------------------------------------------
