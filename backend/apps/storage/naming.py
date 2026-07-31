@@ -7,10 +7,48 @@ indistinguishable items in the same place.
 """
 from __future__ import annotations
 
+import mimetypes
 import re
 import os
 
 _SUFFIX_RE = re.compile(r"^(?P<base>.*?)(?: \((?P<n>\d+)\))?$")
+
+# Document-ish extensions that mimetypes may miss or map to non-text types but
+# which we still want scanned as documents (so the knowledge graph reads them).
+_DOC_EXTS = {
+    ".txt", ".md", ".markdown", ".rst", ".json", ".yaml", ".yml", ".csv",
+    ".tsv", ".pdf", ".log", ".xml", ".html", ".htm", ".ini", ".toml", ".cfg",
+    ".conf", ".env",
+}
+_DOC_MIMES = {
+    "application/json", "application/xml", "application/x-yaml",
+    "application/yaml", "application/pdf", "application/toml",
+}
+
+
+def classify_kind(name: str, content_type: str | None = None, fallback: str = "file") -> str:
+    """Best-effort media kind for a file from its name/content-type.
+
+    Mirrors the SPA's kindOf(): video/image/audio by MIME family, common
+    text/document types as "doc", otherwise ``fallback``. The server does this
+    so REST/MCP uploads that omit ``kind`` still classify correctly — otherwise
+    every programmatic upload defaults to the generic "file" kind and the
+    knowledge graph never scans documents for cross-references.
+
+    Returns a File.Kind value (as its string, e.g. "doc"); import-free at call
+    time so this stays usable from serializers and the upload view alike.
+    """
+    mime = (content_type or mimetypes.guess_type(name)[0] or "").lower().split(";")[0].strip()
+    if mime.startswith("video"):
+        return "video"
+    if mime.startswith("image"):
+        return "image"
+    if mime.startswith("audio"):
+        return "audio"
+    _, ext = _split_ext(name)
+    if mime.startswith("text") or mime in _DOC_MIMES or ext.lower() in _DOC_EXTS:
+        return "doc"
+    return fallback
 
 
 def _split_ext(name: str) -> tuple[str, str]:

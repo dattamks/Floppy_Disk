@@ -20,7 +20,7 @@ from django.db import transaction
 
 from .lifecycle import _release_object, purge_file, purge_folder
 from .models import File, Folder, StorageObject, StorageReservation
-from .naming import unique_name
+from .naming import classify_kind, unique_name
 from .quota import FileTooLarge, QuotaExceeded, available_bytes, commit, reserve
 from .scoping import folder_in_scope, is_scoped, scope_files, scope_folders, scoped_folder_ids
 from .serializers import (
@@ -625,11 +625,18 @@ class UploadInitiateView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         name = unique_name(data["name"], _active_file_names(request.user, data.get("folder")))
+        # Derive kind from the name/content-type when the client left it at the
+        # generic default (REST/MCP clients often omit it). This keeps the
+        # knowledge graph able to scan documents regardless of upload path; a
+        # client that sends an explicit kind is always respected.
+        kind = data["kind"]
+        if kind == File.Kind.FILE:
+            kind = classify_kind(name, data.get("content_type"))
         file = File.objects.create(
             owner=request.user,
             name=name,
             folder=data.get("folder"),
-            kind=data["kind"],
+            kind=kind,
             size_bytes=data["size_bytes"],
             status=File.Status.PENDING,
         )
