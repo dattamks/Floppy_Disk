@@ -30,6 +30,7 @@ export default class App extends React.Component {
     searchType: 'all', // all | folder | image | video | doc | audio
     mobileSearchOpen: false,
     drawerOpen: false,
+    mobileCreateOpen: false, // the mobile "+" FAB's create menu (note/folder/upload)
     modal: null,
     activeFileId: null,
     // File preview (real uploads fetch a URL / text content on open).
@@ -367,6 +368,25 @@ export default class App extends React.Component {
   }
   navToShared() {
     this.go('shared');
+  }
+  // Mobile "+" FAB: a small create menu (New note / New folder / Upload).
+  toggleMobileCreate() {
+    this.setState((s) => ({ mobileCreateOpen: !s.mobileCreateOpen }));
+  }
+  closeMobileCreate() {
+    if (this.state.mobileCreateOpen) this.setState({ mobileCreateOpen: false });
+  }
+  mobileCreateNote() {
+    this.setState({ mobileCreateOpen: false });
+    this.newNote();
+  }
+  mobileNewFolder() {
+    this.setState({ mobileCreateOpen: false });
+    this.openNewFolder();
+  }
+  mobileUpload() {
+    this.setState({ mobileCreateOpen: false });
+    this.openUpload();
   }
   navToRecent() {
     this.go('recent');
@@ -2042,6 +2062,12 @@ export default class App extends React.Component {
       navToShared: () => this.navToShared(),
       navToRecent: () => this.navToRecent(),
       navToTrash: () => this.navToTrash(),
+      mobileCreateOpen: st.mobileCreateOpen,
+      onFabTap: () => this.toggleMobileCreate(),
+      onMobileCreateNote: () => this.mobileCreateNote(),
+      onMobileNewFolder: () => this.mobileNewFolder(),
+      onMobileUpload: () => this.mobileUpload(),
+      closeMobileCreate: () => this.closeMobileCreate(),
       navAllBg: navBg(af('all')),
       navAllColor: navColor(af('all')),
       navAllWeight: navW(af('all')),

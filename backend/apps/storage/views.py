@@ -15,6 +15,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 import hashlib
+import uuid
 
 from django.db import transaction
 
@@ -767,9 +768,15 @@ class NoteCreateView(APIView):
         folder = None
         folder_id = request.data.get("folder")
         if folder_id:
+            # Validate the id shape first so a malformed value is a clean 400,
+            # not a 500 when the DB tries to cast it to a UUID.
+            try:
+                folder_uuid = uuid.UUID(str(folder_id))
+            except (ValueError, TypeError, AttributeError):
+                return Response({"detail": "Invalid folder."}, status=status.HTTP_400_BAD_REQUEST)
             folder = scope_folders(
                 Folder.objects.filter(owner=request.user, deleted_at__isnull=True), request
-            ).filter(pk=folder_id).first()
+            ).filter(pk=folder_uuid).first()
             if folder is None:
                 return Response({"detail": "Invalid folder."}, status=status.HTTP_400_BAD_REQUEST)
         # A folder-scoped key may only create inside its subtree.

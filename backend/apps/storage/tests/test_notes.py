@@ -70,6 +70,12 @@ def test_create_note_requires_auth():
     assert APIClient().post("/api/v1/storage/notes", {}, format="json").status_code == 403
 
 
+def test_malformed_folder_is_400_not_500(client):
+    # A non-UUID folder value must be a clean 400, never a 500.
+    r = client.post("/api/v1/storage/notes", {"name": "n", "folder": "not-a-uuid"}, format="json")
+    assert r.status_code == 400, r.content
+
+
 def test_note_respects_folder_scope(client, user):
     from apps.accounts.models import ApiKey
 
