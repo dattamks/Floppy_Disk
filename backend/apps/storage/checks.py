@@ -24,7 +24,17 @@ W_LOCAL_STORAGE = "storage.W001"
 
 
 def using_local_storage() -> bool:
-    return getattr(settings, "STORAGE_SERVICE", "") == _LOCAL_BACKEND
+    """True when the *effective* backend is local disk.
+
+    Consults the owner-set StorageConfig (so the warning clears once R2 is
+    configured in the UI), but falls back to the settings-level backend if the
+    database isn't ready yet (e.g. during `migrate`, before the table exists)."""
+    try:
+        from .config import effective_backend
+
+        return effective_backend() == "local"
+    except Exception:  # noqa: BLE001 - DB not migrated / unavailable during checks
+        return getattr(settings, "STORAGE_SERVICE", "") == _LOCAL_BACKEND
 
 
 def _local_storage_message() -> str:

@@ -27,8 +27,41 @@ from .base import PresignedUpload, StorageService
 
 
 class R2StorageService(StorageService):
+    def __init__(self, *, endpoint_url=None, access_key_id=None, secret_access_key=None,
+                 bucket=None, region_buckets=None):
+        # Injected creds win (the owner-UI path passes them from the encrypted
+        # StorageConfig row); None falls back to the environment (settings) at
+        # access time, so env-configured deployments and override_settings work.
+        self._inj_endpoint_url = endpoint_url
+        self._inj_access_key_id = access_key_id
+        self._inj_secret_access_key = secret_access_key
+        self._inj_bucket = bucket
+        self._inj_region_buckets = region_buckets
+
+    @property
+    def _endpoint_url(self):
+        return self._inj_endpoint_url if self._inj_endpoint_url is not None else settings.R2_ENDPOINT_URL
+
+    @property
+    def _access_key_id(self):
+        return self._inj_access_key_id if self._inj_access_key_id is not None else settings.R2_ACCESS_KEY_ID
+
+    @property
+    def _secret_access_key(self):
+        return (self._inj_secret_access_key if self._inj_secret_access_key is not None
+                else settings.R2_SECRET_ACCESS_KEY)
+
+    @property
+    def _bucket(self):
+        return self._inj_bucket if self._inj_bucket is not None else getattr(settings, "R2_BUCKET", "")
+
+    @property
+    def _region_buckets(self):
+        return (self._inj_region_buckets if self._inj_region_buckets is not None
+                else (settings.R2_REGION_BUCKETS or {}))
+
     def _bucket_for(self, region: str) -> str:
-        bucket = (settings.R2_REGION_BUCKETS or {}).get(region) or getattr(settings, "R2_BUCKET", "")
+        bucket = (self._region_buckets or {}).get(region) or self._bucket
         if not bucket:
             raise ValueError(f"No R2 bucket configured for region '{region}'")
         return bucket
@@ -37,11 +70,24 @@ class R2StorageService(StorageService):
     def _client(self):
         return boto3.client(
             "s3",
-            endpoint_url=settings.R2_ENDPOINT_URL,
-            aws_access_key_id=settings.R2_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
+            endpoint_url=self._endpoint_url,
+            aws_access_key_id=self._access_key_id,
+            aws_secret_access_key=self._secret_access_key,
             config=Config(signature_version="s3v4"),
         )
+
+    def check_connection(self) -> None:
+        """Verify credentials + bucket reachability. Raises on failure.
+
+        A lightweight list (MaxKeys=1) against every configured bucket — proves
+        the keys are valid and the bucket exists before we save/switch to it."""
+        buckets = set(self._region_buckets.values()) if self._region_buckets else set()
+        if self._bucket:
+            buckets.add(self._bucket)
+        if not buckets:
+            raise ValueError("No R2 bucket configured.")
+        for bucket in buckets:
+            self._client.list_objects_v2(Bucket=bucket, MaxKeys=1)
 
     # --- StorageService interface -------------------------------------------
     def presign_upload(self, *, region, object_key, max_bytes, content_type=None) -> PresignedUpload:

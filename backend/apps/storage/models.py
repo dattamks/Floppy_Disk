@@ -141,3 +141,86 @@ class StorageReservation(TimeStampedModel):
     @property
     def is_live(self):
         return self.status == self.Status.ACTIVE and self.expires_at > timezone.now()
+
+
+class StorageConfig(TimeStampedModel):
+    """Singleton: the instance's active storage choice, set via the owner UI.
+
+    Storage backend resolution is env -> this row -> local default (see
+    apps.storage.config.get_effective_storage). The R2 secret is stored
+    encrypted (never in plaintext, never returned to a client)."""
+
+    class Backend(models.TextChoices):
+        LOCAL = "local", "Local disk"
+        R2 = "r2", "Cloudflare R2"
+
+    # Enforced-singleton primary key (always 1).
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    backend = models.CharField(max_length=8, choices=Backend.choices, default=Backend.LOCAL)
+    r2_endpoint_url = models.CharField(max_length=300, blank=True, default="")
+    r2_access_key_id = models.CharField(max_length=200, blank=True, default="")
+    r2_secret_ciphertext = models.TextField(blank=True, default="")  # Fernet token
+    r2_bucket = models.CharField(max_length=200, blank=True, default="")
+    # Whether the owner has finished (or dismissed) the first-run setup step.
+    setup_completed = models.BooleanField(default=False)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        db_table = "storage_config"
+
+    def save(self, *args, **kwargs):
+        self.id = 1  # never allow a second row
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls) -> "StorageConfig":
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def r2_is_complete(self) -> bool:
+        return bool(
+            self.r2_endpoint_url and self.r2_access_key_id
+            and self.r2_secret_ciphertext and self.r2_bucket
+        )
+
+
+class StorageMigration(TimeStampedModel):
+    """A one-time move of existing local blobs into R2, driven from the owner UI.
+
+    Progress is polled by the UI; the move runs in a background thread. Idempotent
+    and resumable — blobs already in R2 are skipped."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        RUNNING = "running", "Running"
+        PAUSED = "paused", "Paused"
+        DONE = "done", "Done"
+        FAILED = "failed", "Failed"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING, db_index=True)
+    total = models.IntegerField(default=0)
+    done = models.IntegerField(default=0)
+    skipped = models.IntegerField(default=0)
+    failed = models.IntegerField(default=0)
+    bytes_moved = models.BigIntegerField(default=0)
+    delete_local = models.BooleanField(default=False)
+    cancel_requested = models.BooleanField(default=False)
+    error = models.TextField(blank=True, default="")
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+",
+    )
+
+    class Meta:
+        db_table = "storage_migration"
+        indexes = [models.Index(fields=["status", "created_at"])]
+
+    @property
+    def is_active(self) -> bool:
+        return self.status in (self.Status.PENDING, self.Status.RUNNING, self.Status.PAUSED)
