@@ -156,10 +156,20 @@ R2_SECRET_ACCESS_KEY = env("R2_SECRET_ACCESS_KEY", default="")
 R2_ENDPOINT_URL = env("R2_ENDPOINT_URL", default="")
 # Region -> bucket name map for data residency (per-region dedup). JSON in env.
 R2_REGION_BUCKETS = env.json("R2_REGION_BUCKETS", default={})
+# One-bucket convenience for a simple self-host: set R2_BUCKET (a single bucket
+# name) instead of the JSON map above. It's used for any region not explicitly
+# listed in R2_REGION_BUCKETS, so a single bucket serves every user.
+R2_BUCKET = env("R2_BUCKET", default="")
 
-# Automatic fallback: when the R2 env vars are missing, serve media from a local
-# media folder. An explicit STORAGE_SERVICE env var still overrides the default.
-R2_CONFIGURED = bool(R2_ENDPOINT_URL and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_REGION_BUCKETS)
+# Automatic backend selection, mirroring the DATABASE_URL -> Postgres detection:
+# when R2 credentials + a bucket are present, use R2; otherwise fall back to the
+# local-disk backend. An explicit STORAGE_SERVICE env var always overrides.
+R2_CONFIGURED = bool(
+    R2_ENDPOINT_URL
+    and R2_ACCESS_KEY_ID
+    and R2_SECRET_ACCESS_KEY
+    and (R2_REGION_BUCKETS or R2_BUCKET)
+)
 
 STORAGE_SERVICE = env(
     "STORAGE_SERVICE",

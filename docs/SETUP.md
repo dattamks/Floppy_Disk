@@ -168,6 +168,10 @@ shell for the no-Docker path):
 | `SECURE_SSL_REDIRECT` | `false` | Redirect http → https. Set `true` for a public HTTPS deploy. |
 | `USE_PROXY_SSL_HEADER` | `false` | Trust the reverse proxy's `X-Forwarded-Proto`. Enable when TLS is terminated by a proxy in front (required with `SECURE_SSL_REDIRECT`). |
 | `DATABASE_URL` | SQLite in `/data` | Point at Postgres (`postgres://user:pass@host/db`) to use it instead. |
+| `R2_ENDPOINT_URL` | _(empty → local disk)_ | Cloudflare R2 S3 endpoint, e.g. `https://<account-id>.r2.cloudflarestorage.com`. Setting the R2 vars auto-switches storage to R2 (see [Where your files live](#where-your-files-live-storage)). |
+| `R2_ACCESS_KEY_ID` | _(empty)_ | R2 access key ID (R2 API token). |
+| `R2_SECRET_ACCESS_KEY` | _(empty)_ | R2 secret access key. |
+| `R2_BUCKET` | _(empty)_ | Your R2 bucket name. One bucket is all a self-host needs. |
 | `WEB_CONCURRENCY` | `3` | gunicorn worker processes. |
 | `PORT` | `8000` | Port inside the container. |
 | `MAINTENANCE_INTERVAL_SECONDS` | `3600` | How often in-process maintenance runs. |
@@ -282,12 +286,58 @@ environment:
   knowledge graph all stay within it) — so an MCP/AI client only ever sees what
   you intend. Treat keys like passwords and revoke unused ones.
 
+### Where your files live (storage)
+
+Storage is chosen automatically, the same way the database is: **if you give it
+Cloudflare R2, it uses R2; otherwise it stores files on local disk.** Nothing to
+toggle — just set (or don't set) the R2 variables.
+
+**Option 1 — Cloudflare R2 (recommended; no server disk needed).** Files go
+straight to R2 object storage: durable, scalable, and independent of the
+container's disk. Set four variables and R2 switches on:
+
+| Variable | Where to get it |
+|---|---|
+| `R2_ENDPOINT_URL` | Cloudflare dashboard → R2 → *your bucket* → **S3 API** endpoint, e.g. `https://<account-id>.r2.cloudflarestorage.com` |
+| `R2_ACCESS_KEY_ID` | R2 → **Manage API Tokens** → create a token → Access Key ID |
+| `R2_SECRET_ACCESS_KEY` | …the matching Secret Access Key (shown once) |
+| `R2_BUCKET` | The bucket name you created |
+
+```yaml
+    environment:
+      R2_ENDPOINT_URL: "https://<account-id>.r2.cloudflarestorage.com"
+      R2_ACCESS_KEY_ID: "<access-key-id>"
+      R2_SECRET_ACCESS_KEY: "<secret-access-key>"
+      R2_BUCKET: "my-floppy-bucket"
+```
+
+On boot the log confirms the backend (`[storage] Durable object storage
+backend: …r2.R2StorageService`). Uploads/downloads use time-limited **presigned
+URLs** direct to R2, so the app server never proxies file bytes. For
+encryption at rest, turn on the bucket's server-side encryption in Cloudflare.
+
+**Option 2 — Local disk (default; only as durable as its volume).** With the R2
+variables unset, files are written under `/data/storage` in the `floppydata`
+volume. ⚠️ **This is durable only if that path is a persistent volume.** On many
+hosts (ephemeral PaaS dynos/containers) the filesystem is wiped on every restart
+or redeploy — your uploads would vanish. The app makes this loud: `manage.py
+check` and the boot log emit a warning (`storage.W001`) whenever local storage
+is active, telling you to attach a persistent volume or configure R2. Use local
+disk only when you've mounted real persistent storage (the `floppydata` Docker
+volume in the default compose file is persistent); otherwise use R2.
+
+> Switching to R2 later is safe — new files land in R2. Existing files already
+> written to the local volume stay there, so migrate them into the bucket if you
+> want everything in one place.
+
 ### Health, data, and backups
 
 - **Health check:** `GET http://localhost:8000/health/` returns `200` when the
   app is up (the container's Docker healthcheck uses this).
-- **All data** — SQLite database, uploaded files, generated video renditions,
-  the persisted secret key — lives in the `floppydata` volume mounted at `/data`.
+- **All data** — SQLite database, the persisted secret key, and (on the local
+  backend) uploaded files + video renditions — lives in the `floppydata` volume
+  mounted at `/data`. With **R2** configured, file bytes live in your R2 bucket
+  instead; the volume then holds just the database and secret.
 - **Back up** by snapshotting that volume (stop the container first for a
   consistent copy), e.g.
   `docker run --rm -v floppydata:/data -v "$PWD":/backup alpine tar czf /backup/floppy-backup.tar.gz -C /data .`

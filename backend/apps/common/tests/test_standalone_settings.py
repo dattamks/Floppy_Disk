@@ -20,10 +20,15 @@ import pytest
 def _load_standalone(monkeypatch, tmp_path, **env):
     monkeypatch.setenv("FLOPPY_DATA_DIR", str(tmp_path))
     # Ensure a clean SQLite default (no external DB / overrides leaking in).
-    for k in ("DATABASE_URL", "SEARCH_SERVICE", "SQLITE_TIMEOUT", "FRONTEND_BASE_URL"):
+    for k in ("DATABASE_URL", "SEARCH_SERVICE", "SQLITE_TIMEOUT", "FRONTEND_BASE_URL",
+              "STORAGE_SERVICE", "R2_ENDPOINT_URL", "R2_ACCESS_KEY_ID",
+              "R2_SECRET_ACCESS_KEY", "R2_BUCKET", "R2_REGION_BUCKETS"):
         monkeypatch.delenv(k, raising=False)
     for k, v in env.items():
         monkeypatch.setenv(k, v)
+    # Reload base first: STORAGE_SERVICE / R2_CONFIGURED are computed there, and
+    # standalone's `from .base import *` only re-binds base's current values.
+    importlib.reload(importlib.import_module("config.settings.base"))
     mod = importlib.import_module("config.settings.standalone")
     return importlib.reload(mod)
 
@@ -109,10 +114,44 @@ def test_proxy_ssl_header_and_hsts_opt_in(monkeypatch, tmp_path):
     assert s.SECURE_HSTS_SECONDS == 31536000
 
 
+def test_storage_defaults_to_local_without_r2(monkeypatch, tmp_path):
+    s = _load_standalone(monkeypatch, tmp_path)
+    assert s.STORAGE_SERVICE == "apps.storage.services.local.LocalStorageService"
+    assert s.R2_CONFIGURED is False
+
+
+def test_single_r2_bucket_env_auto_selects_r2(monkeypatch, tmp_path):
+    # Mirrors DATABASE_URL -> Postgres: one bucket + creds is enough to switch on
+    # R2, no JSON region map required.
+    s = _load_standalone(
+        monkeypatch, tmp_path,
+        R2_ENDPOINT_URL="https://acct.r2.cloudflarestorage.com",
+        R2_ACCESS_KEY_ID="ak", R2_SECRET_ACCESS_KEY="sk", R2_BUCKET="floppy",
+    )
+    assert s.R2_CONFIGURED is True
+    assert s.STORAGE_SERVICE == "apps.storage.services.r2.R2StorageService"
+
+
+def test_r2_needs_bucket_not_just_credentials(monkeypatch, tmp_path):
+    # Credentials without any bucket must NOT flip to R2 (it couldn't resolve one).
+    s = _load_standalone(
+        monkeypatch, tmp_path,
+        R2_ENDPOINT_URL="https://acct.r2.cloudflarestorage.com",
+        R2_ACCESS_KEY_ID="ak", R2_SECRET_ACCESS_KEY="sk",
+    )
+    assert s.R2_CONFIGURED is False
+    assert s.STORAGE_SERVICE == "apps.storage.services.local.LocalStorageService"
+
+
 @pytest.fixture(autouse=True)
 def _restore_settings_module():
-    """Reloading the standalone module mutates sys.modules; restore afterward."""
+    """Reloading base/standalone mutates sys.modules; restore them afterward.
+
+    monkeypatch has already undone the env changes by teardown, so reloading
+    returns both modules to their real-environment values.
+    """
     yield
     import importlib
 
-    importlib.import_module("config.settings.standalone")
+    importlib.reload(importlib.import_module("config.settings.base"))
+    importlib.reload(importlib.import_module("config.settings.standalone"))
