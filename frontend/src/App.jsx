@@ -44,6 +44,7 @@ export default class App extends React.Component {
     editName: '',
     editSaving: false,
     creatingNote: false,
+    newNoteId: null, // a just-created note; discarded if closed while still empty
     noteRelated: null, // graph neighbors of the open note (for the backlinks panel)
     // Rename / move dialogs.
     renameName: '',
@@ -747,9 +748,11 @@ export default class App extends React.Component {
         this._videoEl.pause();
       } catch (e) {}
     }
+    this._discardEmptyNewNote(); // drop an untouched brand-new note on close
     this.setState({
       modal: null,
       activeFileId: null,
+      newNoteId: null,
       videoPlaying: false,
       videoProgress: 0,
       videoCurrent: 0,
@@ -818,6 +821,7 @@ export default class App extends React.Component {
       editing: false,
       editText: '',
       editName: '',
+      newNoteId: null,
       noteRelated: null,
     });
     // Load backlinks/links for text notes so the editor can show connections.
@@ -904,12 +908,25 @@ export default class App extends React.Component {
           editText: '',
           editName: baseName(f.name),
           noteRelated: null,
+          newNoteId: f.id,
         });
       })
       .catch((err) => {
         this.setState({ creatingNote: false });
         this.toast(firstError(err, 'Could not create note'));
       });
+  }
+  // A brand-new note that's closed while still empty is discarded, so hitting
+  // "New note" and changing your mind never leaves an empty "Untitled note".
+  _discardEmptyNewNote() {
+    const { newNoteId, activeFileId, editText, editName } = this.state;
+    if (!newNoteId || newNoteId !== activeFileId) return false;
+    const bodyEmpty = !(editText || '').trim();
+    const titleUntouched = !(editName || '').trim() || editName.trim() === 'Untitled note';
+    if (!bodyEmpty || !titleUntouched) return false;
+    this.setState((s) => ({ files: s.files.filter((x) => x.id !== newNoteId), newNoteId: null }));
+    api.deleteFile(newNoteId).catch(() => {});
+    return true;
   }
 
   // --- Edit-in-place (text files / notes) -----------------------------------
@@ -928,6 +945,11 @@ export default class App extends React.Component {
     this.setState({ editName: e.target.value });
   }
   cancelEdit() {
+    // Cancelling a brand-new empty note closes and discards it entirely.
+    if (this._discardEmptyNewNote()) {
+      this.closeModal();
+      return;
+    }
     this.setState({ editing: false, editText: '', editName: '' });
   }
   saveEdit() {
@@ -950,6 +972,7 @@ export default class App extends React.Component {
             editing: false,
             editSaving: false,
             editName: '',
+            newNoteId: null, // it's a real, saved note now
             previewText: content,
             files: s.files.map((x) =>
               x.id === id
@@ -2257,7 +2280,7 @@ export default class App extends React.Component {
         : modal === 'graph'
           ? 'min(1040px, 95vw)'
           : modal === 'preview' && st.editing && st.previewKind === 'markdown'
-            ? 'min(980px, 96vw)'
+            ? 'min(1280px, 96vw)'
             : d.modalW,
       boxMaxH: theater
         ? '100vh'
@@ -2266,6 +2289,10 @@ export default class App extends React.Component {
           : modal === 'preview' && st.editing
             ? '92vh'
             : d.modalMaxH,
+      // The note editor gets a definite, near-full-screen height so the write /
+      // preview panes fill the window instead of a small fixed textarea.
+      boxH:
+        modal === 'preview' && st.editing && st.previewKind === 'markdown' ? '92vh' : undefined,
       boxBg: theater ? '#0B0C0F' : '#FFFFFF',
       boxBorder: theater ? 'none' : '1px solid #E5E7EC',
       boxRadius: theater ? '0px' : d.modalRadius,

@@ -28,6 +28,8 @@ const mdCss = () => `
   .md-body h1{font-size:1.5em;} .md-body h2{font-size:1.28em;} .md-body h3{font-size:1.1em;}
   .md-body p{margin:0.5em 0;} .md-body ul,.md-body ol{margin:0.5em 0;padding-left:1.4em;}
   .md-body li{margin:0.2em 0;}
+  .md-body li.md-task{list-style:none;margin-left:-1.25em;display:flex;align-items:flex-start;gap:7px;}
+  .md-body li.md-task input{margin:0.28em 0 0;flex:0 0 auto;accent-color:${theme.brand};}
   .md-body code{background:${theme.surface};padding:1px 5px;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:0.9em;}
   .md-body pre.md-pre{background:${theme.surface};padding:12px;border-radius:9px;overflow:auto;border:1px solid ${theme.border};}
   .md-body pre.md-pre code{background:none;padding:0;}
@@ -54,28 +56,43 @@ function Body(V) {
       <textarea
         value={V.editText}
         onInput={V.setEditText}
+        onKeyDown={(e) => {
+          // Cmd/Ctrl+S saves without triggering the browser's save dialog.
+          if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
+            e.preventDefault();
+            if (!V.editSaving) V.onSaveEdit();
+          }
+        }}
         autoFocus
         spellCheck={false}
         placeholder={V.isNote ? '# Start writing…\n\nLink notes with [[Note name]].' : ''}
         style={{
-          flex: '1 1 320px',
-          minHeight: '360px',
-          resize: 'vertical',
-          padding: '14px',
+          flex: '1 1 340px',
+          minHeight: V.isNote ? '240px' : '360px',
+          resize: V.isNote ? 'none' : 'vertical',
+          padding: '16px',
           border: `1px solid ${theme.brand}`,
           borderRadius: '11px',
           background: theme.white,
           color: theme.text,
           fontFamily: "'IBM Plex Mono','SFMono-Regular',Menlo,monospace",
-          fontSize: '12.5px',
-          lineHeight: '1.6',
+          fontSize: '13px',
+          lineHeight: '1.65',
           outline: 'none',
           boxSizing: 'border-box',
         }}
       />
     );
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          flex: '1 1 auto',
+          minHeight: 0,
+        }}
+      >
         {/* Editable note title */}
         <input
           value={V.editName}
@@ -97,12 +114,13 @@ function Body(V) {
           }}
         />
         {V.isNote ? (
-          // Split: write on the left, live rendered preview on the right.
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          // Split: write on the left, live rendered preview on the right — both
+          // fill the (near-full-screen) editor height.
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flex: '1 1 auto', minHeight: 0 }}>
             {editor}
             <div
               className="md-body md-live"
-              style={{ flex: '1 1 320px', minHeight: '360px' }}
+              style={{ flex: '1 1 340px', minHeight: '240px', maxHeight: 'none' }}
             >
               <style>{mdCss()}</style>
               {V.editText ? (
