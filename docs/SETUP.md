@@ -60,6 +60,54 @@ you can stop and restart (`docker compose -f docker-compose.standalone.yml up`)
 without losing anything. A secure `SECRET_KEY` is generated and stored on first
 run — nothing to configure.
 
+### 4. First steps in the app — a quick tour
+
+Once you're in, here's the whole product in about a minute.
+
+**Organize with folders.** Click **New folder** to create folders (they nest —
+`Projects / Aurora`), and **Upload** to add files. Drag files in, or use the
+button. Everything is yours and private by default.
+
+![Your drive: folders and files](images/onboarding-01-drive.png)
+
+**Open a folder** to see what's inside — documents, images, PDFs, videos, and
+more, each with a preview thumbnail.
+
+![Inside a folder](images/onboarding-02-folder.png)
+
+**Preview anything in place.** Click a file to view it without downloading —
+Markdown renders, and images, PDFs, audio, JSON/YAML, and text all preview
+inline. Videos play in the browser (transcoded on your own server).
+
+![Rendered Markdown preview](images/onboarding-03-preview.png)
+
+**Search across names _and_ contents.** The search box does full-text search —
+type a word that lives *inside* your documents and every file that mentions it
+comes back, not just files whose name matches.
+
+![Full-text content search](images/onboarding-04-search.png)
+
+**See how everything connects.** Open **Knowledge graph** for an interactive,
+Obsidian-style map of your files: folders and files are nodes; edges show what
+contains what and which documents reference each other. Filter by type, focus on
+one file's neighborhood, or search within the graph. (Right-click any file →
+**Related files** to jump straight to its connections.)
+
+![Interactive knowledge graph](images/onboarding-05-graph.png)
+
+**Share a file** with a public link in one click. Right-click → **Share** and a
+link is minted instantly — copy it with the **Copy link** button. Add a password
+or expiry, or manage/revoke links later under **Manage links**.
+
+![One-click public share link](images/onboarding-06-share.png)
+
+**Automate it (optional).** In **Settings → Developer**, mint an API key to drive
+your storage from scripts or an AI assistant over the [MCP server](#c-connect-an-ai-or-automation).
+Keep a key full-access, make it **read-only**, or **scope it to a single folder**
+so an integration only ever sees that subtree — files, search, and graph included.
+
+![API keys in the Developer tab](images/onboarding-07-devkeys.png)
+
 ### Run without Docker
 
 If you'd rather run it directly (any Linux/macOS with Python 3.12 and Node 20):

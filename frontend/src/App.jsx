@@ -1593,7 +1593,11 @@ export default class App extends React.Component {
         starFill: f.starred ? theme.star : 'none',
         starStroke: f.starred ? theme.star : theme.textFaint,
         metaLine: isFolder
-          ? itemCount + (itemCount === 1 ? ' item' : ' items')
+          ? // Counts come from lazily-loaded children; show a neutral label
+            // until we've opened the folder rather than a misleading "0 items".
+            itemCount > 0
+            ? itemCount + (itemCount === 1 ? ' item' : ' items')
+            : 'Folder'
           : `${f.size || ''}${f.size && f.modified ? ' · ' : ''}${f.modified || ''}`,
         retentionLabel:
           daysLeft !== null ? daysLeft + (daysLeft === 1 ? ' day left' : ' days left') : '',
