@@ -292,6 +292,14 @@ Storage is chosen automatically, the same way the database is: **if you give it
 Cloudflare R2, it uses R2; otherwise it stores files on local disk.** Nothing to
 toggle — just set (or don't set) the R2 variables.
 
+> **No terminal required.** The **first account you register becomes the Owner**.
+> On first sign-in the app asks where files should live, and **Settings →
+> Storage** lets the Owner paste R2 credentials, **Test** the connection, save
+> (no restart), and **move existing local files to R2** with one click — all
+> from the browser. The environment variables below are the equivalent for
+> operators who prefer config-as-code; if they're set, the in-app screen shows
+> them read-only. Everything in this section describes that operator path.
+
 **Option 1 — Cloudflare R2 (recommended; no server disk needed).** Files go
 straight to R2 object storage: durable, scalable, and independent of the
 container's disk. Set four variables and R2 switches on:
