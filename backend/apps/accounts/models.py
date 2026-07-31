@@ -77,6 +77,10 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
 
     is_staff = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    # Self-hosted "Owner": can configure instance-wide settings (e.g. storage).
+    # Stamped on the first account to register; a Django superuser also counts as
+    # owner (see `is_owner`). Regular users never get this.
+    is_owner = models.BooleanField(default=False)
 
     last_login_at = models.DateTimeField(null=True, blank=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -91,6 +95,11 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
 
     def __str__(self):
         return self.email
+
+    @property
+    def is_owner_effective(self) -> bool:
+        """True for the instance Owner: the first user, or any Django superuser."""
+        return bool(self.is_owner or self.is_superuser)
 
     def mark_deleted(self):
         """DPDPA soft delete; hard delete cascades after 30 days."""

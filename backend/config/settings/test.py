@@ -20,6 +20,9 @@ REST_FRAMEWORK = {**REST_FRAMEWORK, "DEFAULT_THROTTLE_CLASSES": []}  # noqa: F40
 # (portable + hermetic — no machine-specific path).
 STORAGE_SERVICE = "apps.storage.services.local.LocalStorageService"
 DEV_STORAGE_DIR = tempfile.mkdtemp(prefix="floppy-test-storage-")
+# The local-storage persistence warning is expected here (tests run on local
+# disk by design); silence it so test/command output stays clean.
+SILENCED_SYSTEM_CHECKS = ["storage.W001"]
 
 # Video: no-binary fake transcoder in tests (real FFmpeg runs in production).
 MEDIA_TRANSCODER = "apps.storage.services.transcode.FakeTranscoder"
