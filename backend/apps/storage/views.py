@@ -784,6 +784,14 @@ class NoteCreateView(APIView):
             return Response({"detail": "This key can only create inside its allowed folder."},
                             status=status.HTTP_400_BAD_REQUEST)
 
+        # Notes are written server-side, so the backend must accept bytes here.
+        # Refuse up front (rather than create a phantom note that charges quota
+        # but stored nothing) on a backend that can't — mirrors FileContentView.
+        storage = get_storage_service()
+        if not hasattr(storage, "save_bytes"):
+            return Response({"detail": "Creating notes is not supported on this backend."},
+                            status=status.HTTP_501_NOT_IMPLEMENTED)
+
         raw = (str(request.data.get("name") or "").strip()) or "Untitled note"
         if not raw.lower().endswith(".md"):
             raw += ".md"
@@ -810,9 +818,7 @@ class NoteCreateView(APIView):
             defaults={"size_bytes": size, "status": StorageObject.Status.READY, "object_key": object_key},
         )
         StorageObject.objects.filter(pk=obj.pk).update(ref_count=F("ref_count") + 1)
-        storage = get_storage_service()
-        if hasattr(storage, "save_bytes"):
-            storage.save_bytes(region=region, object_key=obj.object_key, data=data)
+        storage.save_bytes(region=region, object_key=obj.object_key, data=data)
         file.storage_object = obj
         file.save(update_fields=["storage_object"])
         if size:
