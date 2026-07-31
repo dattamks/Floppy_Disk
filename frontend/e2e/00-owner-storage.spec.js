@@ -28,7 +28,8 @@ test('Owner: first-run setup, ephemeral banner, and Storage settings (recorded)'
   await blockExternal(page);
 
   await test.step('Register the first account - becomes the Owner', async () => {
-    await registerNewUser(page);
+    // Keep the first-run setup modal so we can walk through it below.
+    await registerNewUser(page, { dismissSetup: false });
   });
 
   await test.step('First-run setup asks where files should live', async () => {

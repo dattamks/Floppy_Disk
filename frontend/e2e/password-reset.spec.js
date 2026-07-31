@@ -26,5 +26,8 @@ test('reset-password link shows the set-password form and validates input', asyn
   await page.getByPlaceholder('New password', { exact: true }).fill('ValidPass123!');
   await page.getByPlaceholder('Confirm new password', { exact: true }).fill('ValidPass123!');
   await page.getByRole('button', { name: 'Set new password' }).click();
-  await expect(page.getByText(/invalid or has expired/i)).toBeVisible({ timeout: 10000 });
+  // The server returns its own detail ("Invalid or expired token."), which the
+  // form surfaces verbatim (firstError prefers the server message over the
+  // client fallback).
+  await expect(page.getByText(/invalid or expired/i)).toBeVisible({ timeout: 10000 });
 });

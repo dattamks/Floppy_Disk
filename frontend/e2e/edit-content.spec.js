@@ -27,8 +27,10 @@ test('edit a text file in place and save', async ({ page }) => {
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText(before, { exact: true })).toBeVisible({ timeout: 15000 });
 
-  // Edit and save.
+  // Edit and save. A .md file opens the note editor (Write | Markdown | Preview);
+  // the raw textarea lives under the "Markdown" tab.
   await dialog.getByRole('button', { name: 'Edit' }).click();
+  await dialog.getByRole('button', { name: 'Markdown' }).click();
   await expect(dialog.locator('textarea')).toHaveValue(new RegExp(before));
   const [resp] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/content') && r.request().method() === 'PUT'),
