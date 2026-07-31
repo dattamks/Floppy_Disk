@@ -174,8 +174,42 @@ shell for the no-Docker path):
 | `FRONTEND_BASE_URL` | the app's own origin | Base URL used in email links. |
 
 Email verification and password-reset **links are printed to the container log**
-by default (console email backend), which is fine for personal use. To send real
-email, configure an SMTP backend via the standard Django email settings.
+by default (console email backend), which is fine for personal use.
+
+#### Send real email (SMTP)
+
+To actually deliver email, set your mail provider's SMTP variables. **Just
+setting `EMAIL_HOST` switches on SMTP** — no other backend setting needed. Add
+these under `environment:` in `docker-compose.standalone.yml` (or export them for
+the no-Docker run):
+
+| Variable | Example | Meaning |
+|---|---|---|
+| `EMAIL_HOST` | `smtp.gmail.com` | SMTP server hostname (**setting this enables SMTP**) |
+| `EMAIL_PORT` | `587` | SMTP port. `587` for TLS (default), `465` for SSL |
+| `EMAIL_HOST_USER` | `you@gmail.com` | SMTP username |
+| `EMAIL_HOST_PASSWORD` | `app-password` | SMTP password (use an app password, not your login) |
+| `EMAIL_USE_TLS` | `true` | STARTTLS on port 587 (default `true`) |
+| `EMAIL_USE_SSL` | `false` | SSL on port 465 (set `true` **and** `EMAIL_USE_TLS=false` for 465) |
+| `DEFAULT_FROM_EMAIL` | `Floppy Disk <no-reply@you.com>` | The "From" address on outgoing mail |
+
+Example (TLS, e.g. Gmail / most providers):
+
+```yaml
+environment:
+  EMAIL_HOST: "smtp.gmail.com"
+  EMAIL_PORT: "587"
+  EMAIL_HOST_USER: "you@gmail.com"
+  EMAIL_HOST_PASSWORD: "your-app-password"
+  EMAIL_USE_TLS: "true"
+  DEFAULT_FROM_EMAIL: "Floppy Disk <you@gmail.com>"
+  FRONTEND_BASE_URL: "https://files.example.com"   # so links point at your app
+```
+
+For an SSL provider on port 465, instead set `EMAIL_PORT: "465"`,
+`EMAIL_USE_SSL: "true"`, and `EMAIL_USE_TLS: "false"`. Restart the container after
+changing these. (Gmail needs an **App Password** — enable 2-Step Verification,
+then create one under your Google account's *App passwords*.)
 
 ### Forgot your password?
 

@@ -66,6 +66,32 @@ def test_email_links_point_at_app_origin_not_vite(monkeypatch, tmp_path):
     assert ":5173" not in s.FRONTEND_BASE_URL
 
 
+def test_email_defaults_to_console_without_smtp(monkeypatch, tmp_path):
+    for k in ("EMAIL_HOST", "EMAIL_BACKEND"):
+        monkeypatch.delenv(k, raising=False)
+    s = _load_standalone(monkeypatch, tmp_path)
+    assert s.EMAIL_BACKEND.endswith("console.EmailBackend")
+
+
+def test_setting_email_host_switches_to_smtp(monkeypatch, tmp_path):
+    monkeypatch.delenv("EMAIL_BACKEND", raising=False)
+    monkeypatch.setenv("EMAIL_HOST", "smtp.example.com")
+    monkeypatch.setenv("EMAIL_HOST_USER", "me@example.com")
+    monkeypatch.setenv("EMAIL_HOST_PASSWORD", "secret")
+    s = _load_standalone(monkeypatch, tmp_path)
+    assert s.EMAIL_BACKEND.endswith("smtp.EmailBackend")
+    assert s.EMAIL_HOST == "smtp.example.com"
+    assert s.EMAIL_PORT == 587 and s.EMAIL_USE_TLS is True and s.EMAIL_USE_SSL is False
+    assert s.EMAIL_HOST_USER == "me@example.com"
+
+
+def test_email_ssl_disables_tls(monkeypatch, tmp_path):
+    monkeypatch.setenv("EMAIL_HOST", "smtp.example.com")
+    monkeypatch.setenv("EMAIL_USE_SSL", "true")
+    s = _load_standalone(monkeypatch, tmp_path)
+    assert s.EMAIL_USE_SSL is True and s.EMAIL_USE_TLS is False
+
+
 @pytest.fixture(autouse=True)
 def _restore_settings_module():
     """Reloading the standalone module mutates sys.modules; restore afterward."""

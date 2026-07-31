@@ -92,12 +92,28 @@ SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=False)
 CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
-EMAIL_BACKEND = env(
-    "EMAIL_BACKEND",
-    # Console backend by default: verification/reset emails print to the log, so
-    # a solo self-host works with no SMTP configured.
-    default="django.core.mail.backends.console.EmailBackend",
-)
+# --- Email delivery ---
+# Zero config: with no SMTP set, verification/reset emails print to the container
+# log (console backend), so a solo self-host works out of the box. To send real
+# email, just set EMAIL_HOST (+ credentials) — that alone switches to SMTP; an
+# explicit EMAIL_BACKEND always wins.
+EMAIL_HOST = env("EMAIL_HOST", default="")
+_email_backend = env("EMAIL_BACKEND", default="")
+if _email_backend:
+    EMAIL_BACKEND = _email_backend
+elif EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+# TLS (STARTTLS, port 587) is the common case; SSL (port 465) is the alternative.
+# Django rejects both being on at once, so SSL wins when explicitly enabled.
+EMAIL_USE_TLS = False if EMAIL_USE_SSL else env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=15)
 
 # Verification / password-reset links must point at THIS app's own origin — the
 # SPA is served from here in standalone mode, not the dev Vite server on :5173
