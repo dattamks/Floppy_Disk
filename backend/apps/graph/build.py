@@ -37,8 +37,10 @@ _MAX_SCAN_BYTES = 64 * 1024
 _MAX_REFS_PER_FILE = 25
 # Markdown link target: the "(...)" in [label](target). Path-like token: any
 # word that carries a file extension (matches "budget.json", "./docs/x.md").
+# Wiki-link: [[Note]] / [[Note|alias]] / [[Note#heading]] — the note name.
 _MD_LINK_RE = re.compile(r"\]\(\s*<?([^)\s>]+)")
 _PATHY_RE = re.compile(r"[\w./\-]+\.[A-Za-z0-9]{1,8}")
+_WIKILINK_RE = re.compile(r"\[\[\s*([^\]|#]+)")
 
 
 def _tokens(name: str) -> set[str]:
@@ -188,20 +190,28 @@ def _add_reference_edges(files, file_node, add) -> None:
                 Provenance.EXTRACTED, reason)
             made += 1
 
-        # 1. Markdown link targets: [label](target) / [label](path/target#frag).
+        # 1. Wiki-links: [[Note]] / [[Note|alias]] / [[Note#heading]].
+        for m in _WIKILINK_RE.finditer(text):
+            if made >= _MAX_REFS_PER_FILE:
+                break
+            tgt = m.group(1).strip().lower().rsplit("/", 1)[-1]
+            emit(by_name.get(tgt) or by_stem.get(tgt.rsplit(".", 1)[0]) or by_stem.get(tgt),
+                 "wiki-link")
+
+        # 2. Markdown link targets: [label](target) / [label](path/target#frag).
         for m in _MD_LINK_RE.finditer(text):
             if made >= _MAX_REFS_PER_FILE:
                 break
             tgt = m.group(1).split("#")[0].split("?")[0].strip().lower().rsplit("/", 1)[-1]
             emit(by_name.get(tgt) or by_stem.get(tgt.rsplit(".", 1)[0]), "linked in Markdown")
 
-        # 2. Path-like / filename tokens anywhere in the text (e.g. ./docs/x.md).
+        # 3. Path-like / filename tokens anywhere in the text (e.g. ./docs/x.md).
         for m in _PATHY_RE.finditer(low):
             if made >= _MAX_REFS_PER_FILE:
                 break
             emit(by_name.get(m.group(0).rsplit("/", 1)[-1]), "path reference")
 
-        # 3. Plain prose mentions of a full filename (fallback; also names w/o ext).
+        # 4. Plain prose mentions of a full filename (fallback; also names w/o ext).
         for name_l, tgt in by_name.items():
             if made >= _MAX_REFS_PER_FILE:
                 break

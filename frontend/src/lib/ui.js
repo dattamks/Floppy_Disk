@@ -43,6 +43,9 @@ export const extOf = (name = '') => {
   return m ? m[1].toLowerCase() : '';
 };
 
+// A file's display title without its text-note extension (for the note editor).
+export const baseName = (name) => (name || '').replace(/\.(md|markdown|txt)$/i, '');
+
 // Finer-grained "how should we preview this" kind, from the name + coarse kind.
 // One of: video | image | audio | pdf | markdown | json | yaml | text | doc.
 export const previewKindOf = (name, kind) => {

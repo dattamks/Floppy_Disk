@@ -21,6 +21,7 @@ urlpatterns = [
     path("folders/<uuid:folder_id>/restore", views.FolderRestoreView.as_view(), name="folder_restore"),
     path("folders/<uuid:folder_id>/purge", views.FolderPurgeView.as_view(), name="folder_purge"),
     path("trash", views.TrashView.as_view(), name="trash"),
+    path("notes", views.NoteCreateView.as_view(), name="note_create"),
     path("uploads", views.UploadInitiateView.as_view(), name="upload_initiate"),
     path("uploads/<uuid:file_id>/complete", views.UploadCompleteView.as_view(), name="upload_complete"),
     # Video — self-hosted inline playback of your own files (FFmpeg transcode,

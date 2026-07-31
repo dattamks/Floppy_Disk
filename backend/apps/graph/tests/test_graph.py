@@ -221,6 +221,24 @@ def test_reference_edge_from_markdown_link(user):
     assert targets == {"budget.json", "roadmap.md"}
 
 
+def test_reference_edge_from_wiki_link(user):
+    """[[Wiki-links]] (with or without alias/heading) create REFERENCES edges."""
+    from apps.graph.models import GraphEdge, GraphNode
+
+    c = _session(user)
+    _upload(c, "aurora-spec.md", b"# Spec")
+    _upload(c, "budget.md", b"# Budget")
+    src = _upload(c, "index.md", b"See [[aurora-spec]] and [[budget|the budget]].")
+    rebuild_user_graph(user)
+
+    src_node = GraphNode.objects.get(owner=user, file_id=src)
+    targets = set(
+        GraphEdge.objects.filter(owner=user, source=src_node, rel=GraphEdge.Rel.REFERENCES)
+        .values_list("target__label", flat=True)
+    )
+    assert targets == {"aurora-spec.md", "budget.md"}
+
+
 def test_reference_edge_not_duplicated_across_detectors(user):
     """A file named both in a Markdown link and in prose yields ONE edge."""
     from apps.graph.models import GraphEdge, GraphNode

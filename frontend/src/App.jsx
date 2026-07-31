@@ -1,7 +1,7 @@
 import React from 'react';
 import { theme } from './lib/theme';
 import { api, firstError } from './api';
-import { humanSize, fmtStorage, kindOf, previewKindOf, fmtDuration } from './lib/ui';
+import { humanSize, fmtStorage, kindOf, previewKindOf, fmtDuration, baseName } from './lib/ui';
 import { renderMarkdown } from './lib/markdown';
 import AppView from './view/AppView';
 
@@ -38,10 +38,13 @@ export default class App extends React.Component {
     previewText: '',
     previewLoading: false,
     previewError: '',
-    // Edit-in-place for text files.
+    // Edit-in-place for text files / the note editor.
     editing: false,
     editText: '',
+    editName: '',
     editSaving: false,
+    creatingNote: false,
+    noteRelated: null, // graph neighbors of the open note (for the backlinks panel)
     // Rename / move dialogs.
     renameName: '',
     renameTargetId: null,
@@ -814,7 +817,11 @@ export default class App extends React.Component {
       previewLoading: !!file.real,
       editing: false,
       editText: '',
+      editName: '',
+      noteRelated: null,
     });
+    // Load backlinks/links for text notes so the editor can show connections.
+    if (file.real && isText) this._loadBacklinks(file.id);
     if (file.real) {
       // Fetch a real, same-origin URL for the bytes; for text formats also read
       // the content so we can render it (markdown/json/yaml/code).
@@ -862,42 +869,132 @@ export default class App extends React.Component {
     if (nextItem) this.openFile(nextItem);
   }
 
-  // --- Edit-in-place (text files) -------------------------------------------
+  // --- Notes: create a blank note and open it straight into the editor ------
+  newNote() {
+    if (this.state.creatingNote) return;
+    const folder = this.state.currentFolderId || null;
+    this.setState({ creatingNote: true });
+    api
+      .createNote(folder ? { folder } : {})
+      .then((f) => {
+        const item = {
+          id: f.id,
+          name: f.name,
+          kind: 'doc',
+          parentId: f.folder || null,
+          size: humanSize(f.size_bytes),
+          sizeBytes: f.size_bytes,
+          modified: '',
+          status: f.status,
+          starred: false,
+          trashed: false,
+          real: true,
+        };
+        this.setState((s) => ({ files: [item, ...s.files], creatingNote: false }));
+        // Open it immediately in edit mode with an empty body — start typing.
+        this.setState({
+          modal: 'preview',
+          activeFileId: f.id,
+          previewKind: 'markdown',
+          previewUrl: '',
+          previewText: '',
+          previewError: '',
+          previewLoading: false,
+          editing: true,
+          editText: '',
+          editName: baseName(f.name),
+          noteRelated: null,
+        });
+      })
+      .catch((err) => {
+        this.setState({ creatingNote: false });
+        this.toast(firstError(err, 'Could not create note'));
+      });
+  }
+
+  // --- Edit-in-place (text files / notes) -----------------------------------
   startEdit() {
-    this.setState({ editing: true, editText: this.state.previewText || '' });
+    const f = this.state.files.find((x) => x.id === this.state.activeFileId);
+    this.setState({
+      editing: true,
+      editText: this.state.previewText || '',
+      editName: baseName(f ? f.name : ''),
+    });
   }
   setEditText(e) {
     this.setState({ editText: e.target.value });
   }
+  setEditName(e) {
+    this.setState({ editName: e.target.value });
+  }
   cancelEdit() {
-    this.setState({ editing: false, editText: '' });
+    this.setState({ editing: false, editText: '', editName: '' });
   }
   saveEdit() {
     const id = this.state.activeFileId;
     const content = this.state.editText;
+    const cur = this.state.files.find((x) => x.id === id);
+    const curName = cur ? cur.name : '';
+    const typed = (this.state.editName || '').trim();
+    const desiredName = typed
+      ? /\.(md|markdown|txt)$/i.test(typed)
+        ? typed
+        : typed + '.md'
+      : curName;
     this.setState({ editSaving: true });
     api
       .updateFileContent(id, content)
       .then((f) => {
-        this.setState((s) => ({
-          editing: false,
-          editSaving: false,
-          previewText: content,
-          files: s.files.map((x) =>
-            x.id === id
-              ? {
-                  ...x,
-                  size: f && f.size_bytes != null ? humanSize(f.size_bytes) : x.size,
-                  sizeBytes: f ? f.size_bytes : x.sizeBytes,
-                }
-              : x
-          ),
-        }));
-        this.toast('Saved');
+        const finish = (finalName) => {
+          this.setState((s) => ({
+            editing: false,
+            editSaving: false,
+            editName: '',
+            previewText: content,
+            files: s.files.map((x) =>
+              x.id === id
+                ? {
+                    ...x,
+                    name: finalName,
+                    size: f && f.size_bytes != null ? humanSize(f.size_bytes) : x.size,
+                    sizeBytes: f ? f.size_bytes : x.sizeBytes,
+                  }
+                : x
+            ),
+          }));
+          this.toast('Saved');
+          this._loadBacklinks(id); // links may have changed
+        };
+        if (desiredName && desiredName !== curName) {
+          api
+            .updateFile(id, { name: desiredName })
+            .then((rf) => finish(rf && rf.name ? rf.name : desiredName))
+            .catch(() => finish(curName)); // content saved even if the rename failed
+        } else {
+          finish(curName);
+        }
       })
       .catch((err) => {
         this.setState({ editSaving: false });
         this.toast(firstError(err, 'Could not save'));
+      });
+  }
+  // Open a file/note by id (used by backlink chips).
+  _openById(id) {
+    const f = this.state.files.find((x) => x.id === id);
+    if (f) this.openFile(f);
+  }
+  // Fetch a note's graph neighbors so the editor can show its backlinks.
+  _loadBacklinks(id) {
+    api
+      .graphRelated(id)
+      .then((d) => {
+        if (this.state.activeFileId === id) {
+          this.setState({ noteRelated: d && Array.isArray(d.related) ? d.related : [] });
+        }
+      })
+      .catch(() => {
+        if (this.state.activeFileId === id) this.setState({ noteRelated: [] });
       });
   }
 
@@ -1932,6 +2029,8 @@ export default class App extends React.Component {
       closeCtxMenu: () => this.closeCtxMenu(),
       openUpload: () => this.openUpload(),
       openNewFolder: () => this.openNewFolder(),
+      onNewNote: () => this.newNote(),
+      creatingNote: st.creatingNote,
       isNewFolderModal: modal === 'newFolder',
       newFolderName: st.newFolderName,
       setNewFolderName: (e) => this.setNewFolderName(e),
@@ -2006,12 +2105,34 @@ export default class App extends React.Component {
         !st.previewLoading &&
         !st.previewError,
       isEditing: st.editing,
+      isNote: st.previewKind === 'markdown',
       editText: st.editText,
+      editName: st.editName,
       editSaving: st.editSaving,
       onStartEdit: () => this.startEdit(),
       setEditText: (e) => this.setEditText(e),
+      setEditName: (e) => this.setEditName(e),
       onCancelEdit: () => this.cancelEdit(),
       onSaveEdit: () => this.saveEdit(),
+      // Live rendered preview shown beside the editor for Markdown notes.
+      editPreviewHtml:
+        st.editing && st.previewKind === 'markdown' ? renderMarkdown(st.editText || '') : '',
+      // Backlinks: other notes/files that reference this one (incoming edges).
+      noteBacklinks: (st.noteRelated || [])
+        .filter((r) => r.direction === 'in' && r.node && r.node.file_id)
+        .map((r) => ({
+          id: r.node.file_id,
+          name: r.node.label,
+          reason: r.reason,
+          onOpen: () => this._openById(r.node.file_id),
+        })),
+      noteLinksOut: (st.noteRelated || [])
+        .filter((r) => r.direction === 'out' && r.rel === 'references' && r.node && r.node.file_id)
+        .map((r) => ({
+          id: r.node.file_id,
+          name: r.node.label,
+          onOpen: () => this._openById(r.node.file_id),
+        })),
       previewLoading: st.previewLoading,
       previewError: st.previewError,
       previewHtml: st.previewKind === 'markdown' ? renderMarkdown(st.previewText || '') : '',
@@ -2131,8 +2252,20 @@ export default class App extends React.Component {
       overlayBg: theater ? 'rgba(8,9,12,0.92)' : 'rgba(20,23,28,0.42)',
       overlayAlign: theater ? 'stretch' : d.modalAlign,
       overlayPad: theater ? 0 : d.modalPad,
-      boxW: theater ? '100%' : modal === 'graph' ? 'min(1040px, 95vw)' : d.modalW,
-      boxMaxH: theater ? '100vh' : modal === 'graph' ? '92vh' : d.modalMaxH,
+      boxW: theater
+        ? '100%'
+        : modal === 'graph'
+          ? 'min(1040px, 95vw)'
+          : modal === 'preview' && st.editing && st.previewKind === 'markdown'
+            ? 'min(980px, 96vw)'
+            : d.modalW,
+      boxMaxH: theater
+        ? '100vh'
+        : modal === 'graph'
+          ? '92vh'
+          : modal === 'preview' && st.editing
+            ? '92vh'
+            : d.modalMaxH,
       boxBg: theater ? '#0B0C0F' : '#FFFFFF',
       boxBorder: theater ? 'none' : '1px solid #E5E7EC',
       boxRadius: theater ? '0px' : d.modalRadius,

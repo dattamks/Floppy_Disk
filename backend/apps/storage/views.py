@@ -748,6 +748,77 @@ class UploadCompleteView(APIView):
         return Response(FileSerializer(file).data, status=status.HTTP_200_OK)
 
 
+class NoteCreateView(APIView):
+    """Create a note — a Markdown document — in a single call.
+
+    Notes are ordinary doc-kind files, but a note editor shouldn't have to run
+    the 3-step upload dance just to make a blank page. This collapses
+    initiate+put+complete: it creates the file, stores the (optional) initial
+    text, commits quota, and indexes it for search + the knowledge graph — so
+    the editor can create-then-edit smoothly. Content is then edited in place via
+    PUT /files/{id}/content like any other document.
+    """
+
+    permission_classes = [IsAuthenticated]
+    MAX_BYTES = 5 * 1024 * 1024
+
+    @transaction.atomic
+    def post(self, request):
+        folder = None
+        folder_id = request.data.get("folder")
+        if folder_id:
+            folder = scope_folders(
+                Folder.objects.filter(owner=request.user, deleted_at__isnull=True), request
+            ).filter(pk=folder_id).first()
+            if folder is None:
+                return Response({"detail": "Invalid folder."}, status=status.HTTP_400_BAD_REQUEST)
+        # A folder-scoped key may only create inside its subtree.
+        if not folder_in_scope(request, folder.pk if folder else None):
+            return Response({"detail": "This key can only create inside its allowed folder."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        raw = (str(request.data.get("name") or "").strip()) or "Untitled note"
+        if not raw.lower().endswith(".md"):
+            raw += ".md"
+        name = unique_name(raw, _active_file_names(request.user, folder))
+
+        data = str(request.data.get("content", "")).encode("utf-8")
+        if len(data) > self.MAX_BYTES:
+            return Response({"detail": "Note too large.", "code": "file_too_large"},
+                            status=status.HTTP_400_BAD_REQUEST)
+        size = len(data)
+        if size > available_bytes(request.user):
+            return Response({"detail": "Not enough storage.", "code": "quota_exceeded"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        file = File.objects.create(
+            owner=request.user, name=name, folder=folder,
+            kind=File.Kind.DOC, size_bytes=size, status=File.Status.READY,
+        )
+        region = request.user.storage_region
+        content_hash = hashlib.sha256(data).hexdigest()
+        object_key = _object_key(request.user.id, file.id)
+        obj, _created = StorageObject.objects.get_or_create(
+            content_hash=content_hash, region=region,
+            defaults={"size_bytes": size, "status": StorageObject.Status.READY, "object_key": object_key},
+        )
+        StorageObject.objects.filter(pk=obj.pk).update(ref_count=F("ref_count") + 1)
+        storage = get_storage_service()
+        if hasattr(storage, "save_bytes"):
+            storage.save_bytes(region=region, object_key=obj.object_key, data=data)
+        file.storage_object = obj
+        file.save(update_fields=["storage_object"])
+        if size:
+            from .quota import charge_usage
+            charge_usage(request.user, size)
+
+        from .indexing import reindex_file
+        reindex_file(file)
+        from apps.graph.tasks import schedule_rebuild
+        schedule_rebuild(request.user)
+        return Response(FileSerializer(file).data, status=status.HTTP_201_CREATED)
+
+
 class DevBlobView(APIView):
     """Local-disk blob store standing in for R2 presigned PUT/GET.
 

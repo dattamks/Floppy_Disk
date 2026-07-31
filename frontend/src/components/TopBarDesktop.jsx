@@ -71,6 +71,38 @@ export default function TopBarDesktop(V) {
       </div>{' '}
       <div style={{ flex: '1' }} />{' '}
       <button
+        onClick={V.onNewNote}
+        disabled={V.creatingNote}
+        title="Create a new note"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '7px',
+          background: theme.white,
+          color: theme.text,
+          border: `1px solid ${theme.border}`,
+          borderRadius: '10px',
+          padding: '10px 14px',
+          fontSize: '13.5px',
+          fontWeight: '600',
+          cursor: V.creatingNote ? 'default' : 'pointer',
+          opacity: V.creatingNote ? 0.6 : 1,
+          fontFamily: "'IBM Plex Sans',sans-serif",
+        }}
+        {...hov({ background: theme.surface })}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M15.5 4.5l4 4L8 20H4v-4L15.5 4.5Z"
+            stroke={theme.brand}
+            strokeWidth="1.7"
+            strokeLinejoin="round"
+          />
+          <path d="M13.5 6.5l4 4" stroke={theme.brand} strokeWidth="1.7" strokeLinecap="round" />
+        </svg>
+        New note
+      </button>{' '}
+      <button
         onClick={V.openNewFolder}
         style={{
           display: 'flex',

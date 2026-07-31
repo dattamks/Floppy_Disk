@@ -81,6 +81,20 @@ inline. Videos play in the browser (transcoded on your own server).
 
 ![Rendered Markdown preview](images/onboarding-03-preview.png)
 
+**Take notes.** Click **New note** to create a Markdown note and start writing
+immediately in a distraction-free editor — type on the left, see it rendered
+live on the right. Give it a title, and **Save**. Notes are just files, so they
+live in folders, show up in search, and can be shared like anything else. Link
+one note to another with `[[Note name]]` (or a normal Markdown link).
+
+![The split-view Markdown note editor](images/onboarding-08-note-editor.png)
+
+**Follow the links between notes.** Open a note and its **Linked mentions** panel
+shows every other note that points to it — click through to jump around your
+knowledge base. (These same links power the knowledge graph below.)
+
+![A note's backlinks / linked mentions](images/onboarding-09-note-backlinks.png)
+
 **Search across names _and_ contents.** The search box does full-text search —
 type a word that lives *inside* your documents and every file that mentions it
 comes back, not just files whose name matches.
