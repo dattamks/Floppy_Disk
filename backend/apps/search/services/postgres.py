@@ -24,7 +24,9 @@ class PostgresSearchService(SearchService):
         if not query:
             return []
 
-        vector = SearchVector("name")
+        # Weight the filename above the body so name matches rank first, but the
+        # document text is searchable too (full-text / content search).
+        vector = SearchVector("name", weight="A") + SearchVector("content_text", weight="B")
         sq = SearchQuery(query, search_type="websearch")
         base = File.objects.filter(deleted_at__isnull=True, status=File.Status.READY)
         if folder_ids is not None:

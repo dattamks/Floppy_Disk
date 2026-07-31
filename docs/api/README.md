@@ -20,7 +20,11 @@ Phase 1 is **session-based**:
    cookie). GET requests need no CSRF.
 
 Programmatic clients (the MCP server, integrations) authenticate with an
-**API key**: `Authorization: Bearer <key>` — which bypasses CSRF.
+**API key**: `Authorization: Bearer <key>` — which bypasses CSRF. Mint keys at
+`POST /auth/api-keys`; pass `read_only: true` for a read-only key, or
+`root_folder: "<folder-id>"` for a **folder-scoped** key confined to that
+folder's subtree (listing, search, download, upload, and the knowledge graph all
+stay within it).
 
 Unauthenticated endpoints: `register`, `login`, `csrf`, `password-reset*`,
 `verify-email`, `public/share/*`, and `health`.
@@ -38,16 +42,24 @@ Unauthenticated endpoints: `register`, `login`, `csrf`, `password-reset*`,
 ```bash
 # 1) initiate — reserves quota, returns a presigned target
 curl -X POST /api/v1/storage/uploads -H "X-CSRFToken: $CSRF" -b cookies \
-  -d '{"name":"cat.jpg","size_bytes":12345,"kind":"image"}'
+  -d '{"name":"cat.jpg","size_bytes":12345,"folder":"<folder-uuid>"}'
 # -> { file:{id,…}, reservation_id, upload:{ url, object_key } }
 
 # 2) PUT the raw bytes to upload.url
 curl -X PUT "<upload.url>" --data-binary @cat.jpg -H "X-CSRFToken: $CSRF" -b cookies
 
-# 3) complete — dedup, commit quota
-curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" -b cookies
+# 3) complete — dedup, commit quota (pass the reservation_id from step 1)
+curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" -b cookies \
+  -d '{"reservation_id":"<reservation-uuid>"}'
 # -> File (status: ready)   |   video -> status: processing (transcode)
 ```
+Notes:
+- **`folder`** (a folder UUID) is optional on initiate; omit it to upload to the
+  drive root. The field is `folder`, not `folder_id`.
+- **`kind`** (`image`/`video`/`audio`/`doc`/`file`) is optional — the server
+  derives it from the filename/content-type when omitted (so document text still
+  gets indexed for search and the knowledge graph). Send it to override.
+- **`content_type`** is an optional hint used only to classify `kind`.
 
 ## Endpoint index
 
@@ -81,14 +93,14 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 | DELETE | `/folders/{id}` | Soft-delete folder |
 | POST | `/folders/{id}/restore` | Restore folder |
 | GET | `/camera-backup` | Get/create the Camera Backup folder |
-| GET | `/files` | List files (by `?folder=`) |
+| GET | `/files` | List files — the drive root by default; pass `?folder=<id>` for a folder's contents |
 | GET | `/files/{id}/download` | URL to fetch the bytes (presigned R2 / direct local) |
 | DELETE | `/files/{id}` | Soft-delete file |
 | POST | `/files/{id}/restore` | Restore file |
 | POST | `/files/{id}/purge` | Permanently delete |
 | POST | `/files/{id}/discoverable` | Toggle discoverable / mature |
 | GET | `/trash` | List trashed folders + files |
-| GET | `/search?q=` | Own + discoverable non-mature files |
+| GET | `/search?q=` | Full-text search over **file names and document contents** (own + discoverable non-mature) |
 | POST | `/uploads` | Initiate upload (step 1) |
 | POST | `/uploads/{id}/complete` | Complete upload (step 3) |
 

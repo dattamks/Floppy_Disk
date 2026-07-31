@@ -35,6 +35,10 @@ _MAX_TOKEN_GROUP = 8
 # REFERENCES scanning: only read small text/doc blobs, and cap fan-out per file.
 _MAX_SCAN_BYTES = 64 * 1024
 _MAX_REFS_PER_FILE = 25
+# Markdown link target: the "(...)" in [label](target). Path-like token: any
+# word that carries a file extension (matches "budget.json", "./docs/x.md").
+_MD_LINK_RE = re.compile(r"\]\(\s*<?([^)\s>]+)")
+_PATHY_RE = re.compile(r"[\w./\-]+\.[A-Za-z0-9]{1,8}")
 
 
 def _tokens(name: str) -> set[str]:
@@ -136,41 +140,73 @@ def rebuild_user_graph(user) -> dict:
 
 
 def _add_reference_edges(files, file_node, add) -> None:
-    """Scan small text/doc files for literal mentions of other files' names."""
+    """Link a document to files it references — via Markdown links, path-like
+    tokens, or plain-prose mentions of another file's name. Deterministic and
+    bounded; reuses the file's cached ``content_text`` (from search indexing)
+    and only reads a blob as a fallback for un-indexed documents."""
     from .models import GraphEdge, Provenance
 
-    # Targets worth matching: names distinctive enough not to match by accident.
-    targets = [(f.name, f) for f in files if f.name and len(f.name) >= 4]
-    if len(targets) < 2:
+    # Lookups by full name and by stem (name without extension), lowercased.
+    by_name: dict[str, object] = {}
+    by_stem: dict[str, object] = {}
+    for f in files:
+        if not f.name or len(f.name) < 4:
+            continue
+        by_name.setdefault(f.name.lower(), f)
+        stem = f.name.rsplit(".", 1)[0].lower()
+        if len(stem) >= 4:
+            by_stem.setdefault(stem, f)
+    if len(by_name) < 2:
         return
 
     storage = _read_storage()
-    if storage is None:
-        return
 
     for src in files:
-        if src.kind != File.Kind.DOC or not src.storage_object_id:
+        if src.kind != File.Kind.DOC:
             continue
-        obj = src.storage_object
-        if not obj or (obj.size_bytes or 0) > _MAX_SCAN_BYTES:
-            continue
-        try:
-            raw = storage.read_bytes(region=obj.region, object_key=obj.object_key)
-        except Exception:  # noqa: BLE001 - best-effort; a missing/unreadable blob is fine
-            continue
-        text = raw.decode("utf-8", "ignore").lower()
+        text = src.content_text or ""
+        if not text and src.storage_object_id and storage is not None:
+            obj = src.storage_object
+            if obj and (obj.size_bytes or 0) <= _MAX_SCAN_BYTES:
+                try:
+                    text = storage.read_bytes(region=obj.region, object_key=obj.object_key).decode("utf-8", "ignore")
+                except Exception:  # noqa: BLE001 - a missing/unreadable blob is fine
+                    text = ""
         if not text:
             continue
+        low = text.lower()
+
+        seen: set = set()
         made = 0
-        for name, tgt in targets:
-            if tgt.id == src.id:
-                continue
-            if name.lower() in text:
-                add(file_node[src.id], file_node[tgt.id], GraphEdge.Rel.REFERENCES,
-                    Provenance.EXTRACTED, f'text names "{name}"')
-                made += 1
-                if made >= _MAX_REFS_PER_FILE:
-                    break
+
+        def emit(tgt, reason):
+            nonlocal made
+            if tgt is None or tgt.id == src.id or tgt.id in seen or made >= _MAX_REFS_PER_FILE:
+                return
+            seen.add(tgt.id)
+            add(file_node[src.id], file_node[tgt.id], GraphEdge.Rel.REFERENCES,
+                Provenance.EXTRACTED, reason)
+            made += 1
+
+        # 1. Markdown link targets: [label](target) / [label](path/target#frag).
+        for m in _MD_LINK_RE.finditer(text):
+            if made >= _MAX_REFS_PER_FILE:
+                break
+            tgt = m.group(1).split("#")[0].split("?")[0].strip().lower().rsplit("/", 1)[-1]
+            emit(by_name.get(tgt) or by_stem.get(tgt.rsplit(".", 1)[0]), "linked in Markdown")
+
+        # 2. Path-like / filename tokens anywhere in the text (e.g. ./docs/x.md).
+        for m in _PATHY_RE.finditer(low):
+            if made >= _MAX_REFS_PER_FILE:
+                break
+            emit(by_name.get(m.group(0).rsplit("/", 1)[-1]), "path reference")
+
+        # 3. Plain prose mentions of a full filename (fallback; also names w/o ext).
+        for name_l, tgt in by_name.items():
+            if made >= _MAX_REFS_PER_FILE:
+                break
+            if name_l in low:
+                emit(tgt, f'text names "{tgt.name}"')
 
 
 def _read_storage():

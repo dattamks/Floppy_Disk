@@ -358,6 +358,7 @@ export default class App extends React.Component {
   }
   navToFolder(id) {
     this.setState({ filterKey: 'all', currentFolderId: id, searchQuery: '', selectedIds: [] });
+    this.loadFolderContents(id); // lazily pull this folder's subfolders + files
   }
   navToShared() {
     this.go('shared');
@@ -625,55 +626,60 @@ export default class App extends React.Component {
       .catch((err) => this.toast(firstError(err, 'Could not create folder')));
   }
 
-  // Pull the user's real folders + files from the backend and merge them in
-  // (dedupe by id, so we never duplicate what's already in state).
+  // Merge fetched folders into state (dedupe by id — never duplicate).
+  _mergeFolders(folders) {
+    this.setState((s) => {
+      const existing = new Set(s.files.map((f) => f.id));
+      const mapped = (folders || [])
+        .filter((f) => !existing.has(f.id))
+        .map((f) => ({
+          id: f.id,
+          name: f.name,
+          kind: 'folder',
+          parentId: f.parent || null,
+          trashed: false,
+          real: true,
+        }));
+      return mapped.length ? { files: [...mapped, ...s.files] } : null;
+    });
+  }
+  _mergeFiles(files) {
+    this.setState((s) => {
+      const existing = new Set(s.files.map((f) => f.id));
+      const mapped = (files || [])
+        .filter((f) => !existing.has(f.id))
+        .map((f) => ({
+          id: f.id,
+          name: f.name,
+          kind: f.kind,
+          parentId: f.folder || null,
+          size: humanSize(f.size_bytes),
+          sizeBytes: f.size_bytes,
+          modified: '',
+          shared: false,
+          starred: false,
+          trashed: false,
+          status: f.status,
+          poster: f.poster_url || undefined,
+          duration: fmtDuration(f.duration_seconds) || undefined,
+          real: true,
+        }));
+      return mapped.length ? { files: [...mapped, ...s.files] } : null;
+    });
+  }
+  // Lazily fetch a folder's own children + files when the user opens it, so
+  // nested content appears (the API lists one level at a time; we merge as we go).
+  loadFolderContents(id) {
+    if (!id) return;
+    api.listFolders(id).then((f) => this._mergeFolders(f)).catch(() => {});
+    api.listFiles(id).then((f) => this._mergeFiles(f)).catch(() => {});
+  }
+
+  // Pull the user's real (root-level) folders + files from the backend and merge
+  // them in; deeper levels load lazily on navigation via loadFolderContents.
   loadStorage() {
-    api
-      .listFolders()
-      .then((folders) => {
-        this.setState((s) => {
-          const existing = new Set(s.files.map((f) => f.id));
-          const mapped = (folders || [])
-            .filter((f) => !existing.has(f.id))
-            .map((f) => ({
-              id: f.id,
-              name: f.name,
-              kind: 'folder',
-              parentId: f.parent || null,
-              trashed: false,
-              real: true,
-            }));
-          return mapped.length ? { files: [...mapped, ...s.files] } : null;
-        });
-      })
-      .catch(() => {});
-    api
-      .listFiles()
-      .then((files) => {
-        this.setState((s) => {
-          const existing = new Set(s.files.map((f) => f.id));
-          const mapped = (files || [])
-            .filter((f) => !existing.has(f.id))
-            .map((f) => ({
-              id: f.id,
-              name: f.name,
-              kind: f.kind,
-              parentId: f.folder || null,
-              size: humanSize(f.size_bytes),
-              sizeBytes: f.size_bytes,
-              modified: '',
-              shared: false,
-              starred: false,
-              trashed: false,
-              status: f.status,
-              poster: f.poster_url || undefined,
-              duration: fmtDuration(f.duration_seconds) || undefined,
-              real: true,
-            }));
-          return mapped.length ? { files: [...mapped, ...s.files] } : null;
-        });
-      })
-      .catch(() => {});
+    api.listFolders().then((f) => this._mergeFolders(f)).catch(() => {});
+    api.listFiles().then((f) => this._mergeFiles(f)).catch(() => {});
     api
       .trash()
       .then((t) => {
@@ -759,6 +765,7 @@ export default class App extends React.Component {
         searchQuery: '',
         selectedIds: [],
       });
+      this.loadFolderContents(file.id); // pull this folder's subfolders + files
       return;
     }
     if (file.kind === 'video') {
@@ -1591,7 +1598,6 @@ export default class App extends React.Component {
         retentionLabel:
           daysLeft !== null ? daysLeft + (daysLeft === 1 ? ' day left' : ' days left') : '',
         channelLine: 'Uploaded by you',
-        shareUrl: 'floppy.disk/s/' + f.id,
         imgRef: mkImgRef(f.poster),
         onOpen: () => this.openFile(f),
         onShare: (e) => this.openShare(f, e),
@@ -2136,7 +2142,7 @@ export default class App extends React.Component {
       vVideoFlex: theater ? '1' : '0 0 auto',
       copyLink: () => this.copyLink(),
       shareLinkUrl: st.shareLinkUrl,
-      copyLabel: shareCopied ? 'Copied!' : 'Copy',
+      copyLabel: shareCopied ? 'Copied!' : 'Copy link',
       setAccessRestricted: () => this.setAccessRestricted(),
       setAccessAnyone: () => this.setAccessAnyone(),
       restrictedBg: rA.bg,

@@ -399,6 +399,12 @@ class FileContentView(APIView):
             get_user_model().objects.filter(pk=request.user.pk).update(
                 storage_used_bytes=F("storage_used_bytes") + delta
             )
+        # Content changed — refresh the full-text index and warm the graph.
+        if file.kind == File.Kind.DOC:
+            from .indexing import reindex_file
+            reindex_file(file)
+        from apps.graph.tasks import schedule_rebuild
+        schedule_rebuild(request.user)
         return Response(FileSerializer(file).data)
 
 
@@ -727,6 +733,15 @@ class UploadCompleteView(APIView):
             from .tasks import transcode_video_task
             transcode_video_task.delay(str(file.id))
             file.refresh_from_db()  # eager task (dev/tests) may already have finished
+
+        # Extract document text for full-text (content) search (best-effort).
+        if file.kind == File.Kind.DOC:
+            from .indexing import reindex_file
+            reindex_file(file)
+
+        # Warm the knowledge graph off the request path (no-op in eager mode).
+        from apps.graph.tasks import schedule_rebuild
+        schedule_rebuild(request.user)
 
         from apps.analytics.track import track
         track("upload_complete", user=request.user, kind=file.kind, size_bytes=file.size_bytes)
