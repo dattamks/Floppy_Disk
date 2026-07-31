@@ -68,7 +68,7 @@ export default function AuthScreen(V) {
               }}
             >
               {V.verifyBanner === 'ok'
-                ? 'Email verified — you can sign in.'
+                ? 'Email verified - you can sign in.'
                 : 'This verification link is invalid or has expired.'}
             </div>
           ) : null}{' '}

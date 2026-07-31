@@ -1,4 +1,4 @@
-"""Graph API — read the knowledge graph (scoped) and trigger a rebuild."""
+"""Graph API - read the knowledge graph (scoped) and trigger a rebuild."""
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -18,7 +18,7 @@ class GraphView(APIView):
 
 
 class GraphRelatedView(APIView):
-    """Neighbors of a file in the graph (scoped) — 'what relates to this file?'."""
+    """Neighbors of a file in the graph (scoped) - 'what relates to this file?'."""
 
     permission_classes = [IsAuthenticated]
 

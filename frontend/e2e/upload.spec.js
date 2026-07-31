@@ -13,7 +13,7 @@ test('upload a file end-to-end and it persists to the backend', async ({ page })
   await page.locator('input[type="file"]').setInputFiles({
     name: 'hello.txt',
     mimeType: 'text/plain',
-    buffer: Buffer.from('hello floppy disk — real upload'),
+    buffer: Buffer.from('hello floppy disk - real upload'),
   });
 
   // The file card appears once initiate -> PUT -> complete finishes.

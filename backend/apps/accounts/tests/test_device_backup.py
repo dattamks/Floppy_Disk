@@ -37,7 +37,7 @@ def test_string_false_disables_flag(user):
     """Form-encoded / stringy 'false' must turn a flag OFF, not ON.
 
     bool('false') is True, so the old coercion flipped 'disable wifi-only' into
-    'enable wifi-only' — backing up over cellular against the user's choice.
+    'enable wifi-only' - backing up over cellular against the user's choice.
     """
     user.backup_wifi_only = True
     user.auto_backup_enabled = True

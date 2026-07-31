@@ -22,7 +22,7 @@ export default function StorageBanner(V) {
       data-testid="storage-banner"
     >
       <span style={{ flex: 1 }}>
-        <strong>Files are on this server’s disk</strong> — they’ll be lost if the server is
+        <strong>Files are on this server’s disk</strong> - they’ll be lost if the server is
         replaced. Connect Cloudflare R2 to keep them safe.
       </span>
       <button

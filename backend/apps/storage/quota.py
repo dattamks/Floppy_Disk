@@ -89,7 +89,7 @@ def commit(reservation: StorageReservation, *, actual_bytes: int | None = None) 
     Charges `actual_bytes` (the real uploaded size) when given, rather than the
     client-*claimed* size the reservation was opened with. Committing the claimed
     size lets a caller reserve 1 byte and upload gigabytes (quota under-count),
-    and leaves permanent drift when the real size differs — because purge later
+    and leaves permanent drift when the real size differs - because purge later
     refunds the file's real `size_bytes`, not the reserved amount.
     """
     res = StorageReservation.objects.select_for_update().get(pk=reservation.pk)
@@ -109,7 +109,7 @@ def charge_usage(user, size_bytes: int) -> None:
     """Directly add committed usage for `user` (no reservation).
 
     Used when an upload completes after its reservation already expired: the
-    bytes are real and on disk, so they must be counted — otherwise a later
+    bytes are real and on disk, so they must be counted - otherwise a later
     purge subtracts a size that was never added and drives storage_used_bytes
     negative (free quota).
     """

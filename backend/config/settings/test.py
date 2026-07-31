@@ -17,7 +17,7 @@ PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 REST_FRAMEWORK = {**REST_FRAMEWORK, "DEFAULT_THROTTLE_CLASSES": []}  # noqa: F405
 
 # Storage: use the local disk-backed service for tests, in a throwaway temp dir
-# (portable + hermetic — no machine-specific path).
+# (portable + hermetic - no machine-specific path).
 STORAGE_SERVICE = "apps.storage.services.local.LocalStorageService"
 DEV_STORAGE_DIR = tempfile.mkdtemp(prefix="floppy-test-storage-")
 # The local-storage persistence warning is expected here (tests run on local

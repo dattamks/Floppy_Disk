@@ -48,7 +48,7 @@ def _release_object(obj: StorageObject) -> None:
 def purge_file(file: File) -> None:
     """
     Permanently remove a File: release its committed quota and every blob it
-    references — the original plus any transcoded video rendition and poster —
+    references - the original plus any transcoded video rendition and poster -
     hard-deleting each blob once nothing else references it.
     """
     file = File.objects.select_for_update().select_related(

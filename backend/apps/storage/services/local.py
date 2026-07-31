@@ -1,5 +1,5 @@
 """
-LocalStorageService — dev/test implementation of StorageService.
+LocalStorageService - dev/test implementation of StorageService.
 
 Stores blobs on local disk and "presigns" uploads/downloads to a dev-only
 Django endpoint, so the full upload flow (presign -> PUT bytes -> complete)

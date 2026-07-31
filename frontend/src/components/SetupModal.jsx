@@ -97,7 +97,7 @@ export default function SetupModal(V) {
             }}
             data-testid="setup-skip"
           >
-            Decide later — use local for now
+            Decide later - use local for now
           </button>
         </div>
       </div>

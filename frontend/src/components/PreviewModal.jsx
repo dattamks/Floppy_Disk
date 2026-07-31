@@ -63,7 +63,7 @@ function Body(V) {
         if (!V.editSaving) V.onSaveEdit();
       }
     };
-    // Raw textarea — used for plain text files, and the "Markdown" tab of a note.
+    // Raw textarea - used for plain text files, and the "Markdown" tab of a note.
     const rawEditor = (
       <textarea
         value={V.editText}
@@ -324,7 +324,7 @@ function Body(V) {
     }
     return <pre style={codeBoxStyle}>{V.previewCode}</pre>;
   }
-  // Generic: no inline viewer for this type — offer download.
+  // Generic: no inline viewer for this type - offer download.
   return (
     <div
       style={{
@@ -340,7 +340,7 @@ function Body(V) {
   );
 }
 
-// Backlinks / links for a note — the connections the knowledge graph found.
+// Backlinks / links for a note - the connections the knowledge graph found.
 function Backlinks(V) {
   const back = V.noteBacklinks || [];
   const out = V.noteLinksOut || [];

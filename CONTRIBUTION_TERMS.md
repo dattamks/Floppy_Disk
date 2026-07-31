@@ -4,8 +4,8 @@ These are the legal terms under which contributions to **Floppy Disk** are
 accepted. They complement [`CONTRIBUTING.md`](CONTRIBUTING.md) (which covers
 _how_ to contribute) by stating _the terms_ you agree to when you do.
 
-By submitting a contribution — a pull request, patch, commit, or any other
-material — to this project, you agree to the terms below. If you do not agree,
+By submitting a contribution - a pull request, patch, commit, or any other
+material - to this project, you agree to the terms below. If you do not agree,
 please do not submit a contribution.
 
 "Contribution" means any original work of authorship, including modifications
@@ -25,7 +25,7 @@ outbound" model described in Section 5 of the Apache License 2.0:
 > terms and conditions of this License, without any additional terms or
 > conditions.
 
-No separate copyright assignment is required — you keep the copyright to your
+No separate copyright assignment is required - you keep the copyright to your
 contribution; you simply license it to the project and its users under
 Apache-2.0.
 
@@ -58,7 +58,7 @@ When you submit a contribution, you represent that:
 To make the representations above explicit and traceable, this project uses the
 **Developer Certificate of Origin (DCO) 1.1**. Every commit must be signed off,
 certifying the statement below. Sign off by adding a `Signed-off-by` line to
-your commit message — Git adds it for you with the `-s` flag:
+your commit message - Git adds it for you with the `-s` flag:
 
 ```bash
 git commit -s -m "Your commit message"
@@ -111,8 +111,8 @@ By making a contribution to this project, I certify that:
 
 ## 5. Public and permanent
 
-Contributions are made in the open. You understand that your contribution —
-including your name, email, and sign-off — becomes part of the public project
+Contributions are made in the open. You understand that your contribution -
+including your name, email, and sign-off - becomes part of the public project
 history and may be redistributed indefinitely under the project's license.
 
 ## 6. No warranty and no obligation

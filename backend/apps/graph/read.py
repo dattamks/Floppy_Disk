@@ -2,7 +2,7 @@
 Scoped reads over the knowledge graph.
 
 Every function here funnels through apps.storage.scoping.scoped_folder_ids, the
-same chokepoint the file store uses — so a folder-scoped API key sees only the
+same chokepoint the file store uses - so a folder-scoped API key sees only the
 nodes inside its subtree, and an edge only when BOTH endpoints are visible
 (cross-scope edges are clipped). Session users and full-access keys are
 unrestricted. This is why folder-scoping "just works" for the graph.

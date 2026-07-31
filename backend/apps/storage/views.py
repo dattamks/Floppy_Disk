@@ -41,7 +41,7 @@ def _folder_filter_param(request, key="folder"):
     """Parse a folder/parent query param. Returns (value, ok):
       (None, True)      -> absent (list the storage root)
       (uuid_str, True)  -> a syntactically valid id
-      (None, False)     -> present but malformed — caller should return [] rather
+      (None, False)     -> present but malformed - caller should return [] rather
                            than let the DB raise (a bad ?folder= must not 500).
     """
     import uuid as _uuid
@@ -270,7 +270,7 @@ class CameraBackupFolderView(APIView):
 
     def get(self, request):
         # Camera Backup is a top-level (parentless) folder, so a folder-scoped
-        # key can never legitimately reach it — refuse rather than silently
+        # key can never legitimately reach it - refuse rather than silently
         # create a folder outside the key's scope.
         if is_scoped(request):
             return Response({"detail": "This key is limited to a folder and cannot use device backup."},
@@ -336,7 +336,7 @@ class FileDownloadView(APIView):
 
 
 class FileContentView(APIView):
-    """Replace a (text) file's content in place — edit-in-place saving."""
+    """Replace a (text) file's content in place - edit-in-place saving."""
 
     permission_classes = [IsAuthenticated]
     MAX_BYTES = 5 * 1024 * 1024  # inline text editing cap
@@ -400,7 +400,7 @@ class FileContentView(APIView):
             get_user_model().objects.filter(pk=request.user.pk).update(
                 storage_used_bytes=F("storage_used_bytes") + delta
             )
-        # Content changed — refresh the full-text index and warm the graph.
+        # Content changed - refresh the full-text index and warm the graph.
         if file.kind == File.Kind.DOC:
             from .indexing import reindex_file
             reindex_file(file)
@@ -458,7 +458,7 @@ class FileDetailView(APIView):
         if "folder" in request.data:
             folder_id = request.data["folder"] or None
             # Destination must be within the key's scope (moving to the storage
-            # root — folder=None — is outside a scoped key).
+            # root - folder=None - is outside a scoped key).
             if not folder_in_scope(request, folder_id):
                 return Response({"detail": "Destination is outside this key's allowed folder."},
                                 status=status.HTTP_400_BAD_REQUEST)
@@ -575,7 +575,7 @@ class FolderRestoreView(APIView):
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         # Restore everything trashed together with this folder (but NOT items the
-        # user had independently trashed earlier — those have a different/no root).
+        # user had independently trashed earlier - those have a different/no root).
         now = timezone.now()
         Folder.objects.filter(owner=request.user, trashed_root=folder.pk).update(
             deleted_at=None, trashed_root=None, updated_at=now
@@ -596,7 +596,7 @@ class TrashView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Only top-level trashed items — children trashed via an ancestor folder
+        # Only top-level trashed items - children trashed via an ancestor folder
         # (trashed_root set) come back with that folder, not on their own.
         folders = scope_folders(
             Folder.objects.filter(
@@ -654,10 +654,10 @@ class UploadInitiateView(APIView):
             return Response({"detail": str(exc), "code": "file_too_large"}, status=status.HTTP_400_BAD_REQUEST)
         except QuotaExceeded as exc:
             file.delete()
-            # Device backup pauses on quota — notify the user, don't fail silently.
+            # Device backup pauses on quota - notify the user, don't fail silently.
             if request.data.get("is_backup"):
                 from apps.notifications.dispatch import notify
-                notify(request.user, type="quota", title="Backup paused — storage full",
+                notify(request.user, type="quota", title="Backup paused - storage full",
                        body="Free up space to resume Camera Backup.")
             return Response({"detail": str(exc), "code": "quota_exceeded"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -750,12 +750,12 @@ class UploadCompleteView(APIView):
 
 
 class NoteCreateView(APIView):
-    """Create a note — a Markdown document — in a single call.
+    """Create a note - a Markdown document - in a single call.
 
     Notes are ordinary doc-kind files, but a note editor shouldn't have to run
     the 3-step upload dance just to make a blank page. This collapses
     initiate+put+complete: it creates the file, stores the (optional) initial
-    text, commits quota, and indexes it for search + the knowledge graph — so
+    text, commits quota, and indexes it for search + the knowledge graph - so
     the editor can create-then-edit smoothly. Content is then edited in place via
     PUT /files/{id}/content like any other document.
     """
@@ -786,7 +786,7 @@ class NoteCreateView(APIView):
 
         # Notes are written server-side, so the backend must accept bytes here.
         # Refuse up front (rather than create a phantom note that charges quota
-        # but stored nothing) on a backend that can't — mirrors FileContentView.
+        # but stored nothing) on a backend that can't - mirrors FileContentView.
         storage = get_storage_service()
         if not hasattr(storage, "save_bytes"):
             return Response({"detail": "Creating notes is not supported on this backend."},
@@ -854,7 +854,7 @@ class DevBlobView(APIView):
     def _can_read(self, user, object_key: str) -> bool:
         """Authorize a blob read. Own-namespace keys pass directly; a key under
         another user's namespace is allowed only when this user owns a File that
-        references it — which is exactly the content-addressed dedup case (a
+        references it - which is exactly the content-addressed dedup case (a
         second uploader's File reuses the first uploader's StorageObject, whose
         object_key stays under the first uploader). Without this, an owner can't
         download their own deduplicated file."""

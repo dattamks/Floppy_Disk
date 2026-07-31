@@ -48,7 +48,7 @@ def test_cannot_edit_pending_file(client, user):
 def test_abandoned_pending_uploads_are_purged(user):
     old = _pending(user)
     File.objects.filter(pk=old.id).update(created_at=timezone.now() - timedelta(hours=2))
-    fresh = _pending(user)  # recent — an upload may still be in flight
+    fresh = _pending(user)  # recent - an upload may still be in flight
 
     assert purge_abandoned_uploads() == 1
     assert not File.objects.filter(pk=old.id).exists()

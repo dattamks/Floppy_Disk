@@ -1,16 +1,16 @@
 """
-R2StorageService — Cloudflare R2 implementation of StorageService via boto3.
+R2StorageService - Cloudflare R2 implementation of StorageService via boto3.
 
 R2 speaks the S3 API, so the same boto3 client works, and swapping to S3 at AWS
 migration is a config change. Region -> bucket mapping keeps each user's data in
 their chosen residency region; dedup is per-region. A simple self-host can set a
-single ``R2_BUCKET`` instead of the full ``R2_REGION_BUCKETS`` map — every region
+single ``R2_BUCKET`` instead of the full ``R2_REGION_BUCKETS`` map - every region
 then resolves to that one bucket.
 
 The upload path is presigned direct-to-client (the browser/SDK PUTs straight to
 R2), so the app server never sees the bytes; ``stat`` reads size + a content
 identifier back from R2 (``head_object``) to drive per-region dedup. Server-side
-writes we *do* hold in memory — notes, inline edits, video renditions — go
+writes we *do* hold in memory - notes, inline edits, video renditions - go
 through ``save_bytes`` (``put_object``); ``read_bytes`` fetches small blobs back
 for content indexing.
 """
@@ -79,7 +79,7 @@ class R2StorageService(StorageService):
     def check_connection(self) -> None:
         """Verify credentials + bucket reachability. Raises on failure.
 
-        A lightweight list (MaxKeys=1) against every configured bucket — proves
+        A lightweight list (MaxKeys=1) against every configured bucket - proves
         the keys are valid and the bucket exists before we save/switch to it."""
         buckets = set(self._region_buckets.values()) if self._region_buckets else set()
         if self._bucket:
@@ -181,7 +181,7 @@ class R2StorageService(StorageService):
             raise
 
     def upload_from_path(self, *, region, object_key, path) -> None:
-        """Stream a local file up to R2 (boto3 managed multipart — memory-safe
+        """Stream a local file up to R2 (boto3 managed multipart - memory-safe
         for large blobs like video). Used by the local -> R2 migration."""
         self._client.upload_file(str(path), self._bucket_for(region), object_key)
 
@@ -189,7 +189,7 @@ class R2StorageService(StorageService):
         """Return (size_bytes, content_hash) for a directly-uploaded blob.
 
         The app server never saw the bytes (direct-to-R2 upload), so the content
-        identifier comes from R2's ETag — the MD5 of the object for a single-part
+        identifier comes from R2's ETag - the MD5 of the object for a single-part
         upload. That's a stable per-content key, which is all dedup needs (a
         multipart ETag isn't a plain MD5, so those simply dedup less often).
         """

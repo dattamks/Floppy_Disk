@@ -22,7 +22,7 @@ import StorageBanner from '../components/StorageBanner';
 
 // Presentational view for the whole app. Receives the computed view-model V
 // (from App.renderVals) and renders it. Being extracted, screen by screen,
-// into dedicated components under ./ — this is the container/view split.
+// into dedicated components under ./ - this is the container/view split.
 export default function AppView({ V }) {
   return (
     <>

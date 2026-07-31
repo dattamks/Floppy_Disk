@@ -1,7 +1,7 @@
 """Background engine for the owner-driven 'move my local files to R2' job.
 
-Shares the same semantics as the ``migrate_storage_to_r2`` CLI command — walk the
-content-addressed blobs, skip anything already in R2, stream each up — but writes
+Shares the same semantics as the ``migrate_storage_to_r2`` CLI command - walk the
+content-addressed blobs, skip anything already in R2, stream each up - but writes
 progress to a ``StorageMigration`` row the UI polls, and cooperatively pauses when
 the owner asks. Idempotent and resumable: re-running continues where it stopped.
 """
@@ -25,7 +25,7 @@ def run_migration_job(job_id) -> None:
     dest = get_storage_service()
     if not (hasattr(dest, "upload_from_path") and hasattr(dest, "object_exists")):
         job.status = StorageMigration.Status.FAILED
-        job.error = "Active storage backend is not R2 — configure R2 before migrating."
+        job.error = "Active storage backend is not R2 - configure R2 before migrating."
         job.finished_at = timezone.now()
         job.save()
         return

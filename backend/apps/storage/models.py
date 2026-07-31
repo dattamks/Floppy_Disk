@@ -54,7 +54,7 @@ class Folder(TimeStampedModel):
     deleted_at = models.DateTimeField(null=True, blank=True)
     # When set, this item was trashed as part of trashing an ancestor folder
     # (that folder's id). Such items are hidden from the top-level Trash view and
-    # restored together with that ancestor — never on their own.
+    # restored together with that ancestor - never on their own.
     trashed_root = models.UUIDField(null=True, blank=True, db_index=True)
 
     class Meta:
@@ -191,7 +191,7 @@ class StorageMigration(TimeStampedModel):
     """A one-time move of existing local blobs into R2, driven from the owner UI.
 
     Progress is polled by the UI; the move runs in a background thread. Idempotent
-    and resumable — blobs already in R2 are skipped."""
+    and resumable - blobs already in R2 are skipped."""
 
     class Status(models.TextChoices):
         PENDING = "pending", "Pending"

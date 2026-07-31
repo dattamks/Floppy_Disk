@@ -1,11 +1,11 @@
-"""track() — the single entry point for recording product analytics."""
+"""track() - the single entry point for recording product analytics."""
 from __future__ import annotations
 
 from django.utils import timezone
 
 
 def track(name: str, *, user=None, **properties):
-    """Record an analytics event. Best-effort — never breaks the caller."""
+    """Record an analytics event. Best-effort - never breaks the caller."""
     from .models import AnalyticsEvent
     try:
         return AnalyticsEvent.objects.create(

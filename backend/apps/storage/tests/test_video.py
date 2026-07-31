@@ -40,7 +40,7 @@ def test_video_plays_with_a_direct_url(client, user):
     body = resp.json()
     assert body["mode"] == "direct"
     assert body["url"]
-    # No HD/SD tier gating — playback is a single self-hosted MP4 rendition.
+    # No HD/SD tier gating - playback is a single self-hosted MP4 rendition.
     assert "max_resolution" not in body
 
 

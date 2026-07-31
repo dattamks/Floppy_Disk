@@ -1,24 +1,24 @@
-# Deactivated & removed features — Drive-focus pivot
+# Deactivated & removed features - Drive-focus pivot
 
 **Date:** 2026-07-26
 **Why:** Refocus the product as a **Google-Drive-style cloud storage app**
 (files, folders, upload, preview, share, trash, quotas). The "media platform"
-features — **Channels** (broadcast/social) and the **third-party video
+features - **Channels** (broadcast/social) and the **third-party video
 streaming platform** (Cloudflare Stream / adaptive HLS, HD-SD tiering, pre-roll
-ads) — were dropped. Users still upload and watch back **their own** videos;
+ads) - were dropped. Users still upload and watch back **their own** videos;
 that playback is now **self-hosted** (see below), with no external streaming
 service.
 
-## Channels — deleted
+## Channels - deleted
 
 The channels feature (broadcast channels, posts, subscriptions, composer,
 discover/trending, channel-post comments, channel reporting) was **removed
-entirely** from the codebase — not a reversible deactivation.
+entirely** from the codebase - not a reversible deactivation.
 
 - **Backend:** deleted the `apps/channels` app. Dropped channel-specific enum
   values from kept models, with migrations:
-  - `moderation.ContentReport.TargetType` — dropped `channel`/`post` (file only)
-  - `notifications.Notification.Type` — dropped `channel_created`/`channel_post`
+  - `moderation.ContentReport.TargetType` - dropped `channel`/`post` (file only)
+  - `notifications.Notification.Type` - dropped `channel_created`/`channel_post`
 - **Frontend:** deleted the 12 channel components; stripped all channel state,
   handlers, and view-model fields from `App.jsx`; removed the Channels nav and
   the channel API-client methods.
@@ -26,11 +26,11 @@ entirely** from the codebase — not a reversible deactivation.
 - **API spec:** removed the `Channel`/`ChannelPost` schemas, `ChannelId` param,
   `Channels` tag, and channel enum values.
 
-## Third-party video streaming (Cloudflare Stream) — removed & replaced
+## Third-party video streaming (Cloudflare Stream) - removed & replaced
 
 The Cloudflare Stream integration (promote-to-Stream, adaptive HLS, HD/SD
 tiering, the Stream webhook) was **deleted** and **replaced with a self-hosted
-transcoding pipeline** — the product no longer depends on any third-party video
+transcoding pipeline** - the product no longer depends on any third-party video
 service.
 
 - **Removed:** `apps/storage/services/video.py` (the `VideoService` /
@@ -41,7 +41,7 @@ service.
   the video and, if it isn't already browser-playable, transcodes it to an
   H.264/AAC MP4 with **FFmpeg** (open-source, bundled in the image) and grabs a
   poster frame. The rendition is served over the existing HTTP **Range**
-  endpoint — progressive download + native seeking, no CDN or streaming SaaS.
+  endpoint - progressive download + native seeking, no CDN or streaming SaaS.
   See `apps/storage/services/transcode.py`, `apps/storage/video_processing.py`,
   and `apps/storage/video_views.py`.
   - `MEDIA_TRANSCODER` selects the implementation: `FFmpegTranscoder` (real,
@@ -51,12 +51,12 @@ service.
 
 ### Also removed: the "Continue watching" carousel
 The watched-progress *"Continue watching"* carousel was part of the streaming
-platform's viewing experience, not basic own-file playback — its (unwired)
+platform's viewing experience, not basic own-file playback - its (unwired)
 component was deleted along with the rest of the streaming feature.
 
-## Billing, subscriptions & referrals — removed
+## Billing, subscriptions & referrals - removed
 
-The paid-tier billing surface was **removed entirely** — the product is now a
+The paid-tier billing surface was **removed entirely** - the product is now a
 single-tier storage app with no subscriptions, payments, or referrals.
 
 - **Backend:** deleted the `apps/billing` app (plans, subscribe/cancel, the
@@ -67,20 +67,20 @@ single-tier storage app with no subscriptions, payments, or referrals.
 - **Quota:** an account's limit is now its plain `quota_bytes` (the old
   `effective_quota` referral-bonus stacking is gone). New signups receive the
   standard allowance directly (`DEFAULT_QUOTA_BYTES`, 2 TB) instead of via
-  billing entitlements — no account is downgraded. Dropped the
+  billing entitlements - no account is downgraded. Dropped the
   `RAZORPAY_ENABLED` / `PAYMENT_GATEWAY` / `DEFAULT_SIGNUP_PLAN` settings and
   the `billing_enabled` user field.
 - **Frontend:** removed the billing API-client methods, the "Upgrade storage"
   CTA, and `upgradeStorage` / `billingEnabled` state.
 - **MCP:** removed the billing tools (`list_plans`, `get_subscription`,
   `get_referral`).
-- **Schema:** dropped the now-meaningless billing columns entirely —
+- **Schema:** dropped the now-meaningless billing columns entirely -
   `User.tier` (single storage tier), `User.referral_code` / `referred_by`, and
   `File.is_frozen`. The free/paid distinctions they gated collapsed to single
   values: one **20 GB per-file cap** and one **30-day** trash retention, and
   password-protected share links are available to everyone.
 
-## Content moderation & malware scanning — removed
+## Content moderation & malware scanning - removed
 
 Trust-and-safety machinery for a commercial platform, unneeded for a
 self-hosted open-source Drive.
@@ -98,12 +98,12 @@ self-hosted open-source Drive.
 - **Frontend/MCP:** removed the (unused) `api.report` method and the MCP
   `report_content` tool.
 
-## India IT-Rules grievance surface — removed
+## India IT-Rules grievance surface - removed
 
-The grievance/redressal endpoints (`apps/common/legal_views.py` — policy-version
+The grievance/redressal endpoints (`apps/common/legal_views.py` - policy-version
 + grievance-officer info and grievance filing), the `Grievance` model, the
 `/api/v1/legal/` routes, the `grievance` throttle, and the
-`GRIEVANCE_OFFICER_*` / `TOS_VERSION` / `PRIVACY_VERSION` settings were removed —
+`GRIEVANCE_OFFICER_*` / `TOS_VERSION` / `PRIVACY_VERSION` settings were removed -
 commercial-India-specific machinery unneeded for a self-hosted open-source Drive.
 The DPDPA-style account delete / export / consent endpoints (in `apps/accounts`)
 are kept. The `apps/common` app remains for its shared base models and the health

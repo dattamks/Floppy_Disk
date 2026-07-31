@@ -144,7 +144,7 @@ export default function StoragePanel(V) {
             </button>
             {S.testState === 'ok' ? (
               <span style={{ color: theme.success, fontSize: '12.5px', fontWeight: '600' }}>
-                ✓ Connected — bucket reachable
+                ✓ Connected - bucket reachable
               </span>
             ) : null}
             {S.testState === 'error' ? (
@@ -302,7 +302,7 @@ function MigrationCard({ V }) {
           {m && (m.status === 'paused' || m.status === 'failed') ? (
             <span style={{ fontSize: '12px', color: theme.textMuted }}>
               {m.status === 'paused' ? 'Paused' : 'Stopped'} at {m.done}/{m.total}. Click to
-              resume — already-moved files are skipped.
+              resume - already-moved files are skipped.
             </span>
           ) : null}
         </React.Fragment>

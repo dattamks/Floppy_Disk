@@ -7,7 +7,7 @@ notifications.
 
 Aligned with the MCP 2026-07-28 spec:
 
-* **Stateless core.** The server runs with `stateless_http=True` — no
+* **Stateless core.** The server runs with `stateless_http=True` - no
   `initialize` handshake, no `Mcp-Session-Id`, no per-session state. Every tool
   is a single, self-contained REST call under the caller's Bearer key, so
   requests are independent and the server scales horizontally. The stateless
@@ -17,7 +17,7 @@ Aligned with the MCP 2026-07-28 spec:
 * **Streamable HTTP, no legacy SSE.** Remote clients use the `streamable-http`
   transport; the deprecated HTTP+SSE transport is not offered.
 * **No deprecated server-initiated features.** The server uses none of Roots,
-  Sampling, or Logging, so it needs no MRTR (multi-round-trip) fallbacks — tool
+  Sampling, or Logging, so it needs no MRTR (multi-round-trip) fallbacks - tool
   calls never open a server->client stream.
 * **Auth.** Bearer API key (see below). We deliberately do not run an OAuth
   flow, so the 2026-07-28 OAuth hardening (RFC 9207 `iss`, CIMD) does not apply;
@@ -396,7 +396,7 @@ def graph_search(query: str) -> dict:
 @mcp.tool
 def get_related_files(file_id: str) -> dict:
     """What relates to this file in the graph (containing folder, shared-token
-    siblings, references) — each edge explained. Scoped like everything else."""
+    siblings, references) - each edge explained. Scoped like everything else."""
     return client().get(f"graph/related/{_uid(file_id, 'file_id')}")
 
 
@@ -404,7 +404,7 @@ def get_related_files(file_id: str) -> dict:
 def rebuild_graph() -> dict:
     """Force a full rebuild of the knowledge graph from the current files.
 
-    Normally unnecessary — the graph refreshes itself when files change. A
+    Normally unnecessary - the graph refreshes itself when files change. A
     folder-scoped key cannot rebuild the whole graph.
     """
     return client().post("graph/rebuild")
@@ -435,9 +435,9 @@ def main() -> None:
     """Entry point.
 
     Transport is chosen by FLOPPY_MCP_TRANSPORT:
-      * "stdio" (default) — local clients (Claude Code, Codex) spawn the server
+      * "stdio" (default) - local clients (Claude Code, Codex) spawn the server
         and talk over stdin/stdout.
-      * "streamable-http" (aliases: "http") — remote clients connect over
+      * "streamable-http" (aliases: "http") - remote clients connect over
         Streamable HTTP; host/port from FLOPPY_MCP_HOST / FLOPPY_MCP_PORT.
 
     The legacy HTTP+SSE transport was deprecated in the MCP 2026-07-28 spec and

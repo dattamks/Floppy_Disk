@@ -1,4 +1,4 @@
-"""The set_password management command — offline account recovery for self-hosts."""
+"""The set_password management command - offline account recovery for self-hosts."""
 import pytest
 from django.contrib.auth import get_user_model
 from django.core.management import CommandError, call_command

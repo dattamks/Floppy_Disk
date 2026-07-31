@@ -9,8 +9,8 @@ import { Markdown } from 'tiptap-markdown';
 import { theme } from '../lib/theme';
 
 // A WYSIWYG rich-text note editor. You write with real formatting (bold looks
-// bold, headings are headings, checkboxes are clickable) — no Markdown syntax
-// to learn — but the value in and out is always Markdown, so notes stay plain
+// bold, headings are headings, checkboxes are clickable) - no Markdown syntax
+// to learn - but the value in and out is always Markdown, so notes stay plain
 // .md files that search, the knowledge graph, and MCP all understand.
 
 const prose = `
@@ -85,7 +85,7 @@ export default function NoteEditor({ value, onChange, placeholder }) {
   });
 
   // Pull an external value change (e.g. the user edited the raw Markdown tab)
-  // into the editor — but never while it merely echoes our own last emit, which
+  // into the editor - but never while it merely echoes our own last emit, which
   // would fight the caret mid-typing.
   useEffect(() => {
     if (!editor) return;

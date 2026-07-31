@@ -47,7 +47,7 @@ def test_second_owner_can_download_deduped_file():
     b_obj = File.objects.get(pk=b_fid).storage_object_id
     assert a_obj == b_obj and a_obj is not None
 
-    # B downloads B's file — the object_key is under A's namespace, but B owns a
+    # B downloads B's file - the object_key is under A's namespace, but B owns a
     # File referencing it, so delivery must succeed with the real bytes.
     dl = cb.get(f"/api/v1/storage/files/{b_fid}/download").json()
     resp = cb.get(dl["download_url"])

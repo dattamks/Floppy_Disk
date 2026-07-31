@@ -8,7 +8,7 @@ Endpoints (all require the instance Owner):
   POST /admin/storage/migrate    start the one-time local -> R2 move
   POST /admin/storage/migrate/pause   cooperatively pause a running move
 
-Storage credentials are reachable only through this Owner-session-gated surface —
+Storage credentials are reachable only through this Owner-session-gated surface -
 never via MCP or a regular API key.
 """
 from __future__ import annotations
@@ -193,9 +193,9 @@ def _friendly_error(exc: Exception) -> str:
     text = str(exc)
     low = text.lower()
     if "credential" in low or "signature" in low or "accessdenied" in low or "403" in low:
-        return "Access denied — check the access key and secret."
+        return "Access denied - check the access key and secret."
     if "nosuchbucket" in low or "404" in low or "not found" in low:
-        return "Bucket not found — check the bucket name and endpoint."
+        return "Bucket not found - check the bucket name and endpoint."
     if "endpoint" in low or "connect" in low or "resolve" in low or "timed out" in low:
-        return "Could not reach the endpoint — check the account endpoint URL."
+        return "Could not reach the endpoint - check the account endpoint URL."
     return text or "Connection failed."

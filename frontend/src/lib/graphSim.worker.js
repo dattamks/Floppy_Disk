@@ -1,4 +1,4 @@
-/* Graph force simulation in a Web Worker (Vite-bundled, client-side — no server
+/* Graph force simulation in a Web Worker (Vite-bundled, client-side - no server
  * or deployment impact). Runs the Barnes-Hut O(n log n) physics OFF the main
  * thread so the UI stays at 60fps while a large graph settles. The main thread
  * owns rendering + interaction; this worker owns positions.

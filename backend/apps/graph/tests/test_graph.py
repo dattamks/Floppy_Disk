@@ -1,7 +1,7 @@
 """Graph layer: deterministic build, scoped reads, and the folder-scope contract.
 
 The load-bearing assertion is that folder scope covers the graph: a key scoped
-to one folder sees only that subtree's nodes, and cross-scope edges are clipped —
+to one folder sees only that subtree's nodes, and cross-scope edges are clipped -
 the same visible_to() filter as the file store, applied to graph reads.
 """
 import pytest

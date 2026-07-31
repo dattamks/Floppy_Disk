@@ -1,13 +1,13 @@
 # Setup Guide
 
-How to install and run **Floppy Disk** — your self-hosted, Google-Drive-style
+How to install and run **Floppy Disk** - your self-hosted, Google-Drive-style
 cloud storage. Pick the path that matches you:
 
-- [**A. Run it (self-host)**](#a-run-it-self-host) — one container, one command.
+- [**A. Run it (self-host)**](#a-run-it-self-host) - one container, one command.
   Start here if you just want to use it.
-- [**B. Develop on it**](#b-develop-on-it) — full dev stack with hot reload and
+- [**B. Develop on it**](#b-develop-on-it) - full dev stack with hot reload and
   tests.
-- [**C. Connect an AI or automation**](#c-connect-an-ai-or-automation) — the MCP
+- [**C. Connect an AI or automation**](#c-connect-an-ai-or-automation) - the MCP
   server and REST API.
 
 Everything is open source (Apache-2.0) and runs without any paid third-party
@@ -17,7 +17,7 @@ service.
 
 ## A. Run it (self-host)
 
-The whole product runs as a **single container** — no Redis, no separate
+The whole product runs as a **single container** - no Redis, no separate
 worker, no external database to set up. It uses SQLite and runs background jobs
 (video transcode, periodic maintenance) in-process, all persisted in one Docker
 volume.
@@ -26,7 +26,7 @@ volume.
 
 - **Docker** with Compose (Docker Desktop, or Docker Engine + `docker compose`).
 - ~2 GB free disk to build the image; more for your files.
-- That's it — no database, no Redis, no API keys to sign up for.
+- That's it - no database, no Redis, no API keys to sign up for.
 
 ### 1. Get the code
 
@@ -51,38 +51,38 @@ http://localhost:8000
 ### 3. Create your account
 
 On the login screen, choose **Register**, enter your email and a password
-(you must be 18+), and sign in. That first account is yours — there's no
+(you must be 18+), and sign in. That first account is yours - there's no
 separate admin signup. Your files, folders, sharing, and the knowledge graph
 all live under this account.
 
 That's the whole install. Data persists in the `floppydata` Docker volume, so
 you can stop and restart (`docker compose -f docker-compose.standalone.yml up`)
 without losing anything. A secure `SECRET_KEY` is generated and stored on first
-run — nothing to configure.
+run - nothing to configure.
 
-### 4. First steps in the app — a quick tour
+### 4. First steps in the app - a quick tour
 
 Once you're in, here's the whole product in about a minute.
 
-**Organize with folders.** Click **New folder** to create folders (they nest —
+**Organize with folders.** Click **New folder** to create folders (they nest -
 `Projects / Aurora`), and **Upload** to add files. Drag files in, or use the
 button. Everything is yours and private by default.
 
 ![Your drive: folders and files](images/onboarding-01-drive.png)
 
-**Open a folder** to see what's inside — documents, images, PDFs, videos, and
+**Open a folder** to see what's inside - documents, images, PDFs, videos, and
 more, each with a preview thumbnail.
 
 ![Inside a folder](images/onboarding-02-folder.png)
 
-**Preview anything in place.** Click a file to view it without downloading —
+**Preview anything in place.** Click a file to view it without downloading -
 Markdown renders, and images, PDFs, audio, JSON/YAML, and text all preview
 inline. Videos play in the browser (transcoded on your own server).
 
 ![Rendered Markdown preview](images/onboarding-03-preview.png)
 
 **Take notes.** Click **New note** to start writing in a full-screen
-**rich-text editor** — no Markdown syntax to learn. Use the toolbar (or the usual
+**rich-text editor** - no Markdown syntax to learn. Use the toolbar (or the usual
 shortcuts) for **bold**, headings, lists, and clickable checklists, and it
 formats as you type. Switch between the **Write**, **Markdown**, and **Preview**
 tabs whenever you like. Give it a title and **Save** (or `⌘/Ctrl+S`). Notes are
@@ -93,12 +93,12 @@ search, and can be shared like anything else. Link one note to another with
 ![The full-screen rich-text note editor with Write / Markdown / Preview tabs](images/onboarding-08-note-editor.png)
 
 **Follow the links between notes.** Open a note and its **Linked mentions** panel
-shows every other note that points to it — click through to jump around your
+shows every other note that points to it - click through to jump around your
 knowledge base. (These same links power the knowledge graph below.)
 
 ![A note's backlinks / linked mentions](images/onboarding-09-note-backlinks.png)
 
-**Search across names _and_ contents.** The search box does full-text search —
+**Search across names _and_ contents.** The search box does full-text search -
 type a word that lives *inside* your documents and every file that mentions it
 comes back, not just files whose name matches.
 
@@ -113,7 +113,7 @@ one file's neighborhood, or search within the graph. (Right-click any file →
 ![Interactive knowledge graph](images/onboarding-05-graph.png)
 
 **Share a file** with a public link in one click. Right-click → **Share** and a
-link is minted instantly — copy it with the **Copy link** button. Add a password
+link is minted instantly - copy it with the **Copy link** button. Add a password
 or expiry, or manage/revoke links later under **Manage links**.
 
 ![One-click public share link](images/onboarding-06-share.png)
@@ -121,7 +121,7 @@ or expiry, or manage/revoke links later under **Manage links**.
 **Automate it (optional).** In **Settings → Developer**, mint an API key to drive
 your storage from scripts or an AI assistant over the [MCP server](#c-connect-an-ai-or-automation).
 Keep a key full-access, make it **read-only**, or **scope it to a single folder**
-so an integration only ever sees that subtree — files, search, and graph included.
+so an integration only ever sees that subtree - files, search, and graph included.
 
 ![API keys in the Developer tab](images/onboarding-07-devkeys.png)
 
@@ -184,7 +184,7 @@ by default (console email backend), which is fine for personal use.
 #### Send real email (SMTP)
 
 To actually deliver email, set your mail provider's SMTP variables. **Just
-setting `EMAIL_HOST` switches on SMTP** — no other backend setting needed. Add
+setting `EMAIL_HOST` switches on SMTP** - no other backend setting needed. Add
 these under `environment:` in `docker-compose.standalone.yml` (or export them for
 the no-Docker run):
 
@@ -213,7 +213,7 @@ environment:
 
 For an SSL provider on port 465, instead set `EMAIL_PORT: "465"`,
 `EMAIL_USE_SSL: "true"`, and `EMAIL_USE_TLS: "false"`. Restart the container after
-changing these. (Gmail needs an **App Password** — enable 2-Step Verification,
+changing these. (Gmail needs an **App Password** - enable 2-Step Verification,
 then create one under your Google account's *App passwords*.)
 
 ### Forgot your password?
@@ -223,7 +223,7 @@ There are two ways to recover an account:
 1. **Reset link (self-service).** On the sign-in screen, click **Forgot
    password?**, enter your email, and open the reset link. With SMTP configured
    the link is emailed; on a default self-host it's **printed to the container
-   log** — grab it there:
+   log** - grab it there:
 
    ```bash
    docker compose -f docker-compose.standalone.yml logs | grep reset-password
@@ -232,7 +232,7 @@ There are two ways to recover an account:
    Open that URL, choose a new password, and sign in.
 
 2. **From the command line (no email needed).** The admin can reset any
-   account's password directly — the reliable fallback when SMTP isn't set up or
+   account's password directly - the reliable fallback when SMTP isn't set up or
    you've locked yourself out:
 
    ```bash
@@ -246,10 +246,10 @@ There are two ways to recover an account:
 
 ### Put it behind a domain (TLS / HTTPS)
 
-The app doesn't terminate TLS itself — run a reverse proxy (Caddy, nginx,
+The app doesn't terminate TLS itself - run a reverse proxy (Caddy, nginx,
 Traefik) or a platform in front that does HTTPS, and forward to the container's
 port 8000. Because TLS ends at the proxy, tell the app to trust the proxy's
-`X-Forwarded-Proto` header (`USE_PROXY_SSL_HEADER`) — **without it,
+`X-Forwarded-Proto` header (`USE_PROXY_SSL_HEADER`) - **without it,
 `SECURE_SSL_REDIRECT` causes a redirect loop.** Example
 `docker-compose.standalone.yml` override:
 
@@ -264,11 +264,11 @@ environment:
   WEB_CONCURRENCY: "3"
 ```
 
-(Caddy is the simplest: a two-line `Caddyfile` — `files.example.com { reverse_proxy localhost:8000 }` — gets you an auto-renewing Let's Encrypt certificate.)
+(Caddy is the simplest: a two-line `Caddyfile` - `files.example.com { reverse_proxy localhost:8000 }` - gets you an auto-renewing Let's Encrypt certificate.)
 
 ### Security & encryption
 
-- **In transit:** all traffic — the web app, the REST API, **and MCP** — is
+- **In transit:** all traffic - the web app, the REST API, **and MCP** - is
   encrypted whenever you run behind HTTPS as above. MCP/API clients authenticate
   with a **Bearer key over that same TLS**, so an AI assistant's requests are
   encrypted end-to-end to your proxy.
@@ -276,31 +276,31 @@ environment:
   are stored only as a **SHA-256 hash** (the raw key is shown once and never
   stored), and share-link passwords are hashed too. None of these are recoverable
   from the database.
-- **File contents & database at rest:** stored as-is — the app does not encrypt
+- **File contents & database at rest:** stored as-is - the app does not encrypt
   file bytes or the database itself. For encryption at rest, put the `floppydata`
   volume on an **encrypted disk/volume** (LUKS, cloud encrypted EBS/PD, etc.), or
   point `DATABASE_URL` at a managed Postgres with encryption on. If you use
   Cloudflare R2/S3 for storage, enable that bucket's server-side encryption.
 - **Least-privilege for AI/automation:** give an integration a **read-only** key,
   or a **folder-scoped** key confined to one subtree (files, search, and the
-  knowledge graph all stay within it) — so an MCP/AI client only ever sees what
+  knowledge graph all stay within it) - so an MCP/AI client only ever sees what
   you intend. Treat keys like passwords and revoke unused ones.
 
 ### Where your files live (storage)
 
 Storage is chosen automatically, the same way the database is: **if you give it
 Cloudflare R2, it uses R2; otherwise it stores files on local disk.** Nothing to
-toggle — just set (or don't set) the R2 variables.
+toggle - just set (or don't set) the R2 variables.
 
 > **No terminal required.** The **first account you register becomes the Owner**.
 > On first sign-in the app asks where files should live, and **Settings →
 > Storage** lets the Owner paste R2 credentials, **Test** the connection, save
-> (no restart), and **move existing local files to R2** with one click — all
+> (no restart), and **move existing local files to R2** with one click - all
 > from the browser. The environment variables below are the equivalent for
 > operators who prefer config-as-code; if they're set, the in-app screen shows
 > them read-only. Everything in this section describes that operator path.
 
-**Option 1 — Cloudflare R2 (recommended; no server disk needed).** Files go
+**Option 1 - Cloudflare R2 (recommended; no server disk needed).** Files go
 straight to R2 object storage: durable, scalable, and independent of the
 container's disk. Set four variables and R2 switches on:
 
@@ -324,11 +324,11 @@ backend: …r2.R2StorageService`). Uploads/downloads use time-limited **presigne
 URLs** direct to R2, so the app server never proxies file bytes. For
 encryption at rest, turn on the bucket's server-side encryption in Cloudflare.
 
-**Option 2 — Local disk (default; only as durable as its volume).** With the R2
+**Option 2 - Local disk (default; only as durable as its volume).** With the R2
 variables unset, files are written under `/data/storage` in the `floppydata`
 volume. ⚠️ **This is durable only if that path is a persistent volume.** On many
 hosts (ephemeral PaaS dynos/containers) the filesystem is wiped on every restart
-or redeploy — your uploads would vanish. The app makes this loud: `manage.py
+or redeploy - your uploads would vanish. The app makes this loud: `manage.py
 check` and the boot log emit a warning (`storage.W001`) whenever local storage
 is active, telling you to attach a persistent volume or configure R2. Use local
 disk only when you've mounted real persistent storage (the `floppydata` Docker
@@ -337,7 +337,7 @@ volume in the default compose file is persistent); otherwise use R2.
 **Already have files on local disk? Migrate them to R2.** After adding the R2
 variables and restarting, new uploads go to R2, but files already on the local
 volume stay there (and would fail to download, since the app now looks in R2).
-Move them across with one command — it's idempotent and resumable, copies each
+Move them across with one command - it's idempotent and resumable, copies each
 deduplicated blob once, and never deletes anything unless you ask:
 
 ```bash
@@ -350,15 +350,15 @@ docker compose -f docker-compose.standalone.yml exec floppy \
     python manage.py migrate_storage_to_r2
 ```
 
-Re-run it any time — blobs already in R2 are skipped, so an interrupted run just
+Re-run it any time - blobs already in R2 are skipped, so an interrupted run just
 picks up where it left off.
 
 ### Health, data, and backups
 
 - **Health check:** `GET http://localhost:8000/health/` returns `200` when the
   app is up (the container's Docker healthcheck uses this).
-- **All data** — SQLite database, the persisted secret key, and (on the local
-  backend) uploaded files + video renditions — lives in the `floppydata` volume
+- **All data** - SQLite database, the persisted secret key, and (on the local
+  backend) uploaded files + video renditions - lives in the `floppydata` volume
   mounted at `/data`. With **R2** configured, file bytes live in your R2 bucket
   instead; the volume then holds just the database and secret.
 - **Back up** by snapshotting that volume (stop the container first for a
@@ -407,26 +407,26 @@ npm run test:e2e              # Playwright E2E (boots backend on SQLite + Vite)
 See [`.env.example`](../backend/.env.example) for every backend setting
 (Postgres/Redis, optional Cloudflare R2 storage, FFmpeg paths, email, quota).
 Leave the R2 variables blank and storage automatically falls back to a local
-media folder — no cloud account needed for development.
+media folder - no cloud account needed for development.
 
 ---
 
 ## C. Connect an AI or automation
 
-Floppy Disk ships an **MCP server** so any MCP-aware client — Claude Code, n8n,
-Codex/OpenAI, Claude Desktop — can do everything a user can: browse and manage
+Floppy Disk ships an **MCP server** so any MCP-aware client - Claude Code, n8n,
+Codex/OpenAI, Claude Desktop - can do everything a user can: browse and manage
 files, upload/download, share, read notifications, and query the knowledge
 graph. It's a thin, authenticated wrapper over the same REST API.
 
 Quick start:
 
-1. **Mint an API key** on the backend (works for the standalone container too —
+1. **Mint an API key** on the backend (works for the standalone container too -
    `docker compose ... exec floppy python manage.py create_api_key you@example.com --name mcp`):
 
    ```bash
    cd backend
    python manage.py create_api_key you@example.com --name mcp
-   # prints fd_xxxx… once — copy it. Add --read-only for a read-only key,
+   # prints fd_xxxx… once - copy it. Add --read-only for a read-only key,
    # or mint a folder-scoped key via POST /api/v1/auth/api-keys {"root_folder": "<id>"}.
    ```
 
@@ -442,19 +442,19 @@ Prefer raw HTTP? The REST API is documented in
 
 ## Troubleshooting
 
-- **Port 8000 already in use** — change the left side of the port mapping in
+- **Port 8000 already in use** - change the left side of the port mapping in
   `docker-compose.standalone.yml` (e.g. `"9000:8000"`) and open that port.
-- **`DisallowedHost` / 400 on a public domain** — set `ALLOWED_HOSTS` to your
+- **`DisallowedHost` / 400 on a public domain** - set `ALLOWED_HOSTS` to your
   hostname.
-- **Password-reset / verification email "not arriving"** — by default links are
+- **Password-reset / verification email "not arriving"** - by default links are
   printed to the container log; check `docker compose -f docker-compose.standalone.yml logs`,
   or configure real SMTP. Locked out entirely? Reset from the CLI:
   `… exec floppy python manage.py set_password you@example.com` (see
   [Forgot your password?](#forgot-your-password)).
-- **Video won't play back** — ensure `ffmpeg` is available (the Docker image
+- **Video won't play back** - ensure `ffmpeg` is available (the Docker image
   has it); the original upload is always kept even if transcoding is skipped.
-- **"No space left on device"** — the `/data` volume filled up; free space or
+- **"No space left on device"** - the `/data` volume filled up; free space or
   grow the volume. Uploads are quota-limited per account server-side.
 
-Still stuck? Open an issue — and for anything security-related, follow
+Still stuck? Open an issue - and for anything security-related, follow
 [`SECURITY.md`](../SECURITY.md) instead of filing a public issue.

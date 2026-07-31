@@ -1,4 +1,4 @@
-"""Periodic maintenance — the work Celery beat would do, callable in-process.
+"""Periodic maintenance - the work Celery beat would do, callable in-process.
 
 Kept broker-free so a single-deployment instance needs no beat scheduler: it's
 run by a management command (`manage.py maintenance`) and by an in-process thread

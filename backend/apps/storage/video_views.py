@@ -2,7 +2,7 @@
 
 Uploaded videos are normalized to a browser-playable H.264/AAC MP4 with FFmpeg
 on our own servers (see `services/transcode.py` + `video_processing.py`) and
-served over the local HTTP Range endpoint — no Cloudflare Stream, no external
+served over the local HTTP Range endpoint - no Cloudflare Stream, no external
 streaming service.
 """
 from rest_framework import status

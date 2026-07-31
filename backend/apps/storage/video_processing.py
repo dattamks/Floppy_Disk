@@ -1,6 +1,6 @@
 """
 Self-hosted video processing: probe an uploaded video, transcode it to a
-browser-playable MP4 when needed, and grab a poster frame — all on our own
+browser-playable MP4 when needed, and grab a poster frame - all on our own
 servers with FFmpeg (no Cloudflare Stream, no external service).
 
 Called as a background task right after upload completes. The original bytes

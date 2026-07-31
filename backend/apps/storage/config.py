@@ -2,10 +2,10 @@
 
 Backend precedence (mirrors how the DB is chosen), highest first:
 
-1. **Environment** — if R2 env vars are set (``settings.R2_CONFIGURED``), the
+1. **Environment** - if R2 env vars are set (``settings.R2_CONFIGURED``), the
    operator's config wins and the UI shows it read-only.
-2. **Database** — the ``StorageConfig`` row the owner saved in the UI.
-3. **Local disk** — the default when neither is configured.
+2. **Database** - the ``StorageConfig`` row the owner saved in the UI.
+3. **Local disk** - the default when neither is configured.
 
 The R2 secret access key is encrypted at rest with Fernet, using a key derived
 from ``settings.SECRET_KEY`` (which is itself persisted per-instance), and is

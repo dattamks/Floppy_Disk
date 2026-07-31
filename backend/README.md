@@ -1,4 +1,4 @@
-# Floppy Disk — Backend
+# Floppy Disk - Backend
 
 Django + DRF API, Celery workers, PostgreSQL, Redis. Object storage on
 Cloudflare R2 (S3-compatible) in prod, local disk in dev; self-hosted FFmpeg
@@ -37,10 +37,10 @@ backend/
 - **Auth is email/password** (behind the `AuthProvider` abstraction); phone/OTP +
   social are future work (fields exist but inert).
 - **Storage backends:** `LocalStorageService` (local disk) is fully implemented
-  and is the default when R2 isn't configured. `R2StorageService` is a stub —
+  and is the default when R2 isn't configured. `R2StorageService` is a stub -
   wiring the boto3 calls is the main task before a cloud deployment.
 
-## Run (Docker — recommended)
+## Run (Docker - recommended)
 
 ```bash
 cp .env.example .env

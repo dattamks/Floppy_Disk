@@ -19,7 +19,7 @@ DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(BASE_DIR / ".devstorage"))
 # Video: no-binary fake transcoder in dev (real FFmpeg when the binary exists).
 MEDIA_TRANSCODER = "apps.storage.services.transcode.FakeTranscoder"
 
-# No Celery worker/broker in dev/E2E — run the transcode task inline on upload.
+# No Celery worker/broker in dev/E2E - run the transcode task inline on upload.
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_BROKER_URL = "memory://"

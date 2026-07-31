@@ -17,7 +17,7 @@ info:
     value in the `X-CSRFToken` header.
 
     Programmatic clients (e.g. the MCP server) authenticate with an **API key**
-    via `Authorization: Bearer <key>` (see the `apiKey` security scheme) — this
+    via `Authorization: Bearer <key>` (see the `apiKey` security scheme) - this
     bypasses CSRF.
 
     ## Conventions
@@ -42,7 +42,7 @@ tags:
 security:
   - sessionAuth: []
     csrfToken: []
-  - apiKey: []          # programmatic clients (MCP / integrations) — bypasses CSRF
+  - apiKey: []          # programmatic clients (MCP / integrations) - bypasses CSRF
 
 components:
   securitySchemes:
@@ -262,7 +262,7 @@ paths:
       responses: { "200": { description: OK, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ApiKey" } } } } } }
     post:
       tags: [Account]
-      summary: Create an API key (Bearer token) — the full key is returned exactly once
+      summary: Create an API key (Bearer token) - the full key is returned exactly once
       requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string }, read_only: { type: boolean, description: Mint a read-only key (fetch but not mutate). }, scopes: { type: string } } } } } }
       responses:
         "201":
@@ -567,7 +567,7 @@ paths:
       description: >-
         Streams the bytes in local mode (Range-aware) and redirects to a
         presigned URL in R2 mode. For password-protected links, pass the
-        password as `?password=` (or the `X-Share-Password` header) — the token
+        password as `?password=` (or the `X-Share-Password` header) - the token
         alone does not bypass the gate.
       security: []
       parameters:

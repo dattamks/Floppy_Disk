@@ -1,11 +1,11 @@
 """System checks + boot warning about where files actually live.
 
 Storage backend selection mirrors the database: if Cloudflare R2 is configured
-(credentials + a bucket), files go to R2 — durable object storage, no server
+(credentials + a bucket), files go to R2 - durable object storage, no server
 disk needed. Otherwise the app falls back to the **local-disk** backend, which
 is only as durable as the directory it writes to. On many hosts that directory
 is ephemeral (wiped on restart/redeploy), so we surface a loud warning telling
-the operator to attach a persistent volume — or configure R2 — before they
+the operator to attach a persistent volume - or configure R2 - before they
 trust it with real data.
 """
 from __future__ import annotations
@@ -41,10 +41,10 @@ def _local_storage_message() -> str:
     where = getattr(settings, "DEV_STORAGE_DIR", "the local data directory")
     return (
         f"Using LOCAL file storage at {where}. Files persist ONLY if that path is "
-        "a durable/persistent volume — on ephemeral hosts they are LOST on "
+        "a durable/persistent volume - on ephemeral hosts they are LOST on "
         "restart or redeploy. Attach a persistent volume there, or configure "
         "Cloudflare R2 (set R2_ENDPOINT_URL, R2_ACCESS_KEY_ID, "
-        "R2_SECRET_ACCESS_KEY and R2_BUCKET) for durable object storage — R2 is "
+        "R2_SECRET_ACCESS_KEY and R2_BUCKET) for durable object storage - R2 is "
         "auto-detected, just like Postgres via DATABASE_URL."
     )
 

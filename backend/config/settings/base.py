@@ -179,7 +179,7 @@ STORAGE_SERVICE = env(
 # Local media folder used by LocalStorageService when R2 isn't configured.
 DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(BASE_DIR / "media"))
 
-# --- Video transcoding (self-hosted, FFmpeg — no third-party streaming) -----
+# --- Video transcoding (self-hosted, FFmpeg - no third-party streaming) -----
 # Uploaded videos are normalized to a browser-playable H.264/AAC MP4 with
 # FFmpeg and served over the local Range endpoint. FFMPEG_BINARY/FFPROBE_BINARY
 # override the binary locations; otherwise they're found on PATH (the Docker

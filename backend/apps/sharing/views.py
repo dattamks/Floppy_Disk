@@ -1,7 +1,7 @@
 """
 Sharing API: owner-managed share links + a public token resolver.
 
-Share links may carry an optional password. The public resolver needs no auth —
+Share links may carry an optional password. The public resolver needs no auth -
 the token is the capability.
 """
 from django.contrib.auth.hashers import check_password, make_password
@@ -41,7 +41,7 @@ def _target_available(link) -> bool:
 
 
 class FileShareView(APIView):
-    """POST /storage/files/<id>/share — create a public link for one's own file."""
+    """POST /storage/files/<id>/share - create a public link for one's own file."""
 
     permission_classes = [IsAuthenticated]
 
@@ -108,7 +108,7 @@ class ShareRevokeView(APIView):
 
 
 class PublicShareView(APIView):
-    """GET /public/share/<token> — resolve a share (no auth; the token is the key)."""
+    """GET /public/share/<token> - resolve a share (no auth; the token is the key)."""
 
     permission_classes = [AllowAny]
     authentication_classes = []
@@ -172,11 +172,11 @@ class PublicShareView(APIView):
 
 
 class PublicShareDownloadView(APIView):
-    """GET /public/share/<token>/download — stream a shared file's bytes (no account).
+    """GET /public/share/<token>/download - stream a shared file's bytes (no account).
 
     Works in local mode (streams from disk, Range-aware) and R2 mode (redirects
     to a presigned URL). Password-protected links require the password as a
-    ``?password=`` query param (or ``X-Share-Password`` header) — the token alone
+    ``?password=`` query param (or ``X-Share-Password`` header) - the token alone
     must not bypass the gate.
     """
 
@@ -185,7 +185,7 @@ class PublicShareDownloadView(APIView):
 
     def get_throttles(self):
         # A password can be supplied as `?password=` / `X-Share-Password`, so this
-        # endpoint is itself a password-unlock surface — throttle those attempts
+        # endpoint is itself a password-unlock surface - throttle those attempts
         # under the same scope as the POST unlock, or the gate is brute-forceable.
         req = getattr(self, "request", None)
         if req is not None and (

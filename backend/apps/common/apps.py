@@ -16,8 +16,8 @@ class CommonConfig(AppConfig):
     def _maybe_start_maintenance_thread(self):
         """In standalone mode, run periodic maintenance in-process (no Celery beat).
 
-        Gated so it only runs for an actual server process — never during
-        migrate/collectstatic/tests/shell — and only once. Opt out with
+        Gated so it only runs for an actual server process - never during
+        migrate/collectstatic/tests/shell - and only once. Opt out with
         RUN_MAINTENANCE=0. The interval defaults to hourly; jobs are idempotent.
         """
         if not getattr(settings, "STANDALONE", False):

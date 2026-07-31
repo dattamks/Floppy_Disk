@@ -126,7 +126,7 @@ class ApiKey(TimeStampedModel):
     # read-only key ("read") for integrations that only need to fetch.
     scopes = models.CharField(max_length=64, default="read,write")
     # Optional folder scope (least-privilege by location). NULL = full account
-    # access. When set, the key may only see/act within this folder's subtree —
+    # access. When set, the key may only see/act within this folder's subtree -
     # enforced by apps.storage.scoping. Lets an owner hand one LLM the whole
     # store and another only a single folder; the knowledge graph reuses the
     # same filter, so a scoped key's graph is likewise limited to its subtree.
@@ -150,7 +150,7 @@ class ApiKey(TimeStampedModel):
 
     @classmethod
     def create_for(cls, user, name="", scopes="read,write"):
-        """Mint a key. Returns (ApiKey, full_token) — the token is not stored."""
+        """Mint a key. Returns (ApiKey, full_token) - the token is not stored."""
         import secrets
         token = "fd_" + secrets.token_urlsafe(32)
         key = cls.objects.create(
@@ -187,7 +187,7 @@ class DataExport(TimeStampedModel):
 
 
 class UserDevice(TimeStampedModel):
-    """Device/session visibility and fraud signals (NOT rate-limiting — PRD 5.1)."""
+    """Device/session visibility and fraud signals (NOT rate-limiting - PRD 5.1)."""
 
     class DeviceType(models.TextChoices):
         IOS = "ios", "iOS"

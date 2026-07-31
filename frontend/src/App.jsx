@@ -197,7 +197,7 @@ export default class App extends React.Component {
       localStorage.setItem(
         'floppydisk-state',
         JSON.stringify({
-          // Files/folders are server-owned and reloaded on start — never cached
+          // Files/folders are server-owned and reloaded on start - never cached
           // here. Only lightweight prefs are persisted.
           usedGB: s.usedGB,
           profileName: s.profileName,
@@ -398,7 +398,7 @@ export default class App extends React.Component {
         .passwordResetConfirm(s.resetToken, pw)
         .then(() => {
           this.setState({ authBusy: false, authView: 'login', authPassword: '', authPassword2: '', resetToken: '' });
-          this.toast('Password updated — sign in with your new password');
+          this.toast('Password updated - sign in with your new password');
         })
         .catch((err) =>
           this.setState({ authBusy: false, authError: firstError(err, 'This reset link is invalid or has expired') })
@@ -722,7 +722,7 @@ export default class App extends React.Component {
           newKeyFolder: '',
         });
         this.loadApiKeys();
-        this.toast('API key created — copy it now, it won’t be shown again');
+        this.toast('API key created - copy it now, it won’t be shown again');
       })
       .catch((err) => this.toast(firstError(err, 'Could not create API key')));
   }
@@ -814,7 +814,7 @@ export default class App extends React.Component {
     // complete it via the link. Status comes from the backend (/me).
     api
       .resendVerification()
-      .then(() => this.toast('Verification email sent — check your inbox'))
+      .then(() => this.toast('Verification email sent - check your inbox'))
       .catch((err) => this.toast(firstError(err, 'Could not send verification email')));
   }
 
@@ -849,7 +849,7 @@ export default class App extends React.Component {
       .catch((err) => this.toast(firstError(err, 'Could not create folder')));
   }
 
-  // Merge fetched folders into state (dedupe by id — never duplicate).
+  // Merge fetched folders into state (dedupe by id - never duplicate).
   _mergeFolders(folders) {
     this.setState((s) => {
       const existing = new Set(s.files.map((f) => f.id));
@@ -1017,9 +1017,9 @@ export default class App extends React.Component {
             this.forceUpdate();
           })
           .catch((err) => {
-            // Still transcoding on the server — tell the user and close.
+            // Still transcoding on the server - tell the user and close.
             if (err && err.status === 409) {
-              this.toast('Video is still processing — try again shortly');
+              this.toast('Video is still processing - try again shortly');
               this.closeModal();
             }
           });
@@ -1114,7 +1114,7 @@ export default class App extends React.Component {
           real: true,
         };
         this.setState((s) => ({ files: [item, ...s.files], creatingNote: false }));
-        // Open it immediately in edit mode with an empty body — start typing.
+        // Open it immediately in edit mode with an empty body - start typing.
         this.setState({
           modal: 'preview',
           activeFileId: f.id,
@@ -1615,7 +1615,7 @@ export default class App extends React.Component {
     }
   }
   emptyTrash() {
-    // Permanently purge real trashed items server-side (releasing quota) — not
+    // Permanently purge real trashed items server-side (releasing quota) - not
     // just hiding them locally, which left them on the server to reappear on the
     // next reload. Demo-only items are dropped from local state.
     const trashed = this.state.files.filter((f) => f.trashed);
@@ -1688,7 +1688,7 @@ export default class App extends React.Component {
           files: [nf, ...s.files.filter((x) => x.id !== qid)],
           uploadQueue: s.uploadQueue.filter((u) => u.id !== qid),
         }));
-        this.toast(file.status === 'processing' ? 'Uploaded — processing video…' : 'Uploaded');
+        this.toast(file.status === 'processing' ? 'Uploaded - processing video…' : 'Uploaded');
         // A video may still be transcoding; refresh shortly to pick up its
         // poster + ready state (prod worker; instant in dev).
         if (file.kind === 'video' && file.status === 'processing') {
@@ -1829,7 +1829,7 @@ export default class App extends React.Component {
 
   // Destination folders for the Move dialog: "My Files" (root) + every folder,
   // indented by depth, excluding the item being moved and (for a folder) its
-  // own subtree — those would create a cycle.
+  // own subtree - those would create a cycle.
   moveDestOptions() {
     const { files, moveTargetId, moveIsFolder, moveBulk, selectedIds } = this.state;
     const excluded = new Set();

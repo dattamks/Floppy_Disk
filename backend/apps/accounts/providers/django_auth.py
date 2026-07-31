@@ -1,5 +1,5 @@
 """
-DjangoAuthProvider — Phase 1 email/password implementation of AuthProvider.
+DjangoAuthProvider - Phase 1 email/password implementation of AuthProvider.
 
 Uses Django's auth (password hashing, tokens) under the hood. Verification and
 reset use Django's signed token generators; email delivery goes through the

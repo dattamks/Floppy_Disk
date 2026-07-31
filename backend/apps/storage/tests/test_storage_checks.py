@@ -26,5 +26,5 @@ def test_silent_when_r2_is_configured():
 
 @override_settings(DEBUG=True, STORAGE_SERVICE=LOCAL)
 def test_silent_in_local_dev():
-    # Dev / the test suite run on local storage by design — no nagging.
+    # Dev / the test suite run on local storage by design - no nagging.
     assert local_storage_persistence_check(None) == []

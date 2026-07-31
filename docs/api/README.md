@@ -1,7 +1,7 @@
-# Floppy Disk — API Reference
+# Floppy Disk - API Reference
 
 The authoritative, machine-readable contract is **[`openapi.yaml`](./openapi.yaml)**
-(OpenAPI 3.1 — 59 operations). This page is the human-readable companion: the
+(OpenAPI 3.1 - 59 operations). This page is the human-readable companion: the
 model, conventions, and a per-area endpoint index. For exact field-level request
 /response schemas, see the spec (render it with Swagger UI / Redoc, or paste into
 [editor.swagger.io](https://editor.swagger.io)).
@@ -20,7 +20,7 @@ Phase 1 is **session-based**:
    cookie). GET requests need no CSRF.
 
 Programmatic clients (the MCP server, integrations) authenticate with an
-**API key**: `Authorization: Bearer <key>` — which bypasses CSRF. Mint keys at
+**API key**: `Authorization: Bearer <key>` - which bypasses CSRF. Mint keys at
 `POST /auth/api-keys`; pass `read_only: true` for a read-only key, or
 `root_folder: "<folder-id>"` for a **folder-scoped** key confined to that
 folder's subtree (listing, search, download, upload, and the knowledge graph all
@@ -40,7 +40,7 @@ Unauthenticated endpoints: `register`, `login`, `csrf`, `password-reset*`,
 
 ## Upload flow (3 steps)
 ```bash
-# 1) initiate — reserves quota, returns a presigned target
+# 1) initiate - reserves quota, returns a presigned target
 curl -X POST /api/v1/storage/uploads -H "X-CSRFToken: $CSRF" -b cookies \
   -d '{"name":"cat.jpg","size_bytes":12345,"folder":"<folder-uuid>"}'
 # -> { file:{id,…}, reservation_id, upload:{ url, object_key } }
@@ -48,7 +48,7 @@ curl -X POST /api/v1/storage/uploads -H "X-CSRFToken: $CSRF" -b cookies \
 # 2) PUT the raw bytes to upload.url
 curl -X PUT "<upload.url>" --data-binary @cat.jpg -H "X-CSRFToken: $CSRF" -b cookies
 
-# 3) complete — dedup, commit quota (pass the reservation_id from step 1)
+# 3) complete - dedup, commit quota (pass the reservation_id from step 1)
 curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" -b cookies \
   -d '{"reservation_id":"<reservation-uuid>"}'
 # -> File (status: ready)   |   video -> status: processing (transcode)
@@ -56,14 +56,14 @@ curl -X POST /api/v1/storage/uploads/<file_id>/complete -H "X-CSRFToken: $CSRF" 
 Notes:
 - **`folder`** (a folder UUID) is optional on initiate; omit it to upload to the
   drive root. The field is `folder`, not `folder_id`.
-- **`kind`** (`image`/`video`/`audio`/`doc`/`file`) is optional — the server
+- **`kind`** (`image`/`video`/`audio`/`doc`/`file`) is optional - the server
   derives it from the filename/content-type when omitted (so document text still
   gets indexed for search and the knowledge graph). Send it to override.
 - **`content_type`** is an optional hint used only to classify `kind`.
 
 ## Endpoint index
 
-### Auth — `/api/v1/auth`
+### Auth - `/api/v1/auth`
 | Method | Path | Auth | Summary |
 |---|---|---|---|
 | POST | `/register` | – | Email/password signup (18+); logs in |
@@ -75,7 +75,7 @@ Notes:
 | POST | `/password-reset/confirm` | – | Confirm reset |
 | POST | `/verify-email` | – | Verify email token |
 
-### Account — `/api/v1/auth/account`
+### Account - `/api/v1/auth/account`
 | Method | Path | Summary |
 |---|---|---|
 | POST | `/delete` | Soft-delete (hard-deletes after 30d) |
@@ -85,7 +85,7 @@ Notes:
 | GET / POST | `/api-keys` | List / create Bearer API keys (secret shown once; `read_only` for least-privilege) |
 | DELETE | `/api-keys/{id}` | Revoke a key |
 
-### Storage — `/api/v1/storage`
+### Storage - `/api/v1/storage`
 | Method | Path | Summary |
 |---|---|---|
 | GET | `/usage` | Usage + storage quota |
@@ -93,7 +93,7 @@ Notes:
 | DELETE | `/folders/{id}` | Soft-delete folder |
 | POST | `/folders/{id}/restore` | Restore folder |
 | GET | `/camera-backup` | Get/create the Camera Backup folder |
-| GET | `/files` | List files — the drive root by default; pass `?folder=<id>` for a folder's contents |
+| GET | `/files` | List files - the drive root by default; pass `?folder=<id>` for a folder's contents |
 | GET | `/files/{id}/download` | URL to fetch the bytes (presigned R2 / direct local) |
 | DELETE | `/files/{id}` | Soft-delete file |
 | POST | `/files/{id}/restore` | Restore file |
@@ -104,7 +104,7 @@ Notes:
 | POST | `/uploads` | Initiate upload (step 1) |
 | POST | `/uploads/{id}/complete` | Complete upload (step 3) |
 
-### Video — `/api/v1/storage`
+### Video - `/api/v1/storage`
 | Method | Path | Summary |
 |---|---|---|
 | POST | `/files/{id}/play` | Direct URL to play your own video inline (`mode: direct`, plus `poster`/`duration_seconds`) |
@@ -113,9 +113,9 @@ Notes:
 > (self-hosted, no third-party streaming) and served over the Range endpoint;
 > `play` returns `409 {code: processing}` while a transcode is running.
 > **Channels** and the old **Cloudflare Stream** integration were removed in the
-> Drive-focus pivot — see [`../deactivated-features.md`](../deactivated-features.md).
+> Drive-focus pivot - see [`../deactivated-features.md`](../deactivated-features.md).
 
-### Sharing — `/api/v1/storage` & `/api/v1/public`
+### Sharing - `/api/v1/storage` & `/api/v1/public`
 | Method | Path | Summary |
 |---|---|---|
 | POST | `/storage/files/{id}/share` | Create public link (optional password) |
@@ -126,7 +126,7 @@ Notes:
 | GET | `/public/share/{token}/download` | Download the bytes (no account; `?password=` for locked links) |
 
 
-### Notifications — `/api/v1/notifications`
+### Notifications - `/api/v1/notifications`
 | Method | Path | Summary |
 |---|---|---|
 | GET | `/` | List + `unread_count` |

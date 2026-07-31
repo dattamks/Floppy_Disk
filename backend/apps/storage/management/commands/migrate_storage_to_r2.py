@@ -1,7 +1,7 @@
 """Copy existing local-disk blobs up to Cloudflare R2.
 
 When a self-host starts on local storage and later configures R2, files already
-on disk stay on disk — new uploads go to R2, but old files would 404 on
+on disk stay on disk - new uploads go to R2, but old files would 404 on
 download. Run this once after adding the R2 credentials to move everything over:
 
     python manage.py migrate_storage_to_r2
@@ -9,8 +9,8 @@ download. Run this once after adding the R2 credentials to move everything over:
     docker compose -f docker-compose.standalone.yml exec floppy \\
         python manage.py migrate_storage_to_r2
 
-It walks the content-addressed blobs (StorageObject) — so shared/duplicated
-files are copied once, not per reference — reads each from the local directory,
+It walks the content-addressed blobs (StorageObject) - so shared/duplicated
+files are copied once, not per reference - reads each from the local directory,
 and uploads it to the bucket its region maps to. It is **idempotent and
 resumable**: a blob already present in R2 is skipped, so re-running after an
 interruption just continues. Nothing local is deleted unless you pass
@@ -47,7 +47,7 @@ class Command(BaseCommand):
         dest = get_storage_service()
         # The destination must be R2 (or an S3-compatible backend that can accept
         # uploads and answer existence checks). If storage is still local, the R2
-        # credentials aren't set — there's nothing to migrate *to*.
+        # credentials aren't set - there's nothing to migrate *to*.
         if not (hasattr(dest, "upload_from_path") and hasattr(dest, "object_exists")):
             raise CommandError(
                 "The active storage backend is not R2. Set R2_ENDPOINT_URL, "
@@ -72,7 +72,7 @@ class Command(BaseCommand):
         for obj in qs.iterator():
             src_path = source.local_path(region=obj.region, object_key=obj.object_key)
             if not src_path.exists():
-                # Referenced blob with no local file (already remote, or lost) —
+                # Referenced blob with no local file (already remote, or lost) -
                 # skip rather than fail the whole run.
                 missing_local += 1
                 continue
@@ -114,4 +114,4 @@ class Command(BaseCommand):
             + (f" {failed} failed." if failed else "")
         ))
         if failed:
-            raise CommandError(f"{failed} blob(s) failed to upload — re-run to retry them.")
+            raise CommandError(f"{failed} blob(s) failed to upload - re-run to retry them.")

@@ -268,7 +268,7 @@ export default function VideoModal(V) {
         >
           CC
         </button>{' '}
-        {/* DEACTIVATED (Drive-focus pivot): SD/HD tier selector — see docs/deactivated-features.md */}
+        {/* DEACTIVATED (Drive-focus pivot): SD/HD tier selector - see docs/deactivated-features.md */}
         <button
           onClick={V.toggleTheater}
           style={{
@@ -305,7 +305,7 @@ export default function VideoModal(V) {
           ) : null}
         </button>{' '}
       </div>{' '}
-      {/* DEACTIVATED (Drive-focus pivot): HD-upgrade hint + pre-roll ad slot —
+      {/* DEACTIVATED (Drive-focus pivot): HD-upgrade hint + pre-roll ad slot -
           see docs/deactivated-features.md */}
     </React.Fragment>
   ) : null;

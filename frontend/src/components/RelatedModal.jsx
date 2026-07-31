@@ -2,7 +2,7 @@ import React from 'react';
 import { theme } from '../lib/theme';
 
 // Shows a file's neighbors in the knowledge graph (containing folder,
-// shared-token siblings, references) — each edge explained. Renders when
+// shared-token siblings, references) - each edge explained. Renders when
 // V.isRelatedModal is set. Data comes from GET /graph/related/<file_id>.
 const REL_LABEL = {
   contains: 'in folder',
@@ -32,7 +32,7 @@ export default function RelatedModal(V) {
         </button>
       </div>{' '}
       <span style={{ fontSize: '12px', color: theme.textFaint }}>
-        From the deterministic knowledge graph — every link is explained, nothing guessed.
+        From the deterministic knowledge graph - every link is explained, nothing guessed.
       </span>{' '}
       {V.relatedLoading ? (
         <div style={{ color: theme.textMuted, fontSize: '13.5px', padding: '18px 2px' }}>Loading…</div>

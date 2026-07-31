@@ -27,7 +27,7 @@ test('Owner: first-run setup, ephemeral banner, and Storage settings (recorded)'
   test.setTimeout(120000);
   await blockExternal(page);
 
-  await test.step('Register the first account — becomes the Owner', async () => {
+  await test.step('Register the first account - becomes the Owner', async () => {
     await registerNewUser(page);
   });
 
@@ -35,7 +35,7 @@ test('Owner: first-run setup, ephemeral banner, and Storage settings (recorded)'
     await expect(page.getByTestId('setup-modal')).toBeVisible({ timeout: 15000 });
     await expect(page.getByText('Where should your files live?')).toBeVisible();
     await shot(page, '01-first-run-setup.png');
-    // Choose "Decide later" — stay on local for now.
+    // Choose "Decide later" - stay on local for now.
     await page.getByTestId('setup-skip').click();
     await expect(page.getByTestId('setup-modal')).toHaveCount(0);
     await beat(page);
@@ -62,7 +62,7 @@ test('Owner: first-run setup, ephemeral banner, and Storage settings (recorded)'
     await page.getByTestId('r2-bucket').fill('acme-floppy');
     await expect(page.getByTestId('r2-save')).toBeVisible();
     await shot(page, '04-r2-form-filled.png');
-    // Note: we don't Save here — that would switch the live E2E backend to an
+    // Note: we don't Save here - that would switch the live E2E backend to an
     // unreachable bucket. The connect/save/migrate paths are covered by the
     // backend suite against a fake S3 client.
   });

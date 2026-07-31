@@ -50,7 +50,7 @@ def _as_bool(v) -> bool:
     """Parse a client-supplied boolean.
 
     `bool("false")` / `bool("0")` are both True, so form-encoded (or stringy
-    JSON) values silently flip a flag the wrong way — e.g. disabling
+    JSON) values silently flip a flag the wrong way - e.g. disabling
     backup_wifi_only would instead enable it. Treat the usual false-y strings as
     False and only real truthy values as True.
     """

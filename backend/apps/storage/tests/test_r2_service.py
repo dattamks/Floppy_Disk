@@ -77,7 +77,7 @@ class FakeS3:
 @pytest.fixture
 def svc():
     s = R2StorageService()
-    s._client = FakeS3()  # cached_property override — no real boto3 client
+    s._client = FakeS3()  # cached_property override - no real boto3 client
     return s
 
 

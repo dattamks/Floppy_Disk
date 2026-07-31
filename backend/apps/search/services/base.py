@@ -1,5 +1,5 @@
 """
-SearchService abstraction — Postgres full-text search now, OpenSearch later.
+SearchService abstraction - Postgres full-text search now, OpenSearch later.
 
 Scope is enforced by the caller (personal + discoverable only); this interface
 just executes the query behind whichever engine is configured
@@ -24,7 +24,7 @@ class SearchService(ABC):
                folder_ids=None) -> list:
         """Return ranked results the user is allowed to see (personal + discoverable).
 
-        `folder_ids` (a set/list) confines results to those folders — used by
+        `folder_ids` (a set/list) confines results to those folders - used by
         folder-scoped API keys so a scoped key only searches its own subtree
         (and never other users' discoverable content). None = unrestricted.
         """

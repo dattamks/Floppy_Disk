@@ -1,6 +1,6 @@
 """Name de-duplication for files & folders (Drive-style "naming sense").
 
-Keeps names unique among *active* siblings by appending " (2)", " (3)", … —
+Keeps names unique among *active* siblings by appending " (2)", " (3)", … -
 preserving a file's extension ("report.pdf" -> "report (2).pdf"). Used on
 create, rename, move, and restore so a collision never produces two
 indistinguishable items in the same place.
@@ -31,7 +31,7 @@ def classify_kind(name: str, content_type: str | None = None, fallback: str = "f
 
     Mirrors the SPA's kindOf(): video/image/audio by MIME family, common
     text/document types as "doc", otherwise ``fallback``. The server does this
-    so REST/MCP uploads that omit ``kind`` still classify correctly — otherwise
+    so REST/MCP uploads that omit ``kind`` still classify correctly - otherwise
     every programmatic upload defaults to the generic "file" kind and the
     knowledge graph never scans documents for cross-references.
 

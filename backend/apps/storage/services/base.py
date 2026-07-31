@@ -72,7 +72,7 @@ def get_storage_service() -> StorageService:
     from django.utils.module_loading import import_string
 
     # 1. Environment wins: if R2 (or any explicit STORAGE_SERVICE) is set in the
-    #    environment, honor it exactly as before — the UI shows it read-only.
+    #    environment, honor it exactly as before - the UI shows it read-only.
     if getattr(settings, "R2_CONFIGURED", False) or "STORAGE_SERVICE" in os.environ:
         return import_string(settings.STORAGE_SERVICE)()
 

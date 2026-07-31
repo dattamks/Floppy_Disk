@@ -11,7 +11,7 @@ Scoping: the graph is *built* globally over all of a user's files (so it
 captures every relationship), but *read* through the same folder-scope filter as
 the file store (apps.storage.scoping). Each node records the folder it lives in
 (`scope_folder_id`), so a folder-scoped API key only ever sees nodes inside its
-subtree, and an edge is only visible when BOTH endpoints are — cross-scope edges
+subtree, and an edge is only visible when BOTH endpoints are - cross-scope edges
 are clipped at the boundary. Building is trusted; reading is scoped.
 """
 import uuid
@@ -79,7 +79,7 @@ class GraphEdge(TimeStampedModel):
     target = models.ForeignKey(GraphNode, on_delete=models.CASCADE, related_name="in_edges")
     rel = models.CharField(max_length=20, choices=Rel.choices)
     provenance = models.CharField(max_length=10, choices=Provenance.choices, default=Provenance.EXTRACTED)
-    # Human-readable "why this edge exists" — Graphify-style explainability.
+    # Human-readable "why this edge exists" - Graphify-style explainability.
     reason = models.CharField(max_length=255, blank=True, default="")
     meta = models.JSONField(default=dict, blank=True)
 

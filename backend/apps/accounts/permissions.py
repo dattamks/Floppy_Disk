@@ -3,7 +3,7 @@ from rest_framework.permissions import BasePermission
 
 
 class IsOwner(BasePermission):
-    """Allow only the instance Owner — the first registered user or a superuser.
+    """Allow only the instance Owner - the first registered user or a superuser.
 
     Gates instance-wide admin settings (e.g. storage configuration). Deliberately
     session-only in spirit: it checks the authenticated user's owner status, so an

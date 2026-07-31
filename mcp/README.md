@@ -1,8 +1,8 @@
-# Floppy Disk — MCP Server
+# Floppy Disk - MCP Server
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes
-the Floppy Disk cloud-storage platform as tools. Any MCP-aware client — **Claude
-Code**, **n8n**, **Codex / OpenAI**, Claude Desktop, etc. — can then do
+the Floppy Disk cloud-storage platform as tools. Any MCP-aware client - **Claude
+Code**, **n8n**, **Codex / OpenAI**, Claude Desktop, etc. - can then do
 everything a user does: browse and manage folders and files, upload and download
 media, create public share links, and read notifications.
 
@@ -13,14 +13,14 @@ REST API documented in [`../docs/api/`](../docs/api).
 
 Tracks the **MCP 2026-07-28** spec:
 
-- **Stateless core** — runs with `stateless_http=True`: no `initialize`
+- **Stateless core** - runs with `stateless_http=True`: no `initialize`
   handshake, no `Mcp-Session-Id`, no per-session state. Each tool call is one
   self-contained REST request under your Bearer key, so the server scales
   horizontally and works on serverless hosts.
 - **Streamable HTTP** for remote clients; the deprecated **HTTP+SSE** transport
   is not offered.
 - **No deprecated server-initiated features** (Roots / Sampling / Logging), so
-  no multi-round-trip fallbacks are needed — a tool call never opens a
+  no multi-round-trip fallbacks are needed - a tool call never opens a
   server→client stream.
 
 Stateless request framing, `MCP-Protocol-Version` negotiation, header routing
@@ -33,9 +33,9 @@ The server is a thin, authenticated wrapper over `/api/v1`. It authenticates
 with a **Bearer API key** (no browser session needed) and transparently handles
 both storage backends:
 
-- **Local mode** (no Cloudflare env) — presigned URLs are relative dev URLs on
+- **Local mode** (no Cloudflare env) - presigned URLs are relative dev URLs on
   the same origin; the server attaches the Bearer header to reach them.
-- **R2 mode** — presigned URLs are absolute and self-authenticating; the server
+- **R2 mode** - presigned URLs are absolute and self-authenticating; the server
   uses them as-is.
 
 So the same MCP tools work whether the backend is a laptop dev instance or a
@@ -48,7 +48,7 @@ full Cloudflare-backed production deployment.
 ```bash
 cd backend
 python manage.py create_api_key you@example.com --name mcp
-# prints:  fd_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   (shown once — copy it)
+# prints:  fd_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   (shown once - copy it)
 ```
 
 You can also create/list/revoke keys from the API: `POST /api/v1/auth/api-keys`,
@@ -68,7 +68,7 @@ Copy `.env.example` to `.env` (or export the vars):
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `FLOPPY_API_KEY` | — (required) | Bearer API key from step 1 |
+| `FLOPPY_API_KEY` | - (required) | Bearer API key from step 1 |
 | `FLOPPY_API_BASE_URL` | `http://localhost:8000/api/v1` | API base, incl. `/api/v1` |
 | `FLOPPY_MCP_TRANSPORT` | `stdio` | `stdio` (local) or `streamable-http` (remote) |
 | `FLOPPY_MCP_HOST` | `127.0.0.1` | bind host for `streamable-http` |
@@ -128,7 +128,7 @@ call tools like `upload_file`, `create_share_link`, `list_files`.
 ### Codex / OpenAI
 
 Any client that supports MCP stdio servers uses the same command form as Claude
-Code — e.g. in a `mcp_servers` config block:
+Code - e.g. in a `mcp_servers` config block:
 
 ```toml
 [mcp_servers.floppy-disk]
@@ -140,8 +140,8 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 ## Tools
 
 **Account & usage**
-- `whoami` — the authenticated user (email, quota)
-- `get_usage` — quota, used, available bytes
+- `whoami` - the authenticated user (email, quota)
+- `get_usage` - quota, used, available bytes
 
 **Folders**
 - `list_folders(parent_id?)`, `create_folder(name, parent_id?)`
@@ -156,27 +156,27 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 - `list_trash()`, `search_files(query)`
 
 **Upload / download**
-- `upload_file(path, folder_id?, name?)` — full 3-step flow from a local file
-- `upload_bytes(filename, content_base64, folder_id?)` — from in-memory content
+- `upload_file(path, folder_id?, name?)` - full 3-step flow from a local file
+- `upload_bytes(filename, content_base64, folder_id?)` - from in-memory content
 - `get_download_url(file_id)`, `download_file(file_id, dest_path)`
 
 **Video**
-- `get_video_playback(file_id)` — direct URL to play an owned video inline
+- `get_video_playback(file_id)` - direct URL to play an owned video inline
 
 **Sharing**
 - `create_share_link(file_id, password?, expires_at?)`
 - `list_share_links()`, `revoke_share_link(share_id)`
 
 > The channels feature was removed in the Drive-focus pivot, and
-> `promote_video_to_stream` (video streaming) was deactivated — see
+> `promote_video_to_stream` (video streaming) was deactivated - see
 > [`../docs/deactivated-features.md`](../docs/deactivated-features.md).
 
 **Knowledge graph** (deterministic, LLM-free context for AIs)
-- `get_graph()` — the whole store as GraphRAG-ready graph.json (nodes + typed,
+- `get_graph()` - the whole store as GraphRAG-ready graph.json (nodes + typed,
   provenance-tagged edges, each with a plain-language reason)
-- `graph_search(query)` — name matches, each with its graph neighbors
-- `get_related_files(file_id)` — what relates to a file, every edge explained
-- `rebuild_graph()` — force a rebuild (normally automatic)
+- `graph_search(query)` - name matches, each with its graph neighbors
+- `get_related_files(file_id)` - what relates to a file, every edge explained
+- `rebuild_graph()` - force a rebuild (normally automatic)
 
 > The graph is built globally over your files but read through the same folder
 > scope as everything else: a folder-scoped key sees only its subtree's nodes,
@@ -199,7 +199,7 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
   and revoke unused ones.
 - **Folder-scoped keys.** A key can be confined to a single folder subtree:
   `POST /auth/api-keys {"root_folder": "<folder-id>"}`. Every tool then only
-  sees/acts within that folder (calls outside it return not-found), and — once
-  the knowledge-graph layer lands — the graph exposed to that key is likewise
+  sees/acts within that folder (calls outside it return not-found), and - once
+  the knowledge-graph layer lands - the graph exposed to that key is likewise
   limited to its subtree. This lets you give one LLM the whole store and another
   only a specific folder.

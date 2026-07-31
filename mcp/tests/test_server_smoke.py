@@ -1,6 +1,6 @@
 """Smoke tests for the Floppy Disk MCP server.
 
-Guarded with importorskip because fastmcp is an optional/dev dependency — the
+Guarded with importorskip because fastmcp is an optional/dev dependency - the
 suite runs in CI where fastmcp is installed. Covers: the server imports and is
 configured for the MCP 2026-07-28 stateless core, the pure helpers behave, and
 the transport selector rejects the deprecated SSE transport.
@@ -43,7 +43,7 @@ def test_stdio_is_default(monkeypatch):
 
 def _registered_tool_names():
     """Best-effort tool introspection across fastmcp versions (list_tools /
-    get_tools, sync or async, dict or list) — returns a set or None if the
+    get_tools, sync or async, dict or list) - returns a set or None if the
     installed version exposes none of the known shapes."""
     import asyncio
     import inspect

@@ -78,7 +78,7 @@ def test_malformed_folder_is_400_not_500(client):
 
 def test_note_refused_when_backend_cannot_store_bytes(client, monkeypatch):
     # On a remote backend without server-side writes (the R2 stub today), notes
-    # must be refused with 501 — not created as a phantom that charges quota but
+    # must be refused with 501 - not created as a phantom that charges quota but
     # stored nothing. Mirrors FileContentView / UploadCompleteView.
     class _RemoteOnly:
         pass  # no save_bytes
