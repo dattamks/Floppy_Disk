@@ -239,6 +239,23 @@ def test_reference_edge_from_wiki_link(user):
     assert targets == {"aurora-spec.md", "budget.md"}
 
 
+def test_reference_edge_from_escaped_wiki_link(user):
+    """A WYSIWYG editor may escape brackets (\\[\\[Note\\]\\]); still resolved."""
+    from apps.graph.models import GraphEdge, GraphNode
+
+    c = _session(user)
+    _upload(c, "aurora-spec.md", b"# Spec")
+    src = _upload(c, "index.md", b"See \\[\\[aurora-spec\\]\\] for details.")
+    rebuild_user_graph(user)
+
+    src_node = GraphNode.objects.get(owner=user, file_id=src)
+    targets = set(
+        GraphEdge.objects.filter(owner=user, source=src_node, rel=GraphEdge.Rel.REFERENCES)
+        .values_list("target__label", flat=True)
+    )
+    assert "aurora-spec.md" in targets
+
+
 def test_reference_edge_not_duplicated_across_detectors(user):
     """A file named both in a Markdown link and in prose yields ONE edge."""
     from apps.graph.models import GraphEdge, GraphNode

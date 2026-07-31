@@ -2,6 +2,11 @@ import React from 'react';
 import { theme } from '../lib/theme';
 import { highlightJson, highlightYaml } from '../lib/highlight';
 
+// The WYSIWYG editor pulls in TipTap/ProseMirror (~160KB gzip); load it lazily
+// so it only reaches users who actually open a note, keeping the app's initial
+// bundle small.
+const NoteEditor = React.lazy(() => import('./NoteEditor'));
+
 // Inline viewers for a file's own content: image, PDF, audio, Markdown, JSON,
 // YAML, and plain text/code. Real uploads fetch a same-origin URL (and text
 // content) in App.openFile; demo files carry hardcoded URLs.
@@ -52,22 +57,23 @@ function Body(V) {
     );
   }
   if (V.isEditing) {
-    const editor = (
+    const onSaveKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        if (!V.editSaving) V.onSaveEdit();
+      }
+    };
+    // Raw textarea — used for plain text files, and the "Markdown" tab of a note.
+    const rawEditor = (
       <textarea
         value={V.editText}
         onInput={V.setEditText}
-        onKeyDown={(e) => {
-          // Cmd/Ctrl+S saves without triggering the browser's save dialog.
-          if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
-            e.preventDefault();
-            if (!V.editSaving) V.onSaveEdit();
-          }
-        }}
-        autoFocus
+        onKeyDown={onSaveKey}
+        autoFocus={!V.isNote}
         spellCheck={false}
-        placeholder={V.isNote ? '# Start writing…\n\nLink notes with [[Note name]].' : ''}
         style={{
-          flex: '1 1 340px',
+          flex: '1 1 auto',
+          width: '100%',
           minHeight: V.isNote ? '240px' : '360px',
           resize: V.isNote ? 'none' : 'vertical',
           padding: '16px',
@@ -83,57 +89,91 @@ function Body(V) {
         }}
       />
     );
-    return (
-      <div
+
+    // Plain (non-note) text file: single raw editor, no tabs.
+    if (!V.isNote) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1 1 auto', minHeight: 0 }}>
+          {rawEditor}
+        </div>
+      );
+    }
+
+    // Note: title + Write | Markdown | Preview tabs (one pane at a time).
+    const view = V.noteView || 'write';
+    const tab = (id, label) => (
+      <button
+        key={id}
+        type="button"
+        onClick={() => V.setNoteView(id)}
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '10px',
-          flex: '1 1 auto',
-          minHeight: 0,
+          padding: '6px 14px',
+          borderRadius: '8px',
+          border: 'none',
+          background: view === id ? theme.white : 'transparent',
+          color: view === id ? theme.brand : theme.textMuted,
+          fontWeight: '600',
+          fontSize: '13px',
+          cursor: 'pointer',
+          boxShadow: view === id ? '0 1px 3px rgba(16,24,40,0.12)' : 'none',
+          fontFamily: "'IBM Plex Sans',sans-serif",
         }}
       >
-        {/* Editable note title */}
+        {label}
+      </button>
+    );
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1 1 auto', minHeight: 0 }}>
         <input
           value={V.editName}
           onInput={V.setEditName}
+          onKeyDown={onSaveKey}
           aria-label="Note title"
           placeholder="Untitled note"
           style={{
             width: '100%',
-            padding: '9px 12px',
+            padding: '10px 12px',
             border: `1px solid ${theme.border}`,
             borderRadius: '9px',
             background: theme.surface,
             color: theme.text,
             fontFamily: "'Space Grotesk',sans-serif",
             fontWeight: '600',
-            fontSize: '15px',
+            fontSize: '17px',
             outline: 'none',
             boxSizing: 'border-box',
           }}
         />
-        {V.isNote ? (
-          // Split: write on the left, live rendered preview on the right — both
-          // fill the (near-full-screen) editor height.
-          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', flex: '1 1 auto', minHeight: 0 }}>
-            {editor}
-            <div
-              className="md-body md-live"
-              style={{ flex: '1 1 340px', minHeight: '240px', maxHeight: 'none' }}
-            >
-              <style>{mdCss()}</style>
-              {V.editText ? (
-                <div dangerouslySetInnerHTML={{ __html: V.editPreviewHtml }} />
-              ) : (
-                <div style={{ color: theme.textFaint, fontStyle: 'italic' }}>
-                  Live preview appears here as you type.
-                </div>
-              )}
-            </div>
-          </div>
+        <div style={{ display: 'flex', gap: '3px', padding: '3px', background: theme.surface, borderRadius: '10px', alignSelf: 'flex-start' }}>
+          {tab('write', 'Write')}
+          {tab('markdown', 'Markdown')}
+          {tab('preview', 'Preview')}
+        </div>
+        {view === 'write' ? (
+          <React.Suspense
+            fallback={
+              <div style={{ flex: '1 1 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.textMuted, minHeight: '240px' }}>
+                Loading editor…
+              </div>
+            }
+          >
+            <NoteEditor
+              value={V.editText}
+              onChange={V.setNoteMarkdown}
+              placeholder="Start writing… use the toolbar, or type Markdown and it formats as you go."
+            />
+          </React.Suspense>
+        ) : view === 'markdown' ? (
+          rawEditor
         ) : (
-          editor
+          <div className="md-body md-live" style={{ flex: '1 1 auto', minHeight: '240px', maxHeight: 'none' }}>
+            <style>{mdCss()}</style>
+            {V.editText ? (
+              <div dangerouslySetInnerHTML={{ __html: V.editPreviewHtml }} />
+            ) : (
+              <div style={{ color: theme.textFaint, fontStyle: 'italic' }}>Nothing to preview yet.</div>
+            )}
+          </div>
         )}
       </div>
     );

@@ -45,6 +45,7 @@ export default class App extends React.Component {
     editSaving: false,
     creatingNote: false,
     newNoteId: null, // a just-created note; discarded if closed while still empty
+    noteView: 'write', // note editor tab: 'write' (WYSIWYG) | 'markdown' | 'preview'
     noteRelated: null, // graph neighbors of the open note (for the backlinks panel)
     // Rename / move dialogs.
     renameName: '',
@@ -907,6 +908,7 @@ export default class App extends React.Component {
           editing: true,
           editText: '',
           editName: baseName(f.name),
+          noteView: 'write',
           noteRelated: null,
           newNoteId: f.id,
         });
@@ -936,10 +938,18 @@ export default class App extends React.Component {
       editing: true,
       editText: this.state.previewText || '',
       editName: baseName(f ? f.name : ''),
+      noteView: 'write',
     });
   }
   setEditText(e) {
     this.setState({ editText: e.target.value });
+  }
+  // NoteEditor (WYSIWYG) emits Markdown directly; the raw textarea passes an event.
+  setNoteMarkdown(md) {
+    this.setState({ editText: md });
+  }
+  setNoteView(view) {
+    this.setState({ noteView: view });
   }
   setEditName(e) {
     this.setState({ editName: e.target.value });
@@ -2132,6 +2142,9 @@ export default class App extends React.Component {
       editText: st.editText,
       editName: st.editName,
       editSaving: st.editSaving,
+      noteView: st.noteView,
+      setNoteView: (v) => this.setNoteView(v),
+      setNoteMarkdown: (md) => this.setNoteMarkdown(md),
       onStartEdit: () => this.startEdit(),
       setEditText: (e) => this.setEditText(e),
       setEditName: (e) => this.setEditName(e),

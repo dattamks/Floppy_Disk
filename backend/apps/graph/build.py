@@ -38,9 +38,12 @@ _MAX_REFS_PER_FILE = 25
 # Markdown link target: the "(...)" in [label](target). Path-like token: any
 # word that carries a file extension (matches "budget.json", "./docs/x.md").
 # Wiki-link: [[Note]] / [[Note|alias]] / [[Note#heading]] — the note name.
+# Brackets may be backslash-escaped (\[\[…\]\]) when a WYSIWYG editor's Markdown
+# serializer escapes them, so tolerate an optional backslash before each "[" and
+# stop the capture at "\", "]", "|", or "#".
 _MD_LINK_RE = re.compile(r"\]\(\s*<?([^)\s>]+)")
 _PATHY_RE = re.compile(r"[\w./\-]+\.[A-Za-z0-9]{1,8}")
-_WIKILINK_RE = re.compile(r"\[\[\s*([^\]|#]+)")
+_WIKILINK_RE = re.compile(r"\\?\[\\?\[\s*([^\]|#\\]+)")
 
 
 def _tokens(name: str) -> set[str]:

@@ -81,13 +81,16 @@ inline. Videos play in the browser (transcoded on your own server).
 
 ![Rendered Markdown preview](images/onboarding-03-preview.png)
 
-**Take notes.** Click **New note** to create a Markdown note and start writing
-immediately in a distraction-free editor — type on the left, see it rendered
-live on the right. Give it a title, and **Save**. Notes are just files, so they
-live in folders, show up in search, and can be shared like anything else. Link
-one note to another with `[[Note name]]` (or a normal Markdown link).
+**Take notes.** Click **New note** to start writing in a full-screen
+**rich-text editor** — no Markdown syntax to learn. Use the toolbar (or the usual
+shortcuts) for **bold**, headings, lists, and clickable checklists, and it
+formats as you type. Switch between the **Write**, **Markdown**, and **Preview**
+tabs whenever you like. Give it a title and **Save** (or `⌘/Ctrl+S`). Notes are
+saved as plain `.md` files, so they live in folders, show up in full-text
+search, and can be shared like anything else. Link one note to another with
+`[[Note name]]`.
 
-![The split-view Markdown note editor](images/onboarding-08-note-editor.png)
+![The full-screen rich-text note editor with Write / Markdown / Preview tabs](images/onboarding-08-note-editor.png)
 
 **Follow the links between notes.** Open a note and its **Linked mentions** panel
 shows every other note that points to it — click through to jump around your
