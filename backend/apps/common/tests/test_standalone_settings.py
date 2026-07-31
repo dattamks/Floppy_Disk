@@ -92,6 +92,23 @@ def test_email_ssl_disables_tls(monkeypatch, tmp_path):
     assert s.EMAIL_USE_SSL is True and s.EMAIL_USE_TLS is False
 
 
+def test_no_proxy_ssl_header_or_hsts_by_default(monkeypatch, tmp_path):
+    for k in ("USE_PROXY_SSL_HEADER", "SECURE_HSTS_SECONDS"):
+        monkeypatch.delenv(k, raising=False)
+    s = _load_standalone(monkeypatch, tmp_path)
+    # Trusting X-Forwarded-Proto must be opt-in (else it can be spoofed).
+    assert getattr(s, "SECURE_PROXY_SSL_HEADER", None) is None
+    assert getattr(s, "SECURE_HSTS_SECONDS", 0) == 0
+
+
+def test_proxy_ssl_header_and_hsts_opt_in(monkeypatch, tmp_path):
+    monkeypatch.setenv("USE_PROXY_SSL_HEADER", "true")
+    monkeypatch.setenv("SECURE_HSTS_SECONDS", "31536000")
+    s = _load_standalone(monkeypatch, tmp_path)
+    assert s.SECURE_PROXY_SSL_HEADER == ("HTTP_X_FORWARDED_PROTO", "https")
+    assert s.SECURE_HSTS_SECONDS == 31536000
+
+
 @pytest.fixture(autouse=True)
 def _restore_settings_module():
     """Reloading the standalone module mutates sys.modules; restore afterward."""

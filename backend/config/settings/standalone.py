@@ -92,6 +92,22 @@ SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=False)
 CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
+# When TLS is terminated by a reverse proxy (Caddy/nginx/Traefik) in front, the
+# app receives plain HTTP on the internal hop. Enable this so Django trusts the
+# proxy's X-Forwarded-Proto header and knows the original request was HTTPS —
+# otherwise SECURE_SSL_REDIRECT loops and secure cookies never set. ONLY enable
+# when actually behind such a proxy (else the header can be spoofed).
+if env.bool("USE_PROXY_SSL_HEADER", default=False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Optional HSTS for a public HTTPS deployment (0 = off, the safe default). Set to
+# e.g. 31536000 (1 year) once you're certain everything is served over HTTPS.
+_hsts = env.int("SECURE_HSTS_SECONDS", default=0)
+if _hsts > 0:
+    SECURE_HSTS_SECONDS = _hsts
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=True)
+    SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
+
 # --- Email delivery ---
 # Zero config: with no SMTP set, verification/reset emails print to the container
 # log (console backend), so a solo self-host works out of the box. To send real

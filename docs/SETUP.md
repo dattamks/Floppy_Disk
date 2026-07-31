@@ -165,7 +165,8 @@ shell for the no-Docker path):
 |---|---|---|
 | `DJANGO_SECRET_KEY` | auto-generated + persisted in `/data` | Django secret. Set it to pin your own. |
 | `ALLOWED_HOSTS` | `*` | Comma-separated hostnames for a public deploy, e.g. `files.example.com`. |
-| `SECURE_SSL_REDIRECT` | `false` | Set `true` if you terminate TLS in front (reverse proxy / load balancer). |
+| `SECURE_SSL_REDIRECT` | `false` | Redirect http → https. Set `true` for a public HTTPS deploy. |
+| `USE_PROXY_SSL_HEADER` | `false` | Trust the reverse proxy's `X-Forwarded-Proto`. Enable when TLS is terminated by a proxy in front (required with `SECURE_SSL_REDIRECT`). |
 | `DATABASE_URL` | SQLite in `/data` | Point at Postgres (`postgres://user:pass@host/db`) to use it instead. |
 | `WEB_CONCURRENCY` | `3` | gunicorn worker processes. |
 | `PORT` | `8000` | Port inside the container. |
@@ -239,18 +240,47 @@ There are two ways to recover an account:
    Without Docker, run the same `python manage.py set_password …` from the
    `backend/` directory.
 
-### Put it behind a domain (TLS)
+### Put it behind a domain (TLS / HTTPS)
 
-Run a reverse proxy (Caddy, nginx, Traefik) in front, terminate TLS there, and
-forward to the container's port 8000. Set `ALLOWED_HOSTS=your.domain` and
-`SECURE_SSL_REDIRECT=true`. Example `docker-compose.standalone.yml` override:
+The app doesn't terminate TLS itself — run a reverse proxy (Caddy, nginx,
+Traefik) or a platform in front that does HTTPS, and forward to the container's
+port 8000. Because TLS ends at the proxy, tell the app to trust the proxy's
+`X-Forwarded-Proto` header (`USE_PROXY_SSL_HEADER`) — **without it,
+`SECURE_SSL_REDIRECT` causes a redirect loop.** Example
+`docker-compose.standalone.yml` override:
 
 ```yaml
 environment:
   ALLOWED_HOSTS: "files.example.com"
-  SECURE_SSL_REDIRECT: "true"
+  USE_PROXY_SSL_HEADER: "true"   # trust the proxy's HTTPS (enable behind a TLS proxy)
+  SECURE_SSL_REDIRECT: "true"    # redirect any http → https
+  SESSION_COOKIE_SECURE: "true"  # cookies only over https
+  CSRF_COOKIE_SECURE: "true"
+  # SECURE_HSTS_SECONDS: "31536000"  # optional: enforce HTTPS for 1 year (set once HTTPS is solid)
   WEB_CONCURRENCY: "3"
 ```
+
+(Caddy is the simplest: a two-line `Caddyfile` — `files.example.com { reverse_proxy localhost:8000 }` — gets you an auto-renewing Let's Encrypt certificate.)
+
+### Security & encryption
+
+- **In transit:** all traffic — the web app, the REST API, **and MCP** — is
+  encrypted whenever you run behind HTTPS as above. MCP/API clients authenticate
+  with a **Bearer key over that same TLS**, so an AI assistant's requests are
+  encrypted end-to-end to your proxy.
+- **Secrets at rest:** account passwords are hashed (PBKDF2-SHA256), API/MCP keys
+  are stored only as a **SHA-256 hash** (the raw key is shown once and never
+  stored), and share-link passwords are hashed too. None of these are recoverable
+  from the database.
+- **File contents & database at rest:** stored as-is — the app does not encrypt
+  file bytes or the database itself. For encryption at rest, put the `floppydata`
+  volume on an **encrypted disk/volume** (LUKS, cloud encrypted EBS/PD, etc.), or
+  point `DATABASE_URL` at a managed Postgres with encryption on. If you use
+  Cloudflare R2/S3 for storage, enable that bucket's server-side encryption.
+- **Least-privilege for AI/automation:** give an integration a **read-only** key,
+  or a **folder-scoped** key confined to one subtree (files, search, and the
+  knowledge graph all stay within it) — so an MCP/AI client only ever sees what
+  you intend. Treat keys like passwords and revoke unused ones.
 
 ### Health, data, and backups
 
