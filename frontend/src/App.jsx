@@ -12,9 +12,12 @@ export default class App extends React.Component {
     authName: '',
     authEmail: '',
     authPassword: '',
+    authPassword2: '', // confirm field for the reset-password view
     authDob: '',
     authError: '',
     authBusy: false,
+    resetToken: '', // token from a /reset-password?token=… link
+    verifyBanner: '', // status message after a /verify-email?token=… link
     usedGB: 4.6,
     newFolderName: '',
     videoVolume: 1,
@@ -150,6 +153,7 @@ export default class App extends React.Component {
       }
     };
     window.addEventListener('keydown', this._onKey);
+    this._handleAuthLinks();
     this.bootstrapSession();
     try {
       const raw = localStorage.getItem('floppydisk-state');
@@ -208,6 +212,31 @@ export default class App extends React.Component {
   }
   gotoForgot() {
     this.setState({ authView: 'forgot', authError: '' });
+  }
+  // Handle links from account emails: /reset-password?token=… and
+  // /verify-email?token=…. Reads the token, drives the right view, and cleans
+  // the token out of the address bar.
+  _handleAuthLinks() {
+    if (typeof window === 'undefined') return;
+    const path = window.location.pathname || '';
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (!token) return;
+    const clean = () => {
+      try { window.history.replaceState({}, '', '/'); } catch (e) {}
+    };
+    if (path.startsWith('/reset-password')) {
+      this.setState({ authView: 'reset', resetToken: token, authError: '', authPassword: '', authPassword2: '' });
+      clean();
+    } else if (path.startsWith('/verify-email')) {
+      api
+        .verifyEmail(token)
+        .then(() => this.setState({ verifyBanner: 'ok' }))
+        .catch(() => this.setState({ verifyBanner: 'fail' }))
+        .finally(() => clean());
+    }
+  }
+  setAuthPassword2(e) {
+    this.setState({ authPassword2: e.target.value, authError: '' });
   }
   logout() {
     api.logout().catch(() => {});
@@ -343,6 +372,20 @@ export default class App extends React.Component {
           this.setState({ authBusy: false, authView: 'login' });
           this.toast('If that email exists, a reset link is on its way');
         });
+    } else if (v === 'reset') {
+      const pw = s.authPassword || '';
+      if (pw.length < 8) return this.setState({ authError: 'Password must be at least 8 characters' });
+      if (pw !== s.authPassword2) return this.setState({ authError: 'Passwords do not match' });
+      this.setState({ authBusy: true, authError: '' });
+      api
+        .passwordResetConfirm(s.resetToken, pw)
+        .then(() => {
+          this.setState({ authBusy: false, authView: 'login', authPassword: '', authPassword2: '', resetToken: '' });
+          this.toast('Password updated — sign in with your new password');
+        })
+        .catch((err) =>
+          this.setState({ authBusy: false, authError: firstError(err, 'This reset link is invalid or has expired') })
+        );
     }
   }
   toastForgot() {
@@ -1931,11 +1974,13 @@ export default class App extends React.Component {
       login: 'Welcome back',
       register: 'Create your account',
       forgot: 'Reset password',
+      reset: 'Choose a new password',
     };
     const authSubs = {
       login: 'Sign in to your Floppy Disk account',
       register: 'Create a Floppy Disk account',
       forgot: 'Enter your email and we\u2019ll send a reset link',
+      reset: 'Enter a new password for your account',
     };
 
     return {
@@ -1952,16 +1997,20 @@ export default class App extends React.Component {
       showDemoCreds: !!(import.meta && import.meta.env && import.meta.env.DEV),
       authIsRegister: authView === 'register',
       authIsForgot: authView === 'forgot',
+      authIsReset: authView === 'reset',
       authNeedsEmail: authView === 'login' || authView === 'register' || authView === 'forgot',
       authNeedsPassword: authView === 'login' || authView === 'register',
       authName: st.authName,
       authEmail: st.authEmail,
       authPassword: st.authPassword,
+      authPassword2: st.authPassword2,
       authDob: st.authDob,
       authBusy: st.authBusy,
+      verifyBanner: st.verifyBanner,
       setAuthName: (e) => this.setAuthName(e),
       setAuthEmail: (e) => this.setAuthEmail(e),
       setAuthPassword: (e) => this.setAuthPassword(e),
+      setAuthPassword2: (e) => this.setAuthPassword2(e),
       setAuthDob: (e) => this.setAuthDob(e),
       authPrimary: () => this.authPrimary(),
       authPrimaryLabel:
@@ -1969,6 +2018,7 @@ export default class App extends React.Component {
           login: 'Sign in',
           register: 'Create account',
           forgot: 'Send reset link',
+          reset: 'Set new password',
         }[authView] || 'Continue',
       gotoRegister: () => this.gotoRegister(),
       gotoLogin: () => this.gotoLogin(),

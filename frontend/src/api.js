@@ -63,6 +63,9 @@ export const api = {
   changePassword: (current_password, new_password) =>
     request('/auth/password-change', { method: 'POST', body: { current_password, new_password } }),
   passwordReset: (email) => request('/auth/password-reset', { method: 'POST', body: { email } }),
+  passwordResetConfirm: (token, new_password) =>
+    request('/auth/password-reset/confirm', { method: 'POST', body: { token, new_password } }),
+  verifyEmail: (token) => request('/auth/verify-email', { method: 'POST', body: { token } }),
   resendVerification: () => request('/auth/verify-email/resend', { method: 'POST' }),
 
   // Storage

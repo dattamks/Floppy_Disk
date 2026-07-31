@@ -177,6 +177,34 @@ Email verification and password-reset **links are printed to the container log**
 by default (console email backend), which is fine for personal use. To send real
 email, configure an SMTP backend via the standard Django email settings.
 
+### Forgot your password?
+
+There are two ways to recover an account:
+
+1. **Reset link (self-service).** On the sign-in screen, click **Forgot
+   password?**, enter your email, and open the reset link. With SMTP configured
+   the link is emailed; on a default self-host it's **printed to the container
+   log** — grab it there:
+
+   ```bash
+   docker compose -f docker-compose.standalone.yml logs | grep reset-password
+   ```
+
+   Open that URL, choose a new password, and sign in.
+
+2. **From the command line (no email needed).** The admin can reset any
+   account's password directly — the reliable fallback when SMTP isn't set up or
+   you've locked yourself out:
+
+   ```bash
+   docker compose -f docker-compose.standalone.yml exec floppy \
+     python manage.py set_password you@example.com
+   # (prompts for the new password; add --password '…' to script it)
+   ```
+
+   Without Docker, run the same `python manage.py set_password …` from the
+   `backend/` directory.
+
 ### Put it behind a domain (TLS)
 
 Run a reverse proxy (Caddy, nginx, Traefik) in front, terminate TLS there, and
@@ -283,7 +311,9 @@ Prefer raw HTTP? The REST API is documented in
   hostname.
 - **Password-reset / verification email "not arriving"** — by default links are
   printed to the container log; check `docker compose -f docker-compose.standalone.yml logs`,
-  or configure real SMTP.
+  or configure real SMTP. Locked out entirely? Reset from the CLI:
+  `… exec floppy python manage.py set_password you@example.com` (see
+  [Forgot your password?](#forgot-your-password)).
 - **Video won't play back** — ensure `ffmpeg` is available (the Docker image
   has it); the original upload is always kept even if transcoding is skipped.
 - **"No space left on device"** — the `/data` volume filled up; free space or

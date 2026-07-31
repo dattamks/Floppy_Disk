@@ -55,6 +55,23 @@ export default function AuthScreen(V) {
               {V.authSubtitle}
             </span>{' '}
           </div>{' '}
+          {V.verifyBanner ? (
+            <div
+              style={{
+                background: V.verifyBanner === 'ok' ? theme.surface : theme.dangerBg,
+                border: `1px solid ${V.verifyBanner === 'ok' ? theme.border : theme.dangerBorder3}`,
+                color: V.verifyBanner === 'ok' ? theme.text : theme.dangerDark,
+                borderRadius: '9px',
+                padding: '10px 12px',
+                fontSize: '12.5px',
+                textAlign: 'center',
+              }}
+            >
+              {V.verifyBanner === 'ok'
+                ? 'Email verified — you can sign in.'
+                : 'This verification link is invalid or has expired.'}
+            </div>
+          ) : null}{' '}
           {V.authIsRegister ? (
             <React.Fragment>
               {' '}
@@ -118,6 +135,42 @@ export default function AuthScreen(V) {
                 onInput={V.setAuthPassword}
                 type="password"
                 placeholder="Password"
+                style={{
+                  background: theme.white,
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  fontSize: '14px',
+                  outline: 'none',
+                  fontFamily: "'IBM Plex Sans',sans-serif",
+                }}
+              />{' '}
+            </React.Fragment>
+          ) : null}{' '}
+          {V.authIsReset ? (
+            <React.Fragment>
+              {' '}
+              <input
+                value={V.authPassword}
+                onInput={V.setAuthPassword}
+                type="password"
+                placeholder="New password"
+                autoFocus
+                style={{
+                  background: theme.white,
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: '10px',
+                  padding: '12px 14px',
+                  fontSize: '14px',
+                  outline: 'none',
+                  fontFamily: "'IBM Plex Sans',sans-serif",
+                }}
+              />{' '}
+              <input
+                value={V.authPassword2}
+                onInput={V.setAuthPassword2}
+                type="password"
+                placeholder="Confirm new password"
                 style={{
                   background: theme.white,
                   border: `1px solid ${theme.border}`,
@@ -214,7 +267,7 @@ export default function AuthScreen(V) {
               </div>{' '}
             </React.Fragment>
           ) : null}{' '}
-          {V.authIsForgot ? (
+          {V.authIsForgot || V.authIsReset ? (
             <React.Fragment>
               {' '}
               <div style={{ textAlign: 'center', fontSize: '13px', color: theme.textMuted }}>
