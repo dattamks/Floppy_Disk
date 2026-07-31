@@ -17,6 +17,8 @@ import MoveModal from '../components/MoveModal';
 import LinksModal from '../components/LinksModal';
 import ContextMenu from '../components/ContextMenu';
 import Toast from '../components/Toast';
+import SetupModal from '../components/SetupModal';
+import StorageBanner from '../components/StorageBanner';
 
 // Presentational view for the whole app. Receives the computed view-model V
 // (from App.renderVals) and renders it. Being extracted, screen by screen,
@@ -46,7 +48,7 @@ export default function AppView({ V }) {
           }}
         >
           {' '}
-          {AuthScreen(V)} {AppShell(V)}{' '}
+          {AuthScreen(V)} {StorageBanner(V)} {AppShell(V)} {SetupModal(V)}{' '}
           {V.drawerOpen ? (
             <React.Fragment>
               {' '}

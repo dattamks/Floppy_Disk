@@ -2,6 +2,7 @@ import React from 'react';
 import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 import ApiKeysPanel from './ApiKeysPanel';
+import StoragePanel from './StoragePanel';
 
 // Extracted from the design view; renders when V.isSettingsModal is set.
 export default function SettingsModal(V) {
@@ -106,6 +107,25 @@ export default function SettingsModal(V) {
         >
           Developer
         </button>{' '}
+        {V.isOwner ? (
+          <button
+            onClick={V.setSettingsStorage}
+            style={{
+              flex: '1',
+              border: 'none',
+              borderRadius: '7px',
+              padding: '7px',
+              fontSize: '12.5px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontFamily: "'IBM Plex Sans',sans-serif",
+              background: V.stStorageBg,
+              color: V.stStorageColor,
+            }}
+          >
+            Storage
+          </button>
+        ) : null}{' '}
       </div>{' '}
       {V.stIsProfile ? (
         <React.Fragment>
@@ -447,6 +467,7 @@ export default function SettingsModal(V) {
         </React.Fragment>
       ) : null}{' '}
       {V.stIsDeveloper ? ApiKeysPanel(V) : null}{' '}
+      {V.stIsStorage ? StoragePanel(V) : null}{' '}
     </React.Fragment>
   ) : null;
 }

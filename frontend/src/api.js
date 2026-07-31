@@ -147,4 +147,14 @@ export const api = {
       },
     }),
   revokeApiKey: (id) => request(`/auth/api-keys/${id}`, { method: 'DELETE' }),
+
+  // Storage administration (owner only). Where uploaded files live: local disk
+  // or Cloudflare R2. The secret is write-only — never returned by the server.
+  storageConfig: () => request('/admin/storage/'),
+  saveStorageConfig: (patch) => request('/admin/storage/', { method: 'PUT', body: patch }),
+  testStorage: (creds) => request('/admin/storage/test', { method: 'POST', body: creds }),
+  storageMigration: () => request('/admin/storage/migrate'),
+  startStorageMigration: (deleteLocal) =>
+    request('/admin/storage/migrate', { method: 'POST', body: { delete_local: !!deleteLocal } }),
+  pauseStorageMigration: () => request('/admin/storage/migrate/pause', { method: 'POST' }),
 };

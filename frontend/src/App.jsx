@@ -92,6 +92,21 @@ export default class App extends React.Component {
     newKeyReadOnly: false,
     newKeyFolder: '', // '' = full storage; otherwise a folder id
     newKeyToken: '', // show-once secret after creation
+    // Storage administration (owner only).
+    isOwner: false,
+    storageConfig: null,
+    storageMigration: null,
+    setupOpen: false,
+    setupChoice: '',
+    storageBannerDismissed: false,
+    sfEndpoint: '',
+    sfAccess: '',
+    sfSecret: '',
+    sfBucket: '',
+    sfTestState: 'idle', // idle | testing | ok | error
+    sfTestMsg: '',
+    sfBusy: false,
+    sfDeleteLocal: false,
     uploadQueue: [],
     shareAccess: 'restricted',
     sharePermission: 'view',
@@ -272,10 +287,12 @@ export default class App extends React.Component {
       emailVerified: !!user.email_verified,
       profileName: user.display_name || this.state.profileName,
       twofa: !!user.two_factor_enabled,
+      isOwner: !!user.is_owner,
     });
     this.loadStorage();
     this.loadUsage();
     this.loadNotifications();
+    if (user.is_owner) this.loadStorageConfig();
   }
 
   // Real quota/usage for the sidebar meter (falls back to demo values on failure).
@@ -509,6 +526,144 @@ export default class App extends React.Component {
   }
   setSettingsSecurity() {
     this.setState({ settingsTab: 'security' });
+  }
+  setSettingsStorage() {
+    this.setState({ settingsTab: 'storage' });
+    this.loadStorageConfig();
+  }
+  // --- Storage administration (owner only) ---------------------------------
+  loadStorageConfig() {
+    return api
+      .storageConfig()
+      .then((cfg) => {
+        const s = this.state;
+        this.setState({
+          storageConfig: cfg,
+          storageMigration: cfg.migration || null,
+          // Prefill the form from the saved config (secret stays write-only).
+          sfEndpoint: s.sfEndpoint || cfg.r2.endpoint_url || '',
+          sfAccess: s.sfAccess || cfg.r2.access_key_id || '',
+          sfBucket: s.sfBucket || cfg.r2.bucket || '',
+        });
+        // First-run: show the one-question setup once to the owner, only while
+        // storage is still local and not env-managed.
+        if (
+          this.state.isOwner &&
+          !cfg.setup_completed &&
+          !cfg.env_managed &&
+          cfg.effective_backend === 'local'
+        ) {
+          this.setState({ setupOpen: true });
+        }
+        // Resume polling a migration that's still running.
+        if (cfg.migration && (cfg.migration.status === 'running' || cfg.migration.status === 'pending')) {
+          this._pollMigration();
+        }
+      })
+      .catch(() => {});
+  }
+  testStorage() {
+    const s = this.state;
+    this.setState({ sfTestState: 'testing', sfTestMsg: '' });
+    const creds = {
+      endpoint_url: s.sfEndpoint.trim(),
+      access_key_id: s.sfAccess.trim(),
+      bucket: s.sfBucket.trim(),
+    };
+    if (s.sfSecret) creds.secret_access_key = s.sfSecret;
+    api
+      .testStorage(creds)
+      .then((res) =>
+        this.setState({
+          sfTestState: res.ok ? 'ok' : 'error',
+          sfTestMsg: res.ok ? '' : res.error || 'Connection failed.',
+        })
+      )
+      .catch((err) => this.setState({ sfTestState: 'error', sfTestMsg: firstError(err, 'Connection failed.') }));
+  }
+  saveStorage() {
+    const s = this.state;
+    const patch = {
+      backend: 'r2',
+      endpoint_url: s.sfEndpoint.trim(),
+      access_key_id: s.sfAccess.trim(),
+      bucket: s.sfBucket.trim(),
+      setup_completed: true,
+    };
+    if (s.sfSecret) patch.secret_access_key = s.sfSecret;
+    this.setState({ sfBusy: true });
+    api
+      .saveStorageConfig(patch)
+      .then((cfg) => {
+        this.setState({
+          sfBusy: false,
+          sfSecret: '',
+          storageConfig: cfg,
+          storageMigration: cfg.migration || null,
+        });
+        this.toast('Storage switched to Cloudflare R2');
+      })
+      .catch((err) => {
+        this.setState({ sfBusy: false });
+        this.toast(firstError(err, 'Could not save storage settings'));
+      });
+  }
+  // First-run setup choices.
+  setupChooseLocal() {
+    this.setState({ setupChoice: 'local' });
+    api.saveStorageConfig({ backend: 'local', setup_completed: true }).then((cfg) =>
+      this.setState({ storageConfig: cfg, setupOpen: false })
+    );
+  }
+  setupChooseR2() {
+    // Jump into the Storage settings tab to enter credentials.
+    this.setState({ setupOpen: false, modal: 'settings', settingsTab: 'storage' });
+  }
+  skipSetup() {
+    api.saveStorageConfig({ setup_completed: true }).then((cfg) =>
+      this.setState({ storageConfig: cfg, setupOpen: false })
+    );
+  }
+  openStorageSettings() {
+    this.setState({ modal: 'settings', settingsTab: 'storage' });
+    this.loadStorageConfig();
+  }
+  dismissStorageBanner() {
+    this.setState({ storageBannerDismissed: true });
+  }
+  startMigration() {
+    this.setState({ sfBusy: true });
+    api
+      .startStorageMigration(this.state.sfDeleteLocal)
+      .then((job) => {
+        this.setState({ sfBusy: false, storageMigration: job });
+        this._pollMigration();
+      })
+      .catch((err) => {
+        this.setState({ sfBusy: false });
+        this.toast(firstError(err, 'Could not start the move'));
+      });
+  }
+  pauseMigration() {
+    api.pauseStorageMigration().then((job) => this.setState({ storageMigration: job }));
+  }
+  _pollMigration() {
+    clearTimeout(this._migT);
+    const tick = () => {
+      api
+        .storageMigration()
+        .then((job) => {
+          this.setState({ storageMigration: job && job.status !== 'none' ? job : null });
+          if (job && (job.status === 'running' || job.status === 'pending')) {
+            this._migT = setTimeout(tick, 1200);
+          } else {
+            // Refresh the config so the local-file count / backend reflect the move.
+            this.loadStorageConfig();
+          }
+        })
+        .catch(() => {});
+    };
+    this._migT = setTimeout(tick, 1000);
   }
   openRelated(f) {
     this.setState({
@@ -2296,6 +2451,48 @@ export default class App extends React.Component {
       stSecurityColor: settingsTab === 'security' ? '#15171C' : '#656B76',
       stDeveloperBg: settingsTab === 'developer' ? '#FFFFFF' : 'transparent',
       stDeveloperColor: settingsTab === 'developer' ? '#15171C' : '#656B76',
+      stIsStorage: settingsTab === 'storage',
+      setSettingsStorage: () => this.setSettingsStorage(),
+      stStorageBg: settingsTab === 'storage' ? '#FFFFFF' : 'transparent',
+      stStorageColor: settingsTab === 'storage' ? '#15171C' : '#656B76',
+      // Storage administration (owner only)
+      isOwner: st.isOwner,
+      storage: {
+        config: st.storageConfig,
+        migration: st.storageMigration,
+        endpoint: st.sfEndpoint,
+        accessKey: st.sfAccess,
+        secret: st.sfSecret,
+        bucket: st.sfBucket,
+        testState: st.sfTestState,
+        testMsg: st.sfTestMsg,
+        busy: st.sfBusy,
+        deleteLocal: st.sfDeleteLocal,
+        setEndpoint: (e) => this.setState({ sfEndpoint: e.target.value, sfTestState: 'idle' }),
+        setAccessKey: (e) => this.setState({ sfAccess: e.target.value, sfTestState: 'idle' }),
+        setSecret: (e) => this.setState({ sfSecret: e.target.value, sfTestState: 'idle' }),
+        setBucket: (e) => this.setState({ sfBucket: e.target.value, sfTestState: 'idle' }),
+        test: () => this.testStorage(),
+        save: () => this.saveStorage(),
+        toggleDeleteLocal: () => this.setState({ sfDeleteLocal: !this.state.sfDeleteLocal }),
+        startMigration: () => this.startMigration(),
+        pauseMigration: () => this.pauseMigration(),
+        // First-run setup
+        setupOpen: st.setupOpen,
+        setupChoice: st.setupChoice,
+        chooseLocal: () => this.setupChooseLocal(),
+        chooseR2: () => this.setupChooseR2(),
+        skipSetup: () => this.skipSetup(),
+        // Ephemeral-storage banner
+        showBanner:
+          st.isOwner &&
+          !st.storageBannerDismissed &&
+          !!st.storageConfig &&
+          !st.storageConfig.env_managed &&
+          st.storageConfig.effective_backend === 'local',
+        openStorageSettings: () => this.openStorageSettings(),
+        dismissBanner: () => this.dismissStorageBanner(),
+      },
       // Developer / API keys
       apiKeys: st.apiKeys,
       apiKeysLoading: st.apiKeysLoading,
