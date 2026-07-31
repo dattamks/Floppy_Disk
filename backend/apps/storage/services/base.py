@@ -24,6 +24,17 @@ class PresignedUpload:
 class StorageService(ABC):
     """Contract for the object-storage backend (R2 now, unchanged at AWS migration)."""
 
+    def content_hash(self, data: bytes) -> str:
+        """Content-address bytes we hold server-side (notes, edits, renditions).
+
+        Must match how ``stat()`` derives a directly-uploaded object's hash on
+        this backend, so the same bytes dedup whether they arrive via a direct
+        upload or a server-side write. Default is SHA-256 (local backend); R2
+        overrides to MD5 to match the object ETag it reads back."""
+        import hashlib
+
+        return hashlib.sha256(data).hexdigest()
+
     @abstractmethod
     def presign_upload(
         self, *, region: str, object_key: str, max_bytes: int, content_type: str | None = None

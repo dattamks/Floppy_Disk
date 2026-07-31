@@ -45,19 +45,40 @@ export default function SetupModal(V) {
           fontFamily: "'IBM Plex Sans',sans-serif",
         }}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <span
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <span
+              style={{
+                fontFamily: "'Space Grotesk',sans-serif",
+                fontWeight: 600,
+                fontSize: '18px',
+              }}
+            >
+              Where should your files live?
+            </span>
+            <span style={{ fontSize: '13px', color: theme.textMuted }}>
+              You can change this any time in Settings → Storage. It’s the only setup question.
+            </span>
+          </div>
+          <button
+            onClick={S.skipSetup}
+            aria-label="Close"
+            title="Close (keep local storage for now)"
             style={{
-              fontFamily: "'Space Grotesk',sans-serif",
-              fontWeight: 600,
-              fontSize: '18px',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: theme.textMuted2,
+              padding: '2px',
+              lineHeight: 1,
+              flex: '0 0 auto',
             }}
+            data-testid="setup-close"
           >
-            Where should your files live?
-          </span>
-          <span style={{ fontSize: '13px', color: theme.textMuted }}>
-            You can change this any time in Settings → Storage. It’s the only setup question.
-          </span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
 
         <div style={{ display: 'flex', gap: '11px' }}>

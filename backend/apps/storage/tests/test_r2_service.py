@@ -142,6 +142,24 @@ def test_stat_missing_object_raises_filenotfound(svc):
 
 
 @override_settings(**R2_ENV)
+def test_content_hash_matches_stat_etag_for_cross_path_dedup(svc):
+    # A server-written blob (note/edit) must get the SAME content hash that a
+    # directly-uploaded copy of the identical bytes would get via stat(), so the
+    # two dedup to one StorageObject on R2.
+    data = b"identical bytes"
+    svc.save_bytes(region="ap-south", object_key="u1/n", data=data)
+    _, stat_hash = svc.stat(region="ap-south", object_key="u1/n")
+    assert svc.content_hash(data) == stat_hash == hashlib.md5(data).hexdigest()  # noqa: S324
+
+
+def test_local_content_hash_is_sha256():
+    from apps.storage.services.local import LocalStorageService
+
+    data = b"identical bytes"
+    assert LocalStorageService().content_hash(data) == hashlib.sha256(data).hexdigest()
+
+
+@override_settings(**R2_ENV)
 def test_copy_and_delete(svc):
     svc.save_bytes(region="ap-south", object_key="src", data=b"x")
     svc.copy_object(src_region="ap-south", dst_region="ap-south", src_key="src", dst_key="dst")

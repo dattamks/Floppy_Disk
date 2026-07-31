@@ -38,6 +38,14 @@ class R2StorageService(StorageService):
         self._inj_bucket = bucket
         self._inj_region_buckets = region_buckets
 
+    def content_hash(self, data: bytes) -> str:
+        # Match the single-part object ETag that stat() reads back (MD5), so a
+        # server-written blob (note/edit/rendition) dedups against an identical
+        # directly-uploaded object.
+        import hashlib
+
+        return hashlib.md5(data).hexdigest()  # noqa: S324 - dedup key, not security
+
     @property
     def _endpoint_url(self):
         return self._inj_endpoint_url if self._inj_endpoint_url is not None else settings.R2_ENDPOINT_URL

@@ -14,7 +14,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-import hashlib
 import uuid
 
 from django.db import transaction
@@ -375,7 +374,7 @@ class FileContentView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         region = request.user.storage_region
-        content_hash = hashlib.sha256(data).hexdigest()
+        content_hash = storage.content_hash(data)
         # New content addressed at a sibling key so releasing the old blob can't
         # clobber the new one.
         key = f"{_object_key(request.user.id, file.id)}.{content_hash[:12]}"
@@ -811,7 +810,7 @@ class NoteCreateView(APIView):
             kind=File.Kind.DOC, size_bytes=size, status=File.Status.READY,
         )
         region = request.user.storage_region
-        content_hash = hashlib.sha256(data).hexdigest()
+        content_hash = storage.content_hash(data)
         object_key = _object_key(request.user.id, file.id)
         obj, _created = StorageObject.objects.get_or_create(
             content_hash=content_hash, region=region,
