@@ -64,6 +64,9 @@ class UploadInitiateSerializer(serializers.Serializer):
         queryset=Folder.objects.all(), required=False, allow_null=True
     )
     kind = serializers.ChoiceField(choices=File.Kind.choices, default=File.Kind.FILE)
+    # Optional hint used only to classify `kind` when the client leaves it at the
+    # default; the actual stored content-type is served from the blob on download.
+    content_type = serializers.CharField(required=False, allow_blank=True, default="")
 
     def validate_folder(self, value):
         if value is not None:

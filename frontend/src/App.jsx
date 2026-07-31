@@ -1,7 +1,7 @@
 import React from 'react';
 import { theme } from './lib/theme';
 import { api, firstError } from './api';
-import { humanSize, fmtStorage, kindOf, previewKindOf, fmtDuration } from './lib/ui';
+import { humanSize, fmtStorage, kindOf, previewKindOf, fmtDuration, baseName } from './lib/ui';
 import { renderMarkdown } from './lib/markdown';
 import AppView from './view/AppView';
 
@@ -30,6 +30,7 @@ export default class App extends React.Component {
     searchType: 'all', // all | folder | image | video | doc | audio
     mobileSearchOpen: false,
     drawerOpen: false,
+    mobileCreateOpen: false, // the mobile "+" FAB's create menu (note/folder/upload)
     modal: null,
     activeFileId: null,
     // File preview (real uploads fetch a URL / text content on open).
@@ -38,10 +39,15 @@ export default class App extends React.Component {
     previewText: '',
     previewLoading: false,
     previewError: '',
-    // Edit-in-place for text files.
+    // Edit-in-place for text files / the note editor.
     editing: false,
     editText: '',
+    editName: '',
     editSaving: false,
+    creatingNote: false,
+    newNoteId: null, // a just-created note; discarded if closed while still empty
+    noteView: 'write', // note editor tab: 'write' (WYSIWYG) | 'markdown' | 'preview'
+    noteRelated: null, // graph neighbors of the open note (for the backlinks panel)
     // Rename / move dialogs.
     renameName: '',
     renameTargetId: null,
@@ -358,9 +364,29 @@ export default class App extends React.Component {
   }
   navToFolder(id) {
     this.setState({ filterKey: 'all', currentFolderId: id, searchQuery: '', selectedIds: [] });
+    this.loadFolderContents(id); // lazily pull this folder's subfolders + files
   }
   navToShared() {
     this.go('shared');
+  }
+  // Mobile "+" FAB: a small create menu (New note / New folder / Upload).
+  toggleMobileCreate() {
+    this.setState((s) => ({ mobileCreateOpen: !s.mobileCreateOpen }));
+  }
+  closeMobileCreate() {
+    if (this.state.mobileCreateOpen) this.setState({ mobileCreateOpen: false });
+  }
+  mobileCreateNote() {
+    this.setState({ mobileCreateOpen: false });
+    this.newNote();
+  }
+  mobileNewFolder() {
+    this.setState({ mobileCreateOpen: false });
+    this.openNewFolder();
+  }
+  mobileUpload() {
+    this.setState({ mobileCreateOpen: false });
+    this.openUpload();
   }
   navToRecent() {
     this.go('recent');
@@ -625,55 +651,60 @@ export default class App extends React.Component {
       .catch((err) => this.toast(firstError(err, 'Could not create folder')));
   }
 
-  // Pull the user's real folders + files from the backend and merge them in
-  // (dedupe by id, so we never duplicate what's already in state).
+  // Merge fetched folders into state (dedupe by id — never duplicate).
+  _mergeFolders(folders) {
+    this.setState((s) => {
+      const existing = new Set(s.files.map((f) => f.id));
+      const mapped = (folders || [])
+        .filter((f) => !existing.has(f.id))
+        .map((f) => ({
+          id: f.id,
+          name: f.name,
+          kind: 'folder',
+          parentId: f.parent || null,
+          trashed: false,
+          real: true,
+        }));
+      return mapped.length ? { files: [...mapped, ...s.files] } : null;
+    });
+  }
+  _mergeFiles(files) {
+    this.setState((s) => {
+      const existing = new Set(s.files.map((f) => f.id));
+      const mapped = (files || [])
+        .filter((f) => !existing.has(f.id))
+        .map((f) => ({
+          id: f.id,
+          name: f.name,
+          kind: f.kind,
+          parentId: f.folder || null,
+          size: humanSize(f.size_bytes),
+          sizeBytes: f.size_bytes,
+          modified: '',
+          shared: false,
+          starred: false,
+          trashed: false,
+          status: f.status,
+          poster: f.poster_url || undefined,
+          duration: fmtDuration(f.duration_seconds) || undefined,
+          real: true,
+        }));
+      return mapped.length ? { files: [...mapped, ...s.files] } : null;
+    });
+  }
+  // Lazily fetch a folder's own children + files when the user opens it, so
+  // nested content appears (the API lists one level at a time; we merge as we go).
+  loadFolderContents(id) {
+    if (!id) return;
+    api.listFolders(id).then((f) => this._mergeFolders(f)).catch(() => {});
+    api.listFiles(id).then((f) => this._mergeFiles(f)).catch(() => {});
+  }
+
+  // Pull the user's real (root-level) folders + files from the backend and merge
+  // them in; deeper levels load lazily on navigation via loadFolderContents.
   loadStorage() {
-    api
-      .listFolders()
-      .then((folders) => {
-        this.setState((s) => {
-          const existing = new Set(s.files.map((f) => f.id));
-          const mapped = (folders || [])
-            .filter((f) => !existing.has(f.id))
-            .map((f) => ({
-              id: f.id,
-              name: f.name,
-              kind: 'folder',
-              parentId: f.parent || null,
-              trashed: false,
-              real: true,
-            }));
-          return mapped.length ? { files: [...mapped, ...s.files] } : null;
-        });
-      })
-      .catch(() => {});
-    api
-      .listFiles()
-      .then((files) => {
-        this.setState((s) => {
-          const existing = new Set(s.files.map((f) => f.id));
-          const mapped = (files || [])
-            .filter((f) => !existing.has(f.id))
-            .map((f) => ({
-              id: f.id,
-              name: f.name,
-              kind: f.kind,
-              parentId: f.folder || null,
-              size: humanSize(f.size_bytes),
-              sizeBytes: f.size_bytes,
-              modified: '',
-              shared: false,
-              starred: false,
-              trashed: false,
-              status: f.status,
-              poster: f.poster_url || undefined,
-              duration: fmtDuration(f.duration_seconds) || undefined,
-              real: true,
-            }));
-          return mapped.length ? { files: [...mapped, ...s.files] } : null;
-        });
-      })
-      .catch(() => {});
+    api.listFolders().then((f) => this._mergeFolders(f)).catch(() => {});
+    api.listFiles().then((f) => this._mergeFiles(f)).catch(() => {});
     api
       .trash()
       .then((t) => {
@@ -738,9 +769,11 @@ export default class App extends React.Component {
         this._videoEl.pause();
       } catch (e) {}
     }
+    this._discardEmptyNewNote(); // drop an untouched brand-new note on close
     this.setState({
       modal: null,
       activeFileId: null,
+      newNoteId: null,
       videoPlaying: false,
       videoProgress: 0,
       videoCurrent: 0,
@@ -759,6 +792,7 @@ export default class App extends React.Component {
         searchQuery: '',
         selectedIds: [],
       });
+      this.loadFolderContents(file.id); // pull this folder's subfolders + files
       return;
     }
     if (file.kind === 'video') {
@@ -807,7 +841,12 @@ export default class App extends React.Component {
       previewLoading: !!file.real,
       editing: false,
       editText: '',
+      editName: '',
+      newNoteId: null,
+      noteRelated: null,
     });
+    // Load backlinks/links for text notes so the editor can show connections.
+    if (file.real && isText) this._loadBacklinks(file.id);
     if (file.real) {
       // Fetch a real, same-origin URL for the bytes; for text formats also read
       // the content so we can render it (markdown/json/yaml/code).
@@ -855,42 +894,160 @@ export default class App extends React.Component {
     if (nextItem) this.openFile(nextItem);
   }
 
-  // --- Edit-in-place (text files) -------------------------------------------
+  // --- Notes: create a blank note and open it straight into the editor ------
+  newNote() {
+    if (this.state.creatingNote) return;
+    const folder = this.state.currentFolderId || null;
+    this.setState({ creatingNote: true });
+    api
+      .createNote(folder ? { folder } : {})
+      .then((f) => {
+        const item = {
+          id: f.id,
+          name: f.name,
+          kind: 'doc',
+          parentId: f.folder || null,
+          size: humanSize(f.size_bytes),
+          sizeBytes: f.size_bytes,
+          modified: '',
+          status: f.status,
+          starred: false,
+          trashed: false,
+          real: true,
+        };
+        this.setState((s) => ({ files: [item, ...s.files], creatingNote: false }));
+        // Open it immediately in edit mode with an empty body — start typing.
+        this.setState({
+          modal: 'preview',
+          activeFileId: f.id,
+          previewKind: 'markdown',
+          previewUrl: '',
+          previewText: '',
+          previewError: '',
+          previewLoading: false,
+          editing: true,
+          editText: '',
+          editName: baseName(f.name),
+          noteView: 'write',
+          noteRelated: null,
+          newNoteId: f.id,
+        });
+      })
+      .catch((err) => {
+        this.setState({ creatingNote: false });
+        this.toast(firstError(err, 'Could not create note'));
+      });
+  }
+  // A brand-new note that's closed while still empty is discarded, so hitting
+  // "New note" and changing your mind never leaves an empty "Untitled note".
+  _discardEmptyNewNote() {
+    const { newNoteId, activeFileId, editText, editName } = this.state;
+    if (!newNoteId || newNoteId !== activeFileId) return false;
+    const bodyEmpty = !(editText || '').trim();
+    const titleUntouched = !(editName || '').trim() || editName.trim() === 'Untitled note';
+    if (!bodyEmpty || !titleUntouched) return false;
+    this.setState((s) => ({ files: s.files.filter((x) => x.id !== newNoteId), newNoteId: null }));
+    api.deleteFile(newNoteId).catch(() => {});
+    return true;
+  }
+
+  // --- Edit-in-place (text files / notes) -----------------------------------
   startEdit() {
-    this.setState({ editing: true, editText: this.state.previewText || '' });
+    const f = this.state.files.find((x) => x.id === this.state.activeFileId);
+    this.setState({
+      editing: true,
+      editText: this.state.previewText || '',
+      editName: baseName(f ? f.name : ''),
+      noteView: 'write',
+    });
   }
   setEditText(e) {
     this.setState({ editText: e.target.value });
   }
+  // NoteEditor (WYSIWYG) emits Markdown directly; the raw textarea passes an event.
+  setNoteMarkdown(md) {
+    this.setState({ editText: md });
+  }
+  setNoteView(view) {
+    this.setState({ noteView: view });
+  }
+  setEditName(e) {
+    this.setState({ editName: e.target.value });
+  }
   cancelEdit() {
-    this.setState({ editing: false, editText: '' });
+    // Cancelling a brand-new empty note closes and discards it entirely.
+    if (this._discardEmptyNewNote()) {
+      this.closeModal();
+      return;
+    }
+    this.setState({ editing: false, editText: '', editName: '' });
   }
   saveEdit() {
     const id = this.state.activeFileId;
     const content = this.state.editText;
+    const cur = this.state.files.find((x) => x.id === id);
+    const curName = cur ? cur.name : '';
+    const typed = (this.state.editName || '').trim();
+    const desiredName = typed
+      ? /\.(md|markdown|txt)$/i.test(typed)
+        ? typed
+        : typed + '.md'
+      : curName;
     this.setState({ editSaving: true });
     api
       .updateFileContent(id, content)
       .then((f) => {
-        this.setState((s) => ({
-          editing: false,
-          editSaving: false,
-          previewText: content,
-          files: s.files.map((x) =>
-            x.id === id
-              ? {
-                  ...x,
-                  size: f && f.size_bytes != null ? humanSize(f.size_bytes) : x.size,
-                  sizeBytes: f ? f.size_bytes : x.sizeBytes,
-                }
-              : x
-          ),
-        }));
-        this.toast('Saved');
+        const finish = (finalName) => {
+          this.setState((s) => ({
+            editing: false,
+            editSaving: false,
+            editName: '',
+            newNoteId: null, // it's a real, saved note now
+            previewText: content,
+            files: s.files.map((x) =>
+              x.id === id
+                ? {
+                    ...x,
+                    name: finalName,
+                    size: f && f.size_bytes != null ? humanSize(f.size_bytes) : x.size,
+                    sizeBytes: f ? f.size_bytes : x.sizeBytes,
+                  }
+                : x
+            ),
+          }));
+          this.toast('Saved');
+          this._loadBacklinks(id); // links may have changed
+        };
+        if (desiredName && desiredName !== curName) {
+          api
+            .updateFile(id, { name: desiredName })
+            .then((rf) => finish(rf && rf.name ? rf.name : desiredName))
+            .catch(() => finish(curName)); // content saved even if the rename failed
+        } else {
+          finish(curName);
+        }
       })
       .catch((err) => {
         this.setState({ editSaving: false });
         this.toast(firstError(err, 'Could not save'));
+      });
+  }
+  // Open a file/note by id (used by backlink chips).
+  _openById(id) {
+    const f = this.state.files.find((x) => x.id === id);
+    if (f) this.openFile(f);
+  }
+  // Fetch a note's graph neighbors so the editor can show its backlinks.
+  _loadBacklinks(id) {
+    api
+      .graphRelated(id)
+      .then((d) => {
+        if (this.state.activeFileId === id) {
+          this.setState({ noteRelated: d && Array.isArray(d.related) ? d.related : [] });
+        }
+      })
+      .catch(() => {
+        if (this.state.activeFileId === id) this.setState({ noteRelated: [] });
       });
   }
 
@@ -1586,12 +1743,15 @@ export default class App extends React.Component {
         starFill: f.starred ? theme.star : 'none',
         starStroke: f.starred ? theme.star : theme.textFaint,
         metaLine: isFolder
-          ? itemCount + (itemCount === 1 ? ' item' : ' items')
+          ? // Counts come from lazily-loaded children; show a neutral label
+            // until we've opened the folder rather than a misleading "0 items".
+            itemCount > 0
+            ? itemCount + (itemCount === 1 ? ' item' : ' items')
+            : 'Folder'
           : `${f.size || ''}${f.size && f.modified ? ' · ' : ''}${f.modified || ''}`,
         retentionLabel:
           daysLeft !== null ? daysLeft + (daysLeft === 1 ? ' day left' : ' days left') : '',
         channelLine: 'Uploaded by you',
-        shareUrl: 'floppy.disk/s/' + f.id,
         imgRef: mkImgRef(f.poster),
         onOpen: () => this.openFile(f),
         onShare: (e) => this.openShare(f, e),
@@ -1902,6 +2062,12 @@ export default class App extends React.Component {
       navToShared: () => this.navToShared(),
       navToRecent: () => this.navToRecent(),
       navToTrash: () => this.navToTrash(),
+      mobileCreateOpen: st.mobileCreateOpen,
+      onFabTap: () => this.toggleMobileCreate(),
+      onMobileCreateNote: () => this.mobileCreateNote(),
+      onMobileNewFolder: () => this.mobileNewFolder(),
+      onMobileUpload: () => this.mobileUpload(),
+      closeMobileCreate: () => this.closeMobileCreate(),
       navAllBg: navBg(af('all')),
       navAllColor: navColor(af('all')),
       navAllWeight: navW(af('all')),
@@ -1922,6 +2088,8 @@ export default class App extends React.Component {
       closeCtxMenu: () => this.closeCtxMenu(),
       openUpload: () => this.openUpload(),
       openNewFolder: () => this.openNewFolder(),
+      onNewNote: () => this.newNote(),
+      creatingNote: st.creatingNote,
       isNewFolderModal: modal === 'newFolder',
       newFolderName: st.newFolderName,
       setNewFolderName: (e) => this.setNewFolderName(e),
@@ -1996,12 +2164,37 @@ export default class App extends React.Component {
         !st.previewLoading &&
         !st.previewError,
       isEditing: st.editing,
+      isNote: st.previewKind === 'markdown',
       editText: st.editText,
+      editName: st.editName,
       editSaving: st.editSaving,
+      noteView: st.noteView,
+      setNoteView: (v) => this.setNoteView(v),
+      setNoteMarkdown: (md) => this.setNoteMarkdown(md),
       onStartEdit: () => this.startEdit(),
       setEditText: (e) => this.setEditText(e),
+      setEditName: (e) => this.setEditName(e),
       onCancelEdit: () => this.cancelEdit(),
       onSaveEdit: () => this.saveEdit(),
+      // Live rendered preview shown beside the editor for Markdown notes.
+      editPreviewHtml:
+        st.editing && st.previewKind === 'markdown' ? renderMarkdown(st.editText || '') : '',
+      // Backlinks: other notes/files that reference this one (incoming edges).
+      noteBacklinks: (st.noteRelated || [])
+        .filter((r) => r.direction === 'in' && r.node && r.node.file_id)
+        .map((r) => ({
+          id: r.node.file_id,
+          name: r.node.label,
+          reason: r.reason,
+          onOpen: () => this._openById(r.node.file_id),
+        })),
+      noteLinksOut: (st.noteRelated || [])
+        .filter((r) => r.direction === 'out' && r.rel === 'references' && r.node && r.node.file_id)
+        .map((r) => ({
+          id: r.node.file_id,
+          name: r.node.label,
+          onOpen: () => this._openById(r.node.file_id),
+        })),
       previewLoading: st.previewLoading,
       previewError: st.previewError,
       previewHtml: st.previewKind === 'markdown' ? renderMarkdown(st.previewText || '') : '',
@@ -2121,8 +2314,24 @@ export default class App extends React.Component {
       overlayBg: theater ? 'rgba(8,9,12,0.92)' : 'rgba(20,23,28,0.42)',
       overlayAlign: theater ? 'stretch' : d.modalAlign,
       overlayPad: theater ? 0 : d.modalPad,
-      boxW: theater ? '100%' : modal === 'graph' ? 'min(1040px, 95vw)' : d.modalW,
-      boxMaxH: theater ? '100vh' : modal === 'graph' ? '92vh' : d.modalMaxH,
+      boxW: theater
+        ? '100%'
+        : modal === 'graph'
+          ? 'min(1040px, 95vw)'
+          : modal === 'preview' && st.editing && st.previewKind === 'markdown'
+            ? 'min(1280px, 96vw)'
+            : d.modalW,
+      boxMaxH: theater
+        ? '100vh'
+        : modal === 'graph'
+          ? '92vh'
+          : modal === 'preview' && st.editing
+            ? '92vh'
+            : d.modalMaxH,
+      // The note editor gets a definite, near-full-screen height so the write /
+      // preview panes fill the window instead of a small fixed textarea.
+      boxH:
+        modal === 'preview' && st.editing && st.previewKind === 'markdown' ? '92vh' : undefined,
       boxBg: theater ? '#0B0C0F' : '#FFFFFF',
       boxBorder: theater ? 'none' : '1px solid #E5E7EC',
       boxRadius: theater ? '0px' : d.modalRadius,
@@ -2136,7 +2345,7 @@ export default class App extends React.Component {
       vVideoFlex: theater ? '1' : '0 0 auto',
       copyLink: () => this.copyLink(),
       shareLinkUrl: st.shareLinkUrl,
-      copyLabel: shareCopied ? 'Copied!' : 'Copy',
+      copyLabel: shareCopied ? 'Copied!' : 'Copy link',
       setAccessRestricted: () => this.setAccessRestricted(),
       setAccessAnyone: () => this.setAccessAnyone(),
       restrictedBg: rA.bg,

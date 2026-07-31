@@ -19,6 +19,14 @@ describe('renderMarkdown', () => {
     expect(ol).toContain('<li>first</li>');
   });
 
+  it('renders task-list items as checkboxes', () => {
+    const html = renderMarkdown('- [ ] todo\n- [x] done');
+    expect(html).toContain('<li class="md-task"><input type="checkbox" disabled/>todo</li>');
+    expect(html).toContain(
+      '<li class="md-task"><input type="checkbox" disabled checked/>done</li>'
+    );
+  });
+
   it('renders fenced code blocks verbatim', () => {
     const html = renderMarkdown('```\nconst x = 1;\n```');
     expect(html).toContain('<pre class="md-pre"><code>const x = 1;</code></pre>');

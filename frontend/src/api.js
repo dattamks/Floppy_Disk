@@ -80,6 +80,7 @@ export const api = {
   updateFile: (id, patch) => request(`/storage/files/${id}`, { method: 'PATCH', body: patch }),
   updateFileContent: (id, content) =>
     request(`/storage/files/${id}/content`, { method: 'PUT', body: { content } }),
+  createNote: (body) => request('/storage/notes', { method: 'POST', body }),
   deleteFile: (id) => request(`/storage/files/${id}`, { method: 'DELETE' }),
   fileDownload: (id) => request(`/storage/files/${id}/download`),
   restoreFile: (id) => request(`/storage/files/${id}/restore`, { method: 'POST' }),

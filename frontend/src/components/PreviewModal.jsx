@@ -2,6 +2,11 @@ import React from 'react';
 import { theme } from '../lib/theme';
 import { highlightJson, highlightYaml } from '../lib/highlight';
 
+// The WYSIWYG editor pulls in TipTap/ProseMirror (~160KB gzip); load it lazily
+// so it only reaches users who actually open a note, keeping the app's initial
+// bundle small.
+const NoteEditor = React.lazy(() => import('./NoteEditor'));
+
 // Inline viewers for a file's own content: image, PDF, audio, Markdown, JSON,
 // YAML, and plain text/code. Real uploads fetch a same-origin URL (and text
 // content) in App.openFile; demo files carry hardcoded URLs.
@@ -21,6 +26,22 @@ const codeBoxStyle = {
   whiteSpace: 'pre',
 };
 
+// Shared rendered-Markdown styling, reused by the read view and the live editor.
+const mdCss = () => `
+  .md-body{max-height:360px;overflow:auto;padding:16px;border:1px solid ${theme.border};border-radius:11px;background:${theme.white};color:${theme.text};font-size:13.5px;line-height:1.6;}
+  .md-body h1,.md-body h2,.md-body h3{font-family:'Space Grotesk',sans-serif;margin:0.6em 0 0.35em;line-height:1.25;}
+  .md-body h1{font-size:1.5em;} .md-body h2{font-size:1.28em;} .md-body h3{font-size:1.1em;}
+  .md-body p{margin:0.5em 0;} .md-body ul,.md-body ol{margin:0.5em 0;padding-left:1.4em;}
+  .md-body li{margin:0.2em 0;}
+  .md-body li.md-task{list-style:none;margin-left:-1.25em;display:flex;align-items:flex-start;gap:7px;}
+  .md-body li.md-task input{margin:0.28em 0 0;flex:0 0 auto;accent-color:${theme.brand};}
+  .md-body code{background:${theme.surface};padding:1px 5px;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:0.9em;}
+  .md-body pre.md-pre{background:${theme.surface};padding:12px;border-radius:9px;overflow:auto;border:1px solid ${theme.border};}
+  .md-body pre.md-pre code{background:none;padding:0;}
+  .md-body blockquote{margin:0.5em 0;padding:2px 12px;border-left:3px solid ${theme.border};color:${theme.textMuted};}
+  .md-body a{color:${theme.brand};} .md-body hr{border:none;border-top:1px solid ${theme.border};margin:0.8em 0;}
+`;
+
 function Body(V) {
   const f = V.activeFile;
   if (V.previewLoading) {
@@ -36,27 +57,125 @@ function Body(V) {
     );
   }
   if (V.isEditing) {
-    return (
+    const onSaveKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        if (!V.editSaving) V.onSaveEdit();
+      }
+    };
+    // Raw textarea — used for plain text files, and the "Markdown" tab of a note.
+    const rawEditor = (
       <textarea
         value={V.editText}
         onInput={V.setEditText}
+        onKeyDown={onSaveKey}
+        autoFocus={!V.isNote}
         spellCheck={false}
         style={{
+          flex: '1 1 auto',
           width: '100%',
-          minHeight: '340px',
-          resize: 'vertical',
-          padding: '14px',
+          minHeight: V.isNote ? '240px' : '360px',
+          resize: V.isNote ? 'none' : 'vertical',
+          padding: '16px',
           border: `1px solid ${theme.brand}`,
           borderRadius: '11px',
           background: theme.white,
           color: theme.text,
           fontFamily: "'IBM Plex Mono','SFMono-Regular',Menlo,monospace",
-          fontSize: '12.5px',
-          lineHeight: '1.55',
+          fontSize: '13px',
+          lineHeight: '1.65',
           outline: 'none',
           boxSizing: 'border-box',
         }}
       />
+    );
+
+    // Plain (non-note) text file: single raw editor, no tabs.
+    if (!V.isNote) {
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1 1 auto', minHeight: 0 }}>
+          {rawEditor}
+        </div>
+      );
+    }
+
+    // Note: title + Write | Markdown | Preview tabs (one pane at a time).
+    const view = V.noteView || 'write';
+    const tab = (id, label) => (
+      <button
+        key={id}
+        type="button"
+        onClick={() => V.setNoteView(id)}
+        style={{
+          padding: '6px 14px',
+          borderRadius: '8px',
+          border: 'none',
+          background: view === id ? theme.white : 'transparent',
+          color: view === id ? theme.brand : theme.textMuted,
+          fontWeight: '600',
+          fontSize: '13px',
+          cursor: 'pointer',
+          boxShadow: view === id ? '0 1px 3px rgba(16,24,40,0.12)' : 'none',
+          fontFamily: "'IBM Plex Sans',sans-serif",
+        }}
+      >
+        {label}
+      </button>
+    );
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: '1 1 auto', minHeight: 0 }}>
+        <input
+          value={V.editName}
+          onInput={V.setEditName}
+          onKeyDown={onSaveKey}
+          aria-label="Note title"
+          placeholder="Untitled note"
+          style={{
+            width: '100%',
+            padding: '10px 12px',
+            border: `1px solid ${theme.border}`,
+            borderRadius: '9px',
+            background: theme.surface,
+            color: theme.text,
+            fontFamily: "'Space Grotesk',sans-serif",
+            fontWeight: '600',
+            fontSize: '17px',
+            outline: 'none',
+            boxSizing: 'border-box',
+          }}
+        />
+        <div style={{ display: 'flex', gap: '3px', padding: '3px', background: theme.surface, borderRadius: '10px', alignSelf: 'flex-start' }}>
+          {tab('write', 'Write')}
+          {tab('markdown', 'Markdown')}
+          {tab('preview', 'Preview')}
+        </div>
+        {view === 'write' ? (
+          <React.Suspense
+            fallback={
+              <div style={{ flex: '1 1 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.textMuted, minHeight: '240px' }}>
+                Loading editor…
+              </div>
+            }
+          >
+            <NoteEditor
+              value={V.editText}
+              onChange={V.setNoteMarkdown}
+              placeholder="Start writing… use the toolbar, or type Markdown and it formats as you go."
+            />
+          </React.Suspense>
+        ) : view === 'markdown' ? (
+          rawEditor
+        ) : (
+          <div className="md-body md-live" style={{ flex: '1 1 auto', minHeight: '240px', maxHeight: 'none' }}>
+            <style>{mdCss()}</style>
+            {V.editText ? (
+              <div dangerouslySetInnerHTML={{ __html: V.editPreviewHtml }} />
+            ) : (
+              <div style={{ color: theme.textFaint, fontStyle: 'italic' }}>Nothing to preview yet.</div>
+            )}
+          </div>
+        )}
+      </div>
     );
   }
   const k = V.previewKind;
@@ -173,18 +292,7 @@ function Body(V) {
   if (k === 'markdown') {
     return (
       <div className="md-body">
-        <style>{`
-          .md-body{max-height:360px;overflow:auto;padding:16px;border:1px solid ${theme.border};border-radius:11px;background:${theme.white};color:${theme.text};font-size:13.5px;line-height:1.6;}
-          .md-body h1,.md-body h2,.md-body h3{font-family:'Space Grotesk',sans-serif;margin:0.6em 0 0.35em;line-height:1.25;}
-          .md-body h1{font-size:1.5em;} .md-body h2{font-size:1.28em;} .md-body h3{font-size:1.1em;}
-          .md-body p{margin:0.5em 0;} .md-body ul,.md-body ol{margin:0.5em 0;padding-left:1.4em;}
-          .md-body li{margin:0.2em 0;}
-          .md-body code{background:${theme.surface};padding:1px 5px;border-radius:5px;font-family:'IBM Plex Mono',monospace;font-size:0.9em;}
-          .md-body pre.md-pre{background:${theme.surface};padding:12px;border-radius:9px;overflow:auto;border:1px solid ${theme.border};}
-          .md-body pre.md-pre code{background:none;padding:0;}
-          .md-body blockquote{margin:0.5em 0;padding:2px 12px;border-left:3px solid ${theme.border};color:${theme.textMuted};}
-          .md-body a{color:${theme.brand};} .md-body hr{border:none;border-top:1px solid ${theme.border};margin:0.8em 0;}
-        `}</style>
+        <style>{mdCss()}</style>
         <div dangerouslySetInnerHTML={{ __html: V.previewHtml }} />
       </div>
     );
@@ -228,6 +336,71 @@ function Body(V) {
       }}
     >
       No inline preview for this file type. Use Download to open it.
+    </div>
+  );
+}
+
+// Backlinks / links for a note — the connections the knowledge graph found.
+function Backlinks(V) {
+  const back = V.noteBacklinks || [];
+  const out = V.noteLinksOut || [];
+  if (!back.length && !out.length) return null;
+  const chip = (item, incoming) => (
+    <button
+      key={(incoming ? 'b' : 'o') + item.id}
+      onClick={item.onOpen}
+      title={item.reason || 'Open'}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '5px',
+        background: theme.surface,
+        border: `1px solid ${theme.border}`,
+        borderRadius: '999px',
+        padding: '4px 11px',
+        fontSize: '12px',
+        color: theme.text,
+        cursor: 'pointer',
+        maxWidth: '220px',
+      }}
+    >
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M9 15l6-6M10.5 6.5l1-1a4 4 0 0 1 6 6l-1 1M13.5 17.5l-1 1a4 4 0 0 1-6-6l1-1"
+          stroke={theme.brand}
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        />
+      </svg>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {item.name}
+      </span>
+    </button>
+  );
+  const section = (label, items, incoming) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <span style={{ fontSize: '11px', fontWeight: '600', color: theme.textMuted, letterSpacing: '0.02em' }}>
+        {label}
+      </span>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+        {items.map((it) => chip(it, incoming))}
+      </div>
+    </div>
+  );
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        padding: '12px',
+        border: `1px solid ${theme.border}`,
+        borderRadius: '11px',
+        background: theme.appBg2,
+      }}
+    >
+      {out.length ? section('Links in this note', out, false) : null}
+      {back.length ? section('Linked mentions', back, true) : null}
     </div>
   );
 }
@@ -279,6 +452,7 @@ export default function PreviewModal(V) {
         </button>
       </div>{' '}
       {Body(V)}{' '}
+      {V.isNote && !V.isEditing ? Backlinks(V) : null}{' '}
       <div
         style={{
           display: 'flex',

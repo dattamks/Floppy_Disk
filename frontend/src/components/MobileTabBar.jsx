@@ -7,6 +7,9 @@ export default function MobileTabBar(V) {
   return V.isMobile ? (
     <React.Fragment>
       {' '}
+      {V.mobileCreateOpen ? (
+        <div onClick={V.closeMobileCreate} style={{ position: 'absolute', inset: '0', zIndex: '4' }} />
+      ) : null}{' '}
       <div
         style={{
           position: 'absolute',
@@ -67,32 +70,80 @@ export default function MobileTabBar(V) {
           </svg>
           <span style={{ fontSize: '9.5px', fontWeight: '500' }}>Shared</span>
         </button>{' '}
-        <button
-          onClick={V.openUpload}
-          style={{
-            background: theme.brand,
-            border: 'none',
-            width: '46px',
-            height: '46px',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            marginTop: '-20px',
-            boxShadow: '0 6px 16px rgba(81,69,229,0.4)',
-          }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M12 16V4M7 9l5-5 5 5M4 20h16"
-              stroke={theme.white}
-              strokeWidth="2.1"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>{' '}
+        <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
+          {V.mobileCreateOpen ? (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '54px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                background: theme.white,
+                border: `1px solid ${theme.border}`,
+                borderRadius: '14px',
+                padding: '8px',
+                boxShadow: '0 12px 30px rgba(16,24,40,0.22)',
+                zIndex: '6',
+              }}
+            >
+              {[
+                { label: 'New note', fn: V.onMobileCreateNote },
+                { label: 'New folder', fn: V.onMobileNewFolder },
+                { label: 'Upload', fn: V.onMobileUpload },
+              ].map((a) => (
+                <button
+                  key={a.label}
+                  onClick={a.fn}
+                  style={{
+                    whiteSpace: 'nowrap',
+                    background: theme.surface,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '9px',
+                    padding: '10px 18px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: theme.text,
+                    cursor: 'pointer',
+                    fontFamily: "'IBM Plex Sans',sans-serif",
+                  }}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <button
+            onClick={V.onFabTap}
+            aria-label="Create"
+            aria-expanded={!!V.mobileCreateOpen}
+            style={{
+              background: theme.brand,
+              border: 'none',
+              width: '46px',
+              height: '46px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              marginTop: '-20px',
+              boxShadow: '0 6px 16px rgba(81,69,229,0.4)',
+            }}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              style={{ transition: 'transform 0.15s', transform: V.mobileCreateOpen ? 'rotate(45deg)' : 'none' }}
+            >
+              <path d="M12 5v14M5 12h14" stroke={theme.white} strokeWidth="2.2" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>{' '}
         <button
           onClick={V.navToTrash}
           style={{

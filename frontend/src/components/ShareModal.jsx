@@ -27,23 +27,6 @@ export default function ShareModal(V) {
         >
           Share "{V.activeFile.name}"
         </span>
-        {V.shareLinkUrl ? (
-          <input
-            readOnly
-            value={V.shareLinkUrl}
-            aria-label="Share link"
-            onFocus={(e) => e.target.select()}
-            style={{
-              marginLeft: '8px',
-              fontSize: '11px',
-              padding: '4px 8px',
-              border: `1px solid ${theme.border}`,
-              borderRadius: '6px',
-              maxWidth: '170px',
-              color: theme.brand,
-            }}
-          />
-        ) : null}
         <button
           onClick={V.closeModal}
           style={{
@@ -159,7 +142,12 @@ export default function ShareModal(V) {
         </button>{' '}
       </div>{' '}
       <div style={{ display: 'flex', gap: '8px' }}>
-        <div
+        <input
+          readOnly
+          aria-label="Share link"
+          value={V.shareLinkUrl || ''}
+          placeholder={V.shareLinkUrl ? '' : 'Creating public link…'}
+          onFocus={(e) => e.target.select()}
           style={{
             flex: '1',
             minWidth: '0',
@@ -168,26 +156,26 @@ export default function ShareModal(V) {
             borderRadius: '9px',
             padding: '10px 12px',
             fontSize: '12px',
-            color: theme.textMuted,
+            color: V.shareLinkUrl ? theme.brand : theme.textMuted,
             fontFamily: 'monospace',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
+            outline: 'none',
           }}
-        >
-          {V.activeFile.shareUrl}
-        </div>
+        />
         <button
           onClick={V.copyLink}
+          disabled={!V.shareLinkUrl}
           style={{
-            background: theme.brand,
-            color: theme.white,
+            background: V.shareLinkUrl ? theme.brand : theme.surface2,
+            color: V.shareLinkUrl ? theme.white : theme.textMuted2,
             border: 'none',
             borderRadius: '9px',
             padding: '0 16px',
             fontSize: '13px',
             fontWeight: '600',
-            cursor: 'pointer',
+            cursor: V.shareLinkUrl ? 'pointer' : 'default',
             whiteSpace: 'nowrap',
             flex: '0 0 auto',
           }}

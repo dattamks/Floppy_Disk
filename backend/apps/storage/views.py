@@ -15,12 +15,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 import hashlib
+import uuid
 
 from django.db import transaction
 
 from .lifecycle import _release_object, purge_file, purge_folder
 from .models import File, Folder, StorageObject, StorageReservation
-from .naming import unique_name
+from .naming import classify_kind, unique_name
 from .quota import FileTooLarge, QuotaExceeded, available_bytes, commit, reserve
 from .scoping import folder_in_scope, is_scoped, scope_files, scope_folders, scoped_folder_ids
 from .serializers import (
@@ -399,6 +400,12 @@ class FileContentView(APIView):
             get_user_model().objects.filter(pk=request.user.pk).update(
                 storage_used_bytes=F("storage_used_bytes") + delta
             )
+        # Content changed — refresh the full-text index and warm the graph.
+        if file.kind == File.Kind.DOC:
+            from .indexing import reindex_file
+            reindex_file(file)
+        from apps.graph.tasks import schedule_rebuild
+        schedule_rebuild(request.user)
         return Response(FileSerializer(file).data)
 
 
@@ -625,11 +632,18 @@ class UploadInitiateView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         name = unique_name(data["name"], _active_file_names(request.user, data.get("folder")))
+        # Derive kind from the name/content-type when the client left it at the
+        # generic default (REST/MCP clients often omit it). This keeps the
+        # knowledge graph able to scan documents regardless of upload path; a
+        # client that sends an explicit kind is always respected.
+        kind = data["kind"]
+        if kind == File.Kind.FILE:
+            kind = classify_kind(name, data.get("content_type"))
         file = File.objects.create(
             owner=request.user,
             name=name,
             folder=data.get("folder"),
-            kind=data["kind"],
+            kind=kind,
             size_bytes=data["size_bytes"],
             status=File.Status.PENDING,
         )
@@ -721,9 +735,95 @@ class UploadCompleteView(APIView):
             transcode_video_task.delay(str(file.id))
             file.refresh_from_db()  # eager task (dev/tests) may already have finished
 
+        # Extract document text for full-text (content) search (best-effort).
+        if file.kind == File.Kind.DOC:
+            from .indexing import reindex_file
+            reindex_file(file)
+
+        # Warm the knowledge graph off the request path (no-op in eager mode).
+        from apps.graph.tasks import schedule_rebuild
+        schedule_rebuild(request.user)
+
         from apps.analytics.track import track
         track("upload_complete", user=request.user, kind=file.kind, size_bytes=file.size_bytes)
         return Response(FileSerializer(file).data, status=status.HTTP_200_OK)
+
+
+class NoteCreateView(APIView):
+    """Create a note — a Markdown document — in a single call.
+
+    Notes are ordinary doc-kind files, but a note editor shouldn't have to run
+    the 3-step upload dance just to make a blank page. This collapses
+    initiate+put+complete: it creates the file, stores the (optional) initial
+    text, commits quota, and indexes it for search + the knowledge graph — so
+    the editor can create-then-edit smoothly. Content is then edited in place via
+    PUT /files/{id}/content like any other document.
+    """
+
+    permission_classes = [IsAuthenticated]
+    MAX_BYTES = 5 * 1024 * 1024
+
+    @transaction.atomic
+    def post(self, request):
+        folder = None
+        folder_id = request.data.get("folder")
+        if folder_id:
+            # Validate the id shape first so a malformed value is a clean 400,
+            # not a 500 when the DB tries to cast it to a UUID.
+            try:
+                folder_uuid = uuid.UUID(str(folder_id))
+            except (ValueError, TypeError, AttributeError):
+                return Response({"detail": "Invalid folder."}, status=status.HTTP_400_BAD_REQUEST)
+            folder = scope_folders(
+                Folder.objects.filter(owner=request.user, deleted_at__isnull=True), request
+            ).filter(pk=folder_uuid).first()
+            if folder is None:
+                return Response({"detail": "Invalid folder."}, status=status.HTTP_400_BAD_REQUEST)
+        # A folder-scoped key may only create inside its subtree.
+        if not folder_in_scope(request, folder.pk if folder else None):
+            return Response({"detail": "This key can only create inside its allowed folder."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        raw = (str(request.data.get("name") or "").strip()) or "Untitled note"
+        if not raw.lower().endswith(".md"):
+            raw += ".md"
+        name = unique_name(raw, _active_file_names(request.user, folder))
+
+        data = str(request.data.get("content", "")).encode("utf-8")
+        if len(data) > self.MAX_BYTES:
+            return Response({"detail": "Note too large.", "code": "file_too_large"},
+                            status=status.HTTP_400_BAD_REQUEST)
+        size = len(data)
+        if size > available_bytes(request.user):
+            return Response({"detail": "Not enough storage.", "code": "quota_exceeded"},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        file = File.objects.create(
+            owner=request.user, name=name, folder=folder,
+            kind=File.Kind.DOC, size_bytes=size, status=File.Status.READY,
+        )
+        region = request.user.storage_region
+        content_hash = hashlib.sha256(data).hexdigest()
+        object_key = _object_key(request.user.id, file.id)
+        obj, _created = StorageObject.objects.get_or_create(
+            content_hash=content_hash, region=region,
+            defaults={"size_bytes": size, "status": StorageObject.Status.READY, "object_key": object_key},
+        )
+        StorageObject.objects.filter(pk=obj.pk).update(ref_count=F("ref_count") + 1)
+        storage = get_storage_service()
+        if hasattr(storage, "save_bytes"):
+            storage.save_bytes(region=region, object_key=obj.object_key, data=data)
+        file.storage_object = obj
+        file.save(update_fields=["storage_object"])
+        if size:
+            from .quota import charge_usage
+            charge_usage(request.user, size)
+
+        from .indexing import reindex_file
+        reindex_file(file)
+        from apps.graph.tasks import schedule_rebuild
+        schedule_rebuild(request.user)
+        return Response(FileSerializer(file).data, status=status.HTTP_201_CREATED)
 
 
 class DevBlobView(APIView):

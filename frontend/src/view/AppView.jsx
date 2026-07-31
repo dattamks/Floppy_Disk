@@ -347,6 +347,7 @@ export default function AppView({ V }) {
                   style={{
                     width: V.boxW,
                     maxWidth: '100%',
+                    height: V.boxH || 'auto',
                     maxHeight: V.boxMaxH,
                     background: V.boxBg,
                     border: V.boxBorder,

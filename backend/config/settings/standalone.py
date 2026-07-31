@@ -32,6 +32,29 @@ DATABASES = {
 }
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
 
+# --- Backend selection driven by the actual database ---
+# Standalone defaults to SQLite but can be pointed at Postgres via DATABASE_URL,
+# so the DB-dependent bits (write concurrency + search) are chosen from the engine.
+if "sqlite" in DATABASES["default"]["ENGINE"]:
+    # One SQLite file is served by multiple gunicorn workers here. Without this,
+    # two concurrent writes (e.g. a multi-file upload committing several files at
+    # once) race and one fails with "database is locked". WAL lets readers run
+    # alongside a writer; a busy timeout makes a second writer *wait* for the
+    # lock instead of erroring; IMMEDIATE transactions take the write lock up
+    # front so the wait happens before work, not mid-transaction.
+    _opts = DATABASES["default"].setdefault("OPTIONS", {})
+    _opts.setdefault("timeout", env.int("SQLITE_TIMEOUT", default=30))
+    _opts.setdefault("transaction_mode", "IMMEDIATE")
+    _opts.setdefault(
+        "init_command",
+        "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON;",
+    )
+    # Postgres full-text search (websearch_to_tsquery) doesn't exist on SQLite;
+    # use the portable substring service, which honors folder-scoping identically.
+    SEARCH_SERVICE = env("SEARCH_SERVICE", default="apps.search.services.basic.BasicSearchService")
+else:
+    SEARCH_SERVICE = env("SEARCH_SERVICE", default="apps.search.services.postgres.PostgresSearchService")
+
 DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(DATA_DIR / "storage"))
 
 # No broker: tasks (e.g. video transcode) run inline in the web process.
@@ -75,6 +98,11 @@ EMAIL_BACKEND = env(
     # a solo self-host works with no SMTP configured.
     default="django.core.mail.backends.console.EmailBackend",
 )
+
+# Verification / password-reset links must point at THIS app's own origin — the
+# SPA is served from here in standalone mode, not the dev Vite server on :5173
+# (the base default). Set this to your public URL for a real deployment.
+FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:8000")
 
 # Serve the built SPA (frontend/dist) at the root via WhiteNoise; unknown,
 # non-API routes fall through to the SPA index (see config/urls.py).

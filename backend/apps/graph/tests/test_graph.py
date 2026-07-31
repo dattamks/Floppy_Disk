@@ -200,3 +200,72 @@ def test_reference_edge_from_file_content(user):
     assert refs.count() == 1
     assert refs.first().target.label == "target.txt"
     assert refs.first().provenance == "extracted"
+
+
+def test_reference_edge_from_markdown_link(user):
+    """A Markdown link [x](budget.json) should create a REFERENCES edge, and a
+    link that omits the extension should still resolve by stem."""
+    from apps.graph.models import GraphEdge, GraphNode
+
+    c = _session(user)
+    _upload(c, "budget.json", b'{"n":1}')
+    _upload(c, "roadmap.md", b"# Roadmap")
+    src = _upload(c, "readme.md", b"See [the budget](budget.json) and [plan](./roadmap).")
+    rebuild_user_graph(user)
+
+    src_node = GraphNode.objects.get(owner=user, file_id=src)
+    targets = set(
+        GraphEdge.objects.filter(owner=user, source=src_node, rel=GraphEdge.Rel.REFERENCES)
+        .values_list("target__label", flat=True)
+    )
+    assert targets == {"budget.json", "roadmap.md"}
+
+
+def test_reference_edge_from_wiki_link(user):
+    """[[Wiki-links]] (with or without alias/heading) create REFERENCES edges."""
+    from apps.graph.models import GraphEdge, GraphNode
+
+    c = _session(user)
+    _upload(c, "aurora-spec.md", b"# Spec")
+    _upload(c, "budget.md", b"# Budget")
+    src = _upload(c, "index.md", b"See [[aurora-spec]] and [[budget|the budget]].")
+    rebuild_user_graph(user)
+
+    src_node = GraphNode.objects.get(owner=user, file_id=src)
+    targets = set(
+        GraphEdge.objects.filter(owner=user, source=src_node, rel=GraphEdge.Rel.REFERENCES)
+        .values_list("target__label", flat=True)
+    )
+    assert targets == {"aurora-spec.md", "budget.md"}
+
+
+def test_reference_edge_from_escaped_wiki_link(user):
+    """A WYSIWYG editor may escape brackets (\\[\\[Note\\]\\]); still resolved."""
+    from apps.graph.models import GraphEdge, GraphNode
+
+    c = _session(user)
+    _upload(c, "aurora-spec.md", b"# Spec")
+    src = _upload(c, "index.md", b"See \\[\\[aurora-spec\\]\\] for details.")
+    rebuild_user_graph(user)
+
+    src_node = GraphNode.objects.get(owner=user, file_id=src)
+    targets = set(
+        GraphEdge.objects.filter(owner=user, source=src_node, rel=GraphEdge.Rel.REFERENCES)
+        .values_list("target__label", flat=True)
+    )
+    assert "aurora-spec.md" in targets
+
+
+def test_reference_edge_not_duplicated_across_detectors(user):
+    """A file named both in a Markdown link and in prose yields ONE edge."""
+    from apps.graph.models import GraphEdge, GraphNode
+
+    c = _session(user)
+    _upload(c, "budget.json", b'{"n":1}')
+    src = _upload(c, "notes.md", b"Track it in [budget](budget.json). Again: budget.json.")
+    rebuild_user_graph(user)
+
+    src_node = GraphNode.objects.get(owner=user, file_id=src)
+    assert GraphEdge.objects.filter(
+        owner=user, source=src_node, rel=GraphEdge.Rel.REFERENCES
+    ).count() == 1

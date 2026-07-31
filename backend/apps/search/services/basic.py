@@ -37,7 +37,10 @@ class BasicSearchService(SearchService):
                 Q(owner_id=user_id)  # your own files (any discoverability)
                 | Q(is_discoverable=True, is_mature_content=False)  # others' discoverable, non-mature
             )
-        visible = base.filter(name__icontains=query).order_by("-created_at")
+        # Match the filename OR the extracted document text (full-text search).
+        visible = base.filter(
+            Q(name__icontains=query) | Q(content_text__icontains=query)
+        ).order_by("-created_at")
 
         results = []
         for f in visible[offset:offset + limit]:
