@@ -920,7 +920,12 @@ class DevBlobView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if not path.exists():
             return Response(status=status.HTTP_404_NOT_FOUND)
-        return _ranged_file_response(request, path, self._content_type(object_key))
+        resp = _ranged_file_response(request, path, self._content_type(object_key))
+        # Same-origin previews embed this blob in an <iframe> (PDF reader) and
+        # <img>/<video> tags; the site-wide X-Frame-Options: DENY would blank the
+        # PDF viewer. Allow same-origin framing for this owner-scoped blob only.
+        resp["X-Frame-Options"] = "SAMEORIGIN"
+        return resp
 
     @staticmethod
     def _content_type(object_key):
