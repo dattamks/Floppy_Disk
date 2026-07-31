@@ -123,6 +123,22 @@ class R2StorageService(StorageService):
         r = self._client.get_object(Bucket=self._bucket_for(region), Key=object_key)
         return r["Body"].read()
 
+    def object_exists(self, *, region, object_key) -> bool:
+        """True if the key is already in the bucket (used to skip re-uploads)."""
+        try:
+            self._client.head_object(Bucket=self._bucket_for(region), Key=object_key)
+            return True
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code")
+            if code in ("404", "NoSuchKey", "NotFound"):
+                return False
+            raise
+
+    def upload_from_path(self, *, region, object_key, path) -> None:
+        """Stream a local file up to R2 (boto3 managed multipart — memory-safe
+        for large blobs like video). Used by the local -> R2 migration."""
+        self._client.upload_file(str(path), self._bucket_for(region), object_key)
+
     def stat(self, *, region, object_key) -> tuple[int, str]:
         """Return (size_bytes, content_hash) for a directly-uploaded blob.
 

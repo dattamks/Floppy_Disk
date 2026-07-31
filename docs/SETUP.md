@@ -326,9 +326,24 @@ is active, telling you to attach a persistent volume or configure R2. Use local
 disk only when you've mounted real persistent storage (the `floppydata` Docker
 volume in the default compose file is persistent); otherwise use R2.
 
-> Switching to R2 later is safe — new files land in R2. Existing files already
-> written to the local volume stay there, so migrate them into the bucket if you
-> want everything in one place.
+**Already have files on local disk? Migrate them to R2.** After adding the R2
+variables and restarting, new uploads go to R2, but files already on the local
+volume stay there (and would fail to download, since the app now looks in R2).
+Move them across with one command — it's idempotent and resumable, copies each
+deduplicated blob once, and never deletes anything unless you ask:
+
+```bash
+# preview what would move
+docker compose -f docker-compose.standalone.yml exec floppy \
+    python manage.py migrate_storage_to_r2 --dry-run
+
+# do it (add --delete-local to reclaim disk after each verified upload)
+docker compose -f docker-compose.standalone.yml exec floppy \
+    python manage.py migrate_storage_to_r2
+```
+
+Re-run it any time — blobs already in R2 are skipped, so an interrupted run just
+picks up where it left off.
 
 ### Health, data, and backups
 
