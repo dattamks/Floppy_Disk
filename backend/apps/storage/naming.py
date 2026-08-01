@@ -51,6 +51,28 @@ def classify_kind(name: str, content_type: str | None = None, fallback: str = "f
     return fallback
 
 
+# Characters that must never appear in a stored display name: path separators
+# (which could confuse any name-based path handling) and ASCII control chars
+# (which corrupt listings, logs, and downloads). We strip rather than reject so
+# a paste with a stray slash still yields a usable name instead of an error.
+_UNSAFE_RE = re.compile(r"[\x00-\x1f\x7f/\\]")
+
+
+def sanitize_name(name: str) -> str:
+    """Clean a user-supplied file/folder name to a safe display string.
+
+    Removes path separators and control characters, collapses surrounding
+    whitespace, caps length at 255, and maps the reserved names "." and ".."
+    to empty so the caller's own empty-name check rejects them. Returns "" when
+    nothing usable remains. Applied on every create/rename/note path so no
+    exposed endpoint can persist a name with a slash or control byte.
+    """
+    cleaned = _UNSAFE_RE.sub("", name or "").strip()
+    if cleaned in (".", ".."):
+        return ""
+    return cleaned[:255]
+
+
 def _split_ext(name: str) -> tuple[str, str]:
     # Treat a leading dot as part of the stem (".env" is not an extension).
     root, ext = os.path.splitext(name)

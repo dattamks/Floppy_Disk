@@ -20,7 +20,7 @@ from django.db import transaction
 
 from .lifecycle import _release_object, purge_file, purge_folder
 from .models import File, Folder, StorageObject, StorageReservation
-from .naming import classify_kind, unique_name
+from .naming import classify_kind, sanitize_name, unique_name
 from .quota import FileTooLarge, QuotaExceeded, available_bytes, commit, reserve
 from .scoping import folder_in_scope, is_scoped, scope_files, scope_folders, scoped_folder_ids
 from .serializers import (
@@ -215,7 +215,7 @@ class FolderDetailView(APIView):
             fields.append("parent")
 
         if "name" in request.data:
-            name = (request.data.get("name") or "").strip()
+            name = sanitize_name(request.data.get("name") or "")
             if not name:
                 return Response({"detail": "Folder name cannot be empty."},
                                 status=status.HTTP_400_BAD_REQUEST)
@@ -473,7 +473,7 @@ class FileDetailView(APIView):
             fields.append("folder")
 
         if "name" in request.data:
-            name = (request.data.get("name") or "").strip()
+            name = sanitize_name(request.data.get("name") or "")
             if not name:
                 return Response({"detail": "File name cannot be empty."},
                                 status=status.HTTP_400_BAD_REQUEST)
@@ -630,7 +630,11 @@ class UploadInitiateView(APIView):
             return Response({"detail": "This key can only upload inside its allowed folder."},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        name = unique_name(data["name"], _active_file_names(request.user, data.get("folder")))
+        safe = sanitize_name(data["name"])
+        if not safe:
+            return Response({"detail": "File name cannot be empty."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        name = unique_name(safe, _active_file_names(request.user, data.get("folder")))
         # Derive kind from the name/content-type when the client left it at the
         # generic default (REST/MCP clients often omit it). This keeps the
         # knowledge graph able to scan documents regardless of upload path; a
@@ -791,7 +795,7 @@ class NoteCreateView(APIView):
             return Response({"detail": "Creating notes is not supported on this backend."},
                             status=status.HTTP_501_NOT_IMPLEMENTED)
 
-        raw = (str(request.data.get("name") or "").strip()) or "Untitled note"
+        raw = sanitize_name(str(request.data.get("name") or "")) or "Untitled note"
         if not raw.lower().endswith(".md"):
             raw += ".md"
         name = unique_name(raw, _active_file_names(request.user, folder))
