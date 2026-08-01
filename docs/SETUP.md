@@ -302,6 +302,20 @@ toggle - just set (or don't set) the R2 variables.
 > operators who prefer config-as-code; if they're set, the in-app screen shows
 > them read-only. Everything in this section describes that operator path.
 
+> **One shared pool, not per-user.** Floppy Disk is single-tenant: everyone who
+> can log in sees the same files, and the sidebar storage meter shows the whole
+> instance's usage (deduplicated), not one person's. Isolation is applied only to
+> **API keys** (folder-scoped for MCP/automation), not between logged-in people.
+>
+> **Storage total.** On **local** storage the meter total is the real disk size,
+> and uploads stop when the disk is physically full. On **R2** (no fixed size)
+> the Owner sets a **budget cap** in Settings → Storage (default 10 TB) with an
+> **overflow** toggle: leave it on and the cap is just a budget (uploads continue
+> past it, with a banner at ~90%); turn it off to hard-stop uploads at the cap.
+> Lowering the cap below what's already stored is allowed - it only shows a
+> notice, nothing is deleted. Only the Owner - from an interactive session, never
+> an API key or MCP - can change storage settings or the cap.
+
 **Option 1 - Cloudflare R2 (recommended; no server disk needed).** Files go
 straight to R2 object storage: durable, scalable, and independent of the
 container's disk. Set four variables and R2 switches on:

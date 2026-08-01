@@ -1,5 +1,6 @@
 import React from 'react';
 import { theme } from '../lib/theme';
+import { humanSize } from '../lib/ui';
 
 // Owner-only "Storage" tab in Settings. Where uploaded files live: this server's
 // disk or Cloudflare R2. Reads everything from V.storage (assembled in App.jsx).
@@ -68,6 +69,9 @@ export default function StoragePanel(V) {
         </div>
         {backendChip}
       </div>
+
+      {/* R2 budget cap + overflow (shown once on R2, editable in-app) */}
+      {isR2 && !cfg.env_managed ? <BudgetCard V={V} /> : null}
 
       {cfg.env_managed ? (
         <div
@@ -179,6 +183,122 @@ export default function StoragePanel(V) {
         <MigrationCard V={V} />
       ) : null}
     </React.Fragment>
+  );
+}
+
+function BudgetCard({ V }) {
+  const S = V.storage;
+  const cfg = S.config;
+  const used = cfg.used_bytes || 0;
+  const total = cfg.total_bytes || 0;
+  const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
+  const over = !!cfg.over_cap;
+  const barColor = over || pct >= 90 ? theme.danger : pct >= 75 ? '#D97706' : theme.brand;
+
+  return (
+    <div
+      style={{
+        background: theme.surface2,
+        border: `1px solid ${theme.border}`,
+        borderRadius: '11px',
+        padding: '14px 15px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '11px',
+      }}
+      data-testid="budget-card"
+    >
+      <div style={{ fontSize: '13px', fontWeight: '600' }}>Storage budget</div>
+      <div style={{ fontSize: '12px', color: theme.textMuted, marginTop: '-6px' }}>
+        R2 has no fixed size, so this is a budget you set. {humanSize(used)} of {humanSize(total)}{' '}
+        used ({pct}%).
+      </div>
+      {/* usage bar */}
+      <div style={{ height: '8px', borderRadius: '999px', background: theme.surface3, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: barColor, borderRadius: '999px' }} />
+      </div>
+
+      {over ? (
+        <div
+          style={{
+            fontSize: '12px',
+            color: theme.danger,
+            background: theme.dangerBgSoft,
+            border: `1px solid ${theme.dangerBorder}`,
+            borderRadius: '9px',
+            padding: '9px 11px',
+          }}
+          data-testid="budget-over"
+        >
+          Stored files ({humanSize(used)}) already exceed this cap. Nothing was deleted - this is
+          just a budget notice.
+        </div>
+      ) : null}
+
+      <label style={{ fontSize: '12px', color: theme.textMuted, fontWeight: '500' }}>
+        Budget cap (GB)
+        <input
+          value={S.capInput}
+          onInput={S.setCap}
+          inputMode="numeric"
+          placeholder="10240"
+          data-testid="budget-cap-input"
+          style={{
+            width: '100%',
+            marginTop: '5px',
+            background: theme.white,
+            border: `1px solid ${theme.border}`,
+            borderRadius: '9px',
+            padding: '10px 12px',
+            fontSize: '13px',
+            outline: 'none',
+            fontFamily: "'IBM Plex Mono','IBM Plex Sans',monospace",
+            boxSizing: 'border-box',
+          }}
+        />
+      </label>
+
+      <label
+        style={{
+          display: 'flex',
+          gap: '9px',
+          alignItems: 'flex-start',
+          fontSize: '12.5px',
+          color: theme.textMuted,
+          cursor: 'pointer',
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={!!S.overflow}
+          onChange={S.toggleOverflow}
+          data-testid="budget-overflow"
+          style={{ marginTop: '2px' }}
+        />
+        <span>
+          Allow uploads past the cap (soft budget). When off, uploads stop once the cap is reached.
+        </span>
+      </label>
+
+      <button
+        onClick={S.saveCap}
+        disabled={S.capBusy}
+        data-testid="budget-save"
+        style={{
+          alignSelf: 'flex-start',
+          background: theme.brand,
+          color: theme.white,
+          border: 'none',
+          borderRadius: '9px',
+          padding: '9px 16px',
+          fontSize: '13px',
+          fontWeight: '600',
+          cursor: 'pointer',
+        }}
+      >
+        {S.capBusy ? 'Saving…' : 'Save budget'}
+      </button>
+    </div>
   );
 }
 

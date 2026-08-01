@@ -107,6 +107,9 @@ export default class App extends React.Component {
     sfTestMsg: '',
     sfBusy: false,
     sfDeleteLocal: false,
+    sfCapInput: '',
+    sfOverflow: true,
+    sfCapBusy: false,
     uploadQueue: [],
     shareAccess: 'restricted',
     sharePermission: 'view',
@@ -127,6 +130,10 @@ export default class App extends React.Component {
     discoverResults: [],
     realUsedBytes: null,
     realQuotaBytes: null,
+    realBackend: null,
+    realOverflow: false,
+    realOverCap: false,
+    quotaBannerDismissed: false,
     ctxMenu: null,
     toastMsg: '',
   };
@@ -332,6 +339,9 @@ export default class App extends React.Component {
         this.setState({
           realUsedBytes: u.used_bytes != null ? u.used_bytes : 0,
           realQuotaBytes: u.quota_bytes != null ? u.quota_bytes : null,
+          realBackend: u.backend || null,
+          realOverflow: !!u.overflow_allowed,
+          realOverCap: !!u.over_cap,
         })
       )
       .catch(() => {});
@@ -573,6 +583,11 @@ export default class App extends React.Component {
           sfEndpoint: s.sfEndpoint || cfg.r2.endpoint_url || '',
           sfAccess: s.sfAccess || cfg.r2.access_key_id || '',
           sfBucket: s.sfBucket || cfg.r2.bucket || '',
+          // Budget cap (shown in GB) + overflow toggle.
+          sfCapInput:
+            s.sfCapInput ||
+            (cfg.r2_quota_bytes != null ? String(Math.round(cfg.r2_quota_bytes / 1073741824)) : ''),
+          sfOverflow: cfg.allow_overflow != null ? cfg.allow_overflow : true,
         });
         // First-run: show the one-question setup once to the owner, only while
         // storage is still local and not env-managed.
@@ -635,6 +650,31 @@ export default class App extends React.Component {
       .catch((err) => {
         this.setState({ sfBusy: false });
         this.toast(firstError(err, 'Could not save storage settings'));
+      });
+  }
+  // Save the R2 storage budget cap + overflow toggle (owner only).
+  saveCap() {
+    const gb = parseFloat(this.state.sfCapInput);
+    if (!(gb > 0)) {
+      this.toast('Enter a storage cap greater than zero');
+      return;
+    }
+    const bytes = Math.round(gb * 1073741824);
+    this.setState({ sfCapBusy: true });
+    api
+      .saveStorageConfig({ r2_quota_bytes: bytes, allow_overflow: this.state.sfOverflow })
+      .then((cfg) => {
+        this.setState({ sfCapBusy: false, storageConfig: cfg });
+        this.loadUsage(); // meter total changed
+        this.toast(
+          cfg.over_cap
+            ? 'Saved. Heads up: stored files already exceed this cap.'
+            : 'Storage budget updated'
+        );
+      })
+      .catch((err) => {
+        this.setState({ sfCapBusy: false });
+        this.toast(firstError(err, 'Could not update storage budget'));
       });
   }
   // First-run setup choices.
@@ -2182,6 +2222,23 @@ export default class App extends React.Component {
     const storageUsedGB = _realUsedGB != null ? _realUsedGB : st.usedGB;
     const storagePct =
       storageTotalGB > 0 ? Math.min(100, Math.round((storageUsedGB / storageTotalGB) * 100)) : 0;
+    // Shared storage is instance-wide, so warn everyone at >=90% full or when
+    // stored bytes are over the R2 budget cap. Only the owner gets a manage link.
+    const quotaWarn = {
+      show:
+        st.realQuotaBytes != null &&
+        !st.quotaBannerDismissed &&
+        (storagePct >= 90 || st.realOverCap),
+      pct: storagePct,
+      over: !!st.realOverCap,
+      overflow: !!st.realOverflow,
+      isR2: st.realBackend === 'r2',
+      usedLabel: fmtStorage(storageUsedGB),
+      totalLabel: fmtStorage(storageTotalGB),
+      canManage: st.isOwner,
+      openStorageSettings: () => this.openStorageSettings(),
+      dismiss: () => this.setState({ quotaBannerDismissed: true }),
+    };
     // Context-menu items for the right-clicked / ⋯-tapped tile.
     let ctxMenuView = null;
     if (st.ctxMenu) {
@@ -2427,6 +2484,7 @@ export default class App extends React.Component {
       storageTotalLabel: fmtStorage(storageTotalGB),
       storagePct,
       storageBarColor: storagePct > 90 ? '#E5484D' : storagePct > 75 ? '#D97706' : '#5145E5',
+      quotaWarn,
       ctxMenuView,
       closeCtxMenu: () => this.closeCtxMenu(),
       openUpload: () => this.openUpload(),
@@ -2620,6 +2678,13 @@ export default class App extends React.Component {
         setBucket: (e) => this.setState({ sfBucket: e.target.value, sfTestState: 'idle' }),
         test: () => this.testStorage(),
         save: () => this.saveStorage(),
+        // R2 budget cap + overflow toggle.
+        capInput: st.sfCapInput,
+        overflow: st.sfOverflow,
+        capBusy: st.sfCapBusy,
+        setCap: (e) => this.setState({ sfCapInput: e.target.value.replace(/[^0-9.]/g, '') }),
+        toggleOverflow: () => this.setState({ sfOverflow: !this.state.sfOverflow }),
+        saveCap: () => this.saveCap(),
         toggleDeleteLocal: () => this.setState({ sfDeleteLocal: !this.state.sfDeleteLocal }),
         startMigration: () => this.startMigration(),
         pauseMigration: () => this.pauseMigration(),

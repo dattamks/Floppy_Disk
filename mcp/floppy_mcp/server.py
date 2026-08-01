@@ -100,7 +100,10 @@ def whoami() -> dict:
 
 @mcp.tool
 def get_usage() -> dict:
-    """Storage usage: quota_bytes, used_bytes, available_bytes."""
+    """Instance-wide storage usage (one shared pool): used_bytes, quota_bytes
+    (the total ceiling), available_bytes, backend ("local"/"r2"), and
+    over_cap. Read-only - the storage backend and budget cap can be changed
+    only by the owner from the web app, never via an API key or MCP."""
     return client().get("storage/usage")
 
 

@@ -19,6 +19,7 @@ import ContextMenu from '../components/ContextMenu';
 import Toast from '../components/Toast';
 import SetupModal from '../components/SetupModal';
 import StorageBanner from '../components/StorageBanner';
+import QuotaBanner from '../components/QuotaBanner';
 
 // Presentational view for the whole app. Receives the computed view-model V
 // (from App.renderVals) and renders it. Being extracted, screen by screen,
@@ -48,7 +49,7 @@ export default function AppView({ V }) {
           }}
         >
           {' '}
-          {AuthScreen(V)} {StorageBanner(V)} {AppShell(V)} {SetupModal(V)}{' '}
+          {AuthScreen(V)} {StorageBanner(V)} {QuotaBanner(V)} {AppShell(V)} {SetupModal(V)}{' '}
           {V.drawerOpen ? (
             <React.Fragment>
               {' '}
