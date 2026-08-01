@@ -73,6 +73,22 @@ class LocalStorageService(StorageService):
     def save_bytes(self, *, region, object_key, data: bytes) -> None:
         self._path(region, object_key).write_bytes(data)
 
+    def save_stream(self, *, region, object_key, chunks) -> int:
+        """Write an uploaded blob by streaming byte chunks straight to disk.
+
+        Avoids buffering the whole (possibly multi-GB) upload in memory - which
+        both blows past Django's DATA_UPLOAD_MAX_MEMORY_SIZE and risks OOM.
+        Returns the number of bytes written.
+        """
+        path = self._path(region, object_key)
+        total = 0
+        with path.open("wb") as fh:
+            for chunk in chunks:
+                if chunk:
+                    fh.write(chunk)
+                    total += len(chunk)
+        return total
+
     def read_bytes(self, *, region, object_key) -> bytes:
         return self._path(region, object_key).read_bytes()
 

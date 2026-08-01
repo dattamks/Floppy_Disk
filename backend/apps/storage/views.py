@@ -81,6 +81,42 @@ def _iter_file_range(path, start, length, block=_STREAM_BLOCK):
             yield data
 
 
+def _kick_off_transcode(file_id: str) -> None:
+    """Start the video transcode without blocking the request.
+
+    In the single-container standalone deployment a Celery `.delay()` runs the
+    FFmpeg transcode INLINE (eager), which for a real video easily exceeds
+    gunicorn's request timeout and kills the worker (the upload then appears to
+    fail). Run it in a daemon thread instead: the file stays PROCESSING and the
+    client polls for READY. In tests (eager but not standalone) and with a real
+    Celery worker, dispatch the task as usual so behavior stays synchronous /
+    worker-driven respectively.
+    """
+    from django.conf import settings
+
+    from .tasks import transcode_video_task
+
+    if getattr(settings, "STANDALONE", False):
+        import logging
+        import threading
+
+        from django.db import connection
+
+        def _run():
+            try:
+                from .video_processing import process_video
+
+                process_video(file_id)
+            except Exception:  # noqa: BLE001 - never crash the background thread
+                logging.getLogger("storage").exception("video transcode failed: %s", file_id)
+            finally:
+                connection.close()  # don't leak this thread's DB connection
+
+        threading.Thread(target=_run, name=f"transcode-{file_id}", daemon=True).start()
+    else:
+        transcode_video_task.delay(file_id)
+
+
 def _content_disposition(name: str) -> str:
     """An attachment Content-Disposition that carries the display name.
 
@@ -784,9 +820,8 @@ class UploadCompleteView(APIView):
             charge_usage(request.user, size_bytes)
 
         if is_video:
-            from .tasks import transcode_video_task
-            transcode_video_task.delay(str(file.id))
-            file.refresh_from_db()  # eager task (dev/tests) may already have finished
+            _kick_off_transcode(str(file.id))
+            file.refresh_from_db()  # background/eager run may already have finished
 
         # Extract document text for full-text (content) search (best-effort).
         if file.kind == File.Kind.DOC:
@@ -949,14 +984,29 @@ class DevBlobView(APIView):
         f = self._file_for_key(request.user, object_key)
         return f is None or not folder_in_scope(request, f.folder_id)
 
+    # No DRF body parsing: we stream the raw request straight to disk, so parsers
+    # (which would buffer the whole upload and enforce DATA_UPLOAD_MAX_MEMORY_SIZE)
+    # must not touch it.
+    parser_classes = []
+
     def put(self, request, region, object_key):
         if not self._owns_key(request.user, object_key) or self._blocked_by_scope(request, object_key):
             return Response(status=status.HTTP_404_NOT_FOUND)
         storage = get_storage_service()
-        if not hasattr(storage, "save_bytes"):
-            return Response(status=status.HTTP_404_NOT_FOUND)
         try:
-            storage.save_bytes(region=region, object_key=object_key, data=request.body)
+            if hasattr(storage, "save_stream"):
+                # Stream chunks to disk - never buffer the whole (possibly multi-GB
+                # video) upload in memory, and bypass Django's 2.5 MB request.body
+                # cap that was aborting large uploads (ERR_HTTP2_PROTOCOL_ERROR).
+                src = request._request  # underlying Django HttpRequest (raw stream)
+                storage.save_stream(
+                    region=region, object_key=object_key,
+                    chunks=iter(lambda: src.read(1024 * 1024), b""),
+                )
+            elif hasattr(storage, "save_bytes"):
+                storage.save_bytes(region=region, object_key=object_key, data=request.body)
+            else:
+                return Response(status=status.HTTP_404_NOT_FOUND)
         except ValueError:
             return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(status=status.HTTP_204_NO_CONTENT)
