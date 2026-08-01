@@ -219,7 +219,7 @@ function Body(V) {
           alt={f.name}
           style={{
             width: '100%',
-            maxHeight: '360px',
+            maxHeight: V.imgMaxH || '360px',
             objectFit: 'contain',
             borderRadius: '11px',
             background: theme.surface4,
@@ -254,7 +254,7 @@ function Body(V) {
         src={V.previewUrl}
         style={{
           width: '100%',
-          height: '460px',
+          height: V.pdfH || '460px',
           border: `1px solid ${theme.border}`,
           borderRadius: '11px',
           background: theme.surface,
@@ -430,26 +430,68 @@ export default function PreviewModal(V) {
         >
           {V.activeFile.name}
         </span>
-        <button
-          onClick={V.closeModal}
-          aria-label="Close"
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            color: theme.textMuted2,
-            flex: '0 0 auto',
-          }}
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M5 5l14 14M19 5L5 19"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: '0 0 auto' }}>
+          {V.previewExpandable ? (
+            <button
+              onClick={V.togglePreviewFull}
+              aria-label={V.previewFull ? 'Exit full screen' : 'Full screen'}
+              title={V.previewFull ? 'Exit full screen' : 'Full screen'}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: theme.textMuted2,
+                display: 'flex',
+                alignItems: 'center',
+                padding: '2px',
+              }}
+            >
+              {V.previewFull ? (
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </button>
+          ) : null}
+          <button
+            onClick={V.closeModal}
+            aria-label="Close"
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: theme.textMuted2,
+              display: 'flex',
+              alignItems: 'center',
+              padding: '2px',
+            }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M5 5l14 14M19 5L5 19"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>{' '}
       {Body(V)}{' '}
       {V.isNote && !V.isEditing ? Backlinks(V) : null}{' '}

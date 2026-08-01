@@ -121,6 +121,7 @@ export default class App extends React.Component {
     videoMuted: false,
     videoCC: true,
     videoFullscreen: false,
+    previewFullscreen: false,
     unreadCount: 0,
     notifications: [],
     discoverResults: [],
@@ -977,6 +978,7 @@ export default class App extends React.Component {
       videoCurrent: 0,
       videoDuration: 0,
       videoFullscreen: false,
+      previewFullscreen: false,
       shareCopied: false,
       editing: false,
       editText: '',
@@ -1037,6 +1039,7 @@ export default class App extends React.Component {
       previewText: '',
       previewError: '',
       previewLoading: !!file.real,
+      previewFullscreen: false,
       editing: false,
       editText: '',
       editName: '',
@@ -1779,6 +1782,10 @@ export default class App extends React.Component {
     } catch (e) {}
   }
 
+  togglePreviewFull() {
+    this.setState((s) => ({ previewFullscreen: !s.previewFullscreen }));
+  }
+
   toggleCC() {
     this.setState((s) => ({ videoCC: !s.videoCC }));
   }
@@ -1895,6 +1902,7 @@ export default class App extends React.Component {
       videoMuted,
       videoCC,
       videoFullscreen,
+      previewFullscreen,
       toastMsg,
       discoverResults,
     } = st;
@@ -2125,6 +2133,13 @@ export default class App extends React.Component {
           modalMaxH: '86vh',
         };
     const theater = modal === 'video' && videoFullscreen;
+    // Image / PDF previews can expand to fill the screen via a toggle in the
+    // preview header. Only the visual kinds are expandable; text/audio stay put.
+    const previewExpandable =
+      modal === 'preview' &&
+      !st.editing &&
+      (st.previewKind === 'image' || st.previewKind === 'pdf');
+    const previewFull = previewExpandable && previewFullscreen;
     const authTitles = {
       login: 'Welcome back',
       register: 'Create your account',
@@ -2346,6 +2361,14 @@ export default class App extends React.Component {
       previewKind: st.previewKind,
       previewUrl: st.previewUrl,
       previewText: st.previewText,
+      // Expand image / PDF previews to fill the screen (toggle in the header).
+      previewExpandable,
+      previewFull,
+      togglePreviewFull: () => this.togglePreviewFull(),
+      // Media heights: fixed when boxed, grow to fill when expanded. The
+      // subtraction leaves room for the header, footer meta line, and padding.
+      imgMaxH: previewFull ? 'calc(96vh - 132px)' : '360px',
+      pdfH: previewFull ? 'calc(96vh - 132px)' : '460px',
       // Image gallery navigation (prev/next among images in the same folder).
       ...(() => {
         if (st.previewKind !== 'image' || !activeFile) return {};
@@ -2558,27 +2581,36 @@ export default class App extends React.Component {
       volumeColor: videoMuted ? '#E5484D' : theater ? '#fff' : '#15171C',
       ccColor: videoCC ? (theater ? '#B9B2FF' : '#5145E5') : '#9AA1AC',
       ccBorder: videoCC ? '#C7C3F5' : theater ? '#3A3D44' : '#E5E7EC',
-      overlayBg: theater ? 'rgba(8,9,12,0.92)' : 'rgba(20,23,28,0.42)',
+      overlayBg: theater || previewFull ? 'rgba(8,9,12,0.92)' : 'rgba(20,23,28,0.42)',
       overlayAlign: theater ? 'stretch' : d.modalAlign,
-      overlayPad: theater ? 0 : d.modalPad,
+      overlayPad: theater ? 0 : previewFull ? Math.min(d.modalPad, 16) : d.modalPad,
       boxW: theater
         ? '100%'
-        : modal === 'graph'
-          ? 'min(1040px, 95vw)'
-          : modal === 'preview' && st.editing && st.previewKind === 'markdown'
-            ? 'min(1280px, 96vw)'
-            : d.modalW,
+        : previewFull
+          ? '96vw'
+          : modal === 'graph'
+            ? 'min(1040px, 95vw)'
+            : modal === 'preview' && st.editing && st.previewKind === 'markdown'
+              ? 'min(1280px, 96vw)'
+              : d.modalW,
       boxMaxH: theater
         ? '100vh'
-        : modal === 'graph'
-          ? '92vh'
-          : modal === 'preview' && st.editing
+        : previewFull
+          ? '96vh'
+          : modal === 'graph'
             ? '92vh'
-            : d.modalMaxH,
-      // The note editor gets a definite, near-full-screen height so the write /
-      // preview panes fill the window instead of a small fixed textarea.
+            : modal === 'preview' && st.editing
+              ? '92vh'
+              : d.modalMaxH,
+      // The note editor and expanded image/PDF previews get a definite,
+      // near-full-screen height so the content fills the window instead of a
+      // small fixed box.
       boxH:
-        modal === 'preview' && st.editing && st.previewKind === 'markdown' ? '92vh' : undefined,
+        modal === 'preview' && st.editing && st.previewKind === 'markdown'
+          ? '92vh'
+          : previewFull
+            ? '96vh'
+            : undefined,
       boxBg: theater ? '#0B0C0F' : '#FFFFFF',
       boxBorder: theater ? 'none' : '1px solid #E5E7EC',
       boxRadius: theater ? '0px' : d.modalRadius,
