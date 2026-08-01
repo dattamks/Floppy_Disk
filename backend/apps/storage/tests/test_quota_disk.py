@@ -59,9 +59,13 @@ def test_local_quota_capped_to_real_disk(user):
         assert quota.disk_free_bytes(user) == 400 * GB
 
 
-@override_settings(STORAGE_TRACK_DISK=False)
-def test_disk_tracking_off_uses_plain_quota(user):
-    assert quota.effective_quota_bytes(user) == user.quota_bytes
+@override_settings(STORAGE_TRACK_DISK=False, STORAGE_QUOTA_BYTES=0)
+def test_disk_tracking_off_falls_back_to_configured_cap(user):
+    # With disk tracking off, the ceiling is the configured budget cap (the
+    # StorageConfig default of 10 TB here), not the real disk.
+    from apps.storage.models import StorageConfig
+
+    assert quota.storage_total_bytes() == StorageConfig.load().r2_quota_bytes
     assert quota.disk_free_bytes(user) is None
 
 

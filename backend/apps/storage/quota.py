@@ -77,7 +77,7 @@ def _disk_tracking() -> bool:
     return effective_backend() == "local"
 
 
-def disk_free_bytes(user) -> int | None:
+def disk_free_bytes(user=None) -> int | None:
     """Real free space on the local storage volume, or None on R2/unknown/off."""
     if not _disk_tracking():
         return None
@@ -85,35 +85,81 @@ def disk_free_bytes(user) -> int | None:
     return du.free if du else None
 
 
-def effective_quota_bytes(user) -> int:
-    """The storage ceiling actually shown + enforced.
+# --- Instance-wide accounting (single-tenant: one shared storage pool) -------
+# Everyone shares the same files, so usage and the ceiling are instance-wide,
+# not per user. "Used" is the deduplicated physical footprint - each stored
+# blob counted once - which is what's really on the disk / in the R2 bucket.
+_DEFAULT_TOTAL = 10 * 1024**4  # 10 TB, only used if local disk size is unknown
 
-    Precedence: an explicit STORAGE_QUOTA_BYTES override wins; otherwise the
-    per-user quota, but on local storage capped to the real disk size so the
-    sidebar meter isn't a fictional flat 2 TB. Enforcement uses the same value,
-    so what's shown and what's allowed never diverge.
+
+def instance_used_bytes() -> int:
+    """Total bytes actually stored across the whole install (deduplicated).
+
+    Sums live StorageObjects (READY, still referenced) - so two users holding
+    the same content count it once, matching real disk / R2 usage. Trashed but
+    not-yet-purged files still count (their blob is still stored)."""
+    from .models import StorageObject
+
+    agg = StorageObject.objects.filter(
+        status=StorageObject.Status.READY, ref_count__gt=0
+    ).aggregate(total=models.Sum("size_bytes"))
+    return agg["total"] or 0
+
+
+def _instance_reserved_bytes() -> int:
+    """In-flight reservations across all users (unexpired)."""
+    now = timezone.now()
+    agg = StorageReservation.objects.filter(
+        status=StorageReservation.Status.ACTIVE, expires_at__gt=now
+    ).aggregate(total=models.Sum("bytes"))
+    return agg["total"] or 0
+
+
+def storage_total_bytes() -> int:
+    """The storage ceiling shown in the meter and (for R2) enforced.
+
+    Precedence: an explicit STORAGE_QUOTA_BYTES override wins; else on local
+    storage the real disk size; else (R2) the owner-set budget cap.
     """
     override = int(getattr(settings, "STORAGE_QUOTA_BYTES", 0) or 0)
     if override > 0:
         return override
-    quota = user.quota_bytes
     if _disk_tracking():
         du = disk_usage()
         if du:
-            return min(quota, du.total)
-    return quota
+            return du.total
+        return _DEFAULT_TOTAL
+    # R2 (or local with tracking off): the owner-set budget cap.
+    from .models import StorageConfig
+
+    return StorageConfig.load().r2_quota_bytes
 
 
-# Back-compat alias: some call sites/tests reference the old name.
-def _quota_limit(user) -> int:
-    return effective_quota_bytes(user)
+def overflow_allowed() -> bool:
+    """True when uploads may exceed the cap (R2 soft budget). Never on local -
+    the physical disk is always a hard bound."""
+    from .config import effective_backend
+    from .models import StorageConfig
+
+    if effective_backend() != "r2":
+        return False
+    return bool(StorageConfig.load().allow_overflow)
 
 
-def available_bytes(user) -> int:
-    """Remaining quota after committed usage AND live reservations, never more
-    than what the disk can actually still hold (local)."""
-    logical = effective_quota_bytes(user) - user.storage_used_bytes - _live_reserved_bytes(user)
-    free = disk_free_bytes(user)
+# Back-compat aliases: older call sites/tests reference these names.
+def effective_quota_bytes(user=None) -> int:
+    return storage_total_bytes()
+
+
+def _quota_limit(user=None) -> int:
+    return storage_total_bytes()
+
+
+def available_bytes(user=None) -> int:
+    """Remaining space instance-wide: the cap minus what's used and reserved,
+    never more than the disk can physically still hold (local)."""
+    logical = max(0, storage_total_bytes() - instance_used_bytes() - _instance_reserved_bytes())
+    free = disk_free_bytes()
     if free is not None:
         return max(0, min(logical, free))
     return logical
@@ -122,9 +168,11 @@ def available_bytes(user) -> int:
 @transaction.atomic
 def reserve(user, *, size_bytes: int, file: File | None = None) -> StorageReservation:
     """
-    Atomically reserve `size_bytes` against the user's quota.
+    Atomically reserve `size_bytes` against the shared, instance-wide pool.
 
-    Locks the user row so concurrent reservations can't both pass the check.
+    Local storage is bounded by the real disk; R2 by the owner's budget cap
+    unless overflow is on. Serializes concurrent reservations against the
+    StorageConfig singleton so two uploads can't both slip past the cap.
     Raises FileTooLarge / QuotaExceeded on rejection.
     """
     if size_bytes <= 0:
@@ -137,19 +185,25 @@ def reserve(user, *, size_bytes: int, file: File | None = None) -> StorageReserv
     # Reject up front if the local disk physically can't hold this - otherwise
     # the write later fails deep in the storage layer with a raw "No space left
     # on device" 500 instead of a clean, actionable error.
-    free = disk_free_bytes(user)
+    free = disk_free_bytes()
     if free is not None and size_bytes > free:
         raise QuotaExceeded("Not enough free disk space on the server.")
 
-    # Lock the owner row: serializes concurrent reservations for this user.
-    locked = user.__class__.objects.select_for_update().get(pk=user.pk)
-    used = locked.storage_used_bytes
-    reserved = _live_reserved_bytes(locked)
-    if used + reserved + size_bytes > effective_quota_bytes(locked):
-        raise QuotaExceeded("Not enough storage quota remaining.")
+    # Serialize instance-wide reservations on the config singleton, then enforce
+    # the R2 budget cap unless overflow is allowed. (Local has no cap beyond the
+    # physical disk checked above.)
+    from .config import effective_backend
+    from .models import StorageConfig
+
+    StorageConfig.objects.select_for_update().filter(pk=1).first()  # lock (may be None)
+    if effective_backend() == "r2" and not overflow_allowed():
+        used = instance_used_bytes()
+        reserved = _instance_reserved_bytes()
+        if used + reserved + size_bytes > storage_total_bytes():
+            raise QuotaExceeded("Storage budget cap reached.")
 
     return StorageReservation.objects.create(
-        owner=locked,
+        owner=user,
         file=file,
         bytes=size_bytes,
         status=StorageReservation.Status.ACTIVE,

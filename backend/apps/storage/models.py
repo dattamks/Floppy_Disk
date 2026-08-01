@@ -161,6 +161,13 @@ class StorageConfig(TimeStampedModel):
     r2_access_key_id = models.CharField(max_length=200, blank=True, default="")
     r2_secret_ciphertext = models.TextField(blank=True, default="")  # Fernet token
     r2_bucket = models.CharField(max_length=200, blank=True, default="")
+    # R2 storage budget cap (bytes) - a soft ceiling shown in the meter, since
+    # R2 has no physical size. Default 10 TB; the owner can change it any time.
+    r2_quota_bytes = models.BigIntegerField(default=10 * 1024**4)
+    # When True, uploads may exceed r2_quota_bytes (the cap is only a budget
+    # indicator); when False the cap is enforced. R2 only - local is always
+    # bounded by the real disk. Default True (soft budget).
+    allow_overflow = models.BooleanField(default=True)
     # Whether the owner has finished (or dismissed) the first-run setup step.
     setup_completed = models.BooleanField(default=False)
     updated_by = models.ForeignKey(

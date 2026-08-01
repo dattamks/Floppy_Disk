@@ -27,8 +27,10 @@ from .quota import (
     available_bytes,
     commit,
     disk_free_bytes,
-    effective_quota_bytes,
+    instance_used_bytes,
+    overflow_allowed,
     reserve,
+    storage_total_bytes,
 )
 from .scoping import folder_in_scope, is_scoped, scope_files, scope_folders, scoped_folder_ids
 from .serializers import (
@@ -37,6 +39,7 @@ from .serializers import (
     FolderSerializer,
     UploadInitiateSerializer,
 )
+from .config import effective_backend
 from .services.base import get_storage_service
 
 
@@ -440,16 +443,21 @@ class UsageView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        u = request.user
-        # quota_bytes is the *effective* ceiling (real disk on local, override,
-        # or the per-user default) so the sidebar meter reflects reality.
+        # Single-tenant: usage + ceiling are instance-wide (one shared pool),
+        # not per user. "used" is the deduplicated real footprint.
+        total = storage_total_bytes()
+        used = instance_used_bytes()
         return Response({
-            "quota_bytes": effective_quota_bytes(u),
-            "used_bytes": u.storage_used_bytes,
-            "available_bytes": available_bytes(u),
+            "quota_bytes": total,
+            "used_bytes": used,
+            "available_bytes": available_bytes(),
             # Real free space on the server volume (null on R2), so the UI can
             # warn before the disk is physically full.
-            "disk_free_bytes": disk_free_bytes(u),
+            "disk_free_bytes": disk_free_bytes(),
+            "backend": effective_backend(),
+            # R2 budget can be a soft cap (overflow on) that usage may exceed.
+            "overflow_allowed": overflow_allowed(),
+            "over_cap": used > total,
         })
 
 

@@ -19,7 +19,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsOwner
+from apps.accounts.permissions import IsOwner, IsSessionAuthenticated
 
 from .config import decrypt_secret, effective_backend, encrypt_secret, env_manages_storage
 from .migration import start_migration_job
@@ -54,8 +54,12 @@ def _migration_dict(job: StorageMigration | None) -> dict | None:
 
 
 def _config_payload() -> dict:
+    from .quota import instance_used_bytes, storage_total_bytes
+
     cfg = StorageConfig.load()
     latest = StorageMigration.objects.order_by("-created_at").first()
+    used = instance_used_bytes()
+    cap = storage_total_bytes()
     return {
         "backend": cfg.backend,
         "effective_backend": effective_backend(),
@@ -67,13 +71,20 @@ def _config_payload() -> dict:
             "bucket": cfg.r2_bucket,
             "secret_set": bool(cfg.r2_secret_ciphertext),
         },
+        # Budget cap (R2) + overflow toggle, and current instance-wide usage so
+        # the UI can flag when stored bytes already exceed a just-lowered cap.
+        "r2_quota_bytes": cfg.r2_quota_bytes,
+        "allow_overflow": cfg.allow_overflow,
+        "used_bytes": used,
+        "total_bytes": cap,
+        "over_cap": used > cap,
         "local_blobs": _local_blob_summary(),
         "migration": _migration_dict(latest),
     }
 
 
 class StorageConfigView(APIView):
-    permission_classes = [IsAuthenticated, IsOwner]
+    permission_classes = [IsAuthenticated, IsOwner, IsSessionAuthenticated]
 
     def get(self, request):
         return Response(_config_payload())
@@ -90,6 +101,22 @@ class StorageConfigView(APIView):
         backend = data.get("backend", cfg.backend)
         if backend not in (StorageConfig.Backend.LOCAL, StorageConfig.Backend.R2):
             return Response({"detail": "Unknown backend."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # R2 budget cap + overflow toggle (independent of switching backends).
+        # Lowering the cap below what's already stored is allowed - it's a budget
+        # figure, not a wall - and flagged via over_cap in the response.
+        if "r2_quota_bytes" in data:
+            try:
+                cap = int(data.get("r2_quota_bytes"))
+            except (TypeError, ValueError):
+                return Response({"detail": "r2_quota_bytes must be a whole number of bytes."},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if cap <= 0:
+                return Response({"detail": "Storage cap must be greater than zero."},
+                                status=status.HTTP_400_BAD_REQUEST)
+            cfg.r2_quota_bytes = cap
+        if "allow_overflow" in data:
+            cfg.allow_overflow = bool(data.get("allow_overflow"))
 
         if backend == StorageConfig.Backend.R2:
             endpoint = str(data.get("endpoint_url", cfg.r2_endpoint_url) or "").strip()
@@ -125,7 +152,7 @@ class StorageTestView(APIView):
     """Verify R2 credentials/bucket reachability. Uses creds from the request body
     when provided (so 'Test' works before saving), else the stored config."""
 
-    permission_classes = [IsAuthenticated, IsOwner]
+    permission_classes = [IsAuthenticated, IsOwner, IsSessionAuthenticated]
 
     def post(self, request):
         from .services.r2 import R2StorageService
@@ -150,7 +177,7 @@ class StorageTestView(APIView):
 
 
 class StorageMigrationView(APIView):
-    permission_classes = [IsAuthenticated, IsOwner]
+    permission_classes = [IsAuthenticated, IsOwner, IsSessionAuthenticated]
 
     def get(self, request):
         job = StorageMigration.objects.order_by("-created_at").first()
@@ -176,7 +203,7 @@ class StorageMigrationView(APIView):
 
 
 class StorageMigrationPauseView(APIView):
-    permission_classes = [IsAuthenticated, IsOwner]
+    permission_classes = [IsAuthenticated, IsOwner, IsSessionAuthenticated]
 
     def post(self, request):
         job = StorageMigration.objects.filter(

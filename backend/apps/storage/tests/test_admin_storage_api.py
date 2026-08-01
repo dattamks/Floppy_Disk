@@ -175,3 +175,49 @@ def test_pause_sets_cancel_flag(oc, monkeypatch):
     assert r.status_code == 200
     job = StorageMigration.objects.first()
     assert job.cancel_requested is True
+
+
+# --- budget cap + overflow toggle (R2) --------------------------------------
+def test_owner_sets_cap_and_overflow(oc):
+    r = oc.put(BASE, {"r2_quota_bytes": 40 * 1024**3, "allow_overflow": False},
+               format="json")
+    assert r.status_code == 200, r.content
+    body = r.json()
+    assert body["r2_quota_bytes"] == 40 * 1024**3
+    assert body["allow_overflow"] is False
+    cfg = StorageConfig.load()
+    assert cfg.r2_quota_bytes == 40 * 1024**3 and cfg.allow_overflow is False
+
+
+def test_cap_must_be_positive(oc):
+    assert oc.put(BASE, {"r2_quota_bytes": 0}, format="json").status_code == 400
+    assert oc.put(BASE, {"r2_quota_bytes": -5}, format="json").status_code == 400
+    assert oc.put(BASE, {"r2_quota_bytes": "lots"}, format="json").status_code == 400
+
+
+def test_lowering_cap_below_usage_is_accepted_and_flagged(oc):
+    from apps.storage.models import StorageObject
+
+    StorageObject.objects.create(
+        content_hash="a" * 64, region="ap-south", size_bytes=8 * 1024**3,
+        ref_count=1, status=StorageObject.Status.READY,
+    )
+    # Lower the cap to 2 GB while 8 GB is stored - allowed, but flagged.
+    r = oc.put(BASE, {"r2_quota_bytes": 2 * 1024**3}, format="json")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["r2_quota_bytes"] == 2 * 1024**3  # accepted
+    assert body["over_cap"] is True               # highlighted
+    assert body["used_bytes"] == 8 * 1024**3
+
+
+def test_api_key_cannot_reach_storage_admin(owner):
+    """Even the owner's own API key must not drive storage settings - the cap
+    and R2 credentials are reachable only from an interactive owner session."""
+    from apps.accounts.models import ApiKey
+
+    _key, raw = ApiKey.create_for(owner, name="mcp")
+    c = APIClient()
+    c.credentials(HTTP_AUTHORIZATION=f"Bearer {raw}")
+    assert c.get(BASE).status_code == 403
+    assert c.put(BASE, {"r2_quota_bytes": 1}, format="json").status_code == 403

@@ -109,9 +109,22 @@ def test_full_upload_flow_commits_quota_and_dedups(client, user):
 
 
 def test_upload_initiate_blocks_when_over_quota(client, user):
-    user.quota_bytes = 5 * GB
-    user.storage_used_bytes = 4 * GB
-    user.save()
+    # Instance-wide: an enforced 5 GB R2 budget with 4 GB already stored.
+    from apps.storage.models import StorageConfig, StorageObject
+
+    cfg = StorageConfig.load()
+    cfg.backend = StorageConfig.Backend.R2
+    cfg.r2_endpoint_url = "https://x.r2.cloudflarestorage.com"
+    cfg.r2_access_key_id = "k"
+    cfg.r2_secret_ciphertext = "enc"
+    cfg.r2_bucket = "b"
+    cfg.r2_quota_bytes = 5 * GB
+    cfg.allow_overflow = False
+    cfg.save()
+    StorageObject.objects.create(
+        content_hash="e" * 64, region=user.storage_region, size_bytes=4 * GB,
+        ref_count=1, status=StorageObject.Status.READY,
+    )
     resp = client.post(
         "/api/v1/storage/uploads",
         {"name": "big.bin", "size_bytes": 2 * GB},
@@ -134,11 +147,17 @@ def test_upload_initiate_blocks_file_over_cap(client, user):
 
 
 def test_usage_endpoint_reports_quota(client, user):
+    from apps.storage.models import StorageConfig
+
     resp = client.get("/api/v1/storage/usage")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["quota_bytes"] == user.quota_bytes
+    # Instance-wide: with no files stored, used is 0; the ceiling is the
+    # configured cap (default here, disk tracking off in tests).
     assert data["used_bytes"] == 0
+    assert data["quota_bytes"] == StorageConfig.load().r2_quota_bytes
+    assert data["backend"] == "local"
+    assert data["over_cap"] is False
 
 
 def test_malformed_folder_param_does_not_500(client):
