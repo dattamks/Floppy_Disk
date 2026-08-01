@@ -114,6 +114,37 @@ def test_proxy_ssl_header_and_hsts_opt_in(monkeypatch, tmp_path):
     assert s.SECURE_HSTS_SECONDS == 31536000
 
 
+def test_cookies_not_secure_on_plain_http_lan(monkeypatch, tmp_path):
+    # A plain-HTTP LAN self-host: secure cookies would be dropped by the browser,
+    # silently breaking login. They must default OFF here.
+    for k in ("USE_PROXY_SSL_HEADER", "SECURE_SSL_REDIRECT",
+              "SESSION_COOKIE_SECURE", "CSRF_COOKIE_SECURE"):
+        monkeypatch.delenv(k, raising=False)
+    s = _load_standalone(monkeypatch, tmp_path)
+    assert s.SESSION_COOKIE_SECURE is False
+    assert s.CSRF_COOKIE_SECURE is False
+
+
+def test_cookies_secure_when_behind_tls_proxy(monkeypatch, tmp_path):
+    # Behind a TLS-terminating proxy (Railway/Caddy) the site is HTTPS, so the
+    # session/CSRF cookies must be secure by default (else they'd go in the clear).
+    monkeypatch.setenv("USE_PROXY_SSL_HEADER", "true")
+    for k in ("SESSION_COOKIE_SECURE", "CSRF_COOKIE_SECURE"):
+        monkeypatch.delenv(k, raising=False)
+    s = _load_standalone(monkeypatch, tmp_path)
+    assert s.SESSION_COOKIE_SECURE is True
+    assert s.CSRF_COOKIE_SECURE is True
+
+
+def test_secure_cookie_default_is_overridable(monkeypatch, tmp_path):
+    # An operator can still force cookies non-secure even behind TLS (edge cases
+    # like a health checker that speaks HTTP internally).
+    monkeypatch.setenv("USE_PROXY_SSL_HEADER", "true")
+    monkeypatch.setenv("SESSION_COOKIE_SECURE", "false")
+    s = _load_standalone(monkeypatch, tmp_path)
+    assert s.SESSION_COOKIE_SECURE is False
+
+
 def test_storage_defaults_to_local_without_r2(monkeypatch, tmp_path):
     s = _load_standalone(monkeypatch, tmp_path)
     assert s.STORAGE_SERVICE == "apps.storage.services.local.LocalStorageService"

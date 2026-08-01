@@ -43,16 +43,24 @@ class VideoMeta:
 
 
 class MediaTranscoder(ABC):
-    @abstractmethod
-    def probe(self, *, data: bytes, filename: str = "") -> VideoMeta:
-        """Inspect raw video bytes and report format/metadata."""
+    """Operates on a source *file path*, never the whole video held in memory.
+
+    A video can be gigabytes; buffering it (and its rendition) in RAM would OOM
+    a small self-host box. FFmpeg reads and writes files, so callers hand us the
+    on-disk source path and we shell out against it directly. Only the derived
+    outputs (a poster JPEG, or a transcoded MP4) come back as bytes.
+    """
 
     @abstractmethod
-    def transcode_to_mp4(self, *, data: bytes) -> bytes:
+    def probe(self, *, src: Path, filename: str = "") -> VideoMeta:
+        """Inspect the video file and report format/metadata."""
+
+    @abstractmethod
+    def transcode_to_mp4(self, *, src: Path) -> bytes:
         """Return browser-playable H.264/AAC MP4 bytes (faststart for seeking)."""
 
     @abstractmethod
-    def poster(self, *, data: bytes) -> bytes:
+    def poster(self, *, src: Path) -> bytes:
         """Return a JPEG poster frame grabbed from early in the video."""
 
 
@@ -63,7 +71,7 @@ class FakeTranscoder(MediaTranscoder):
     a (pretend) transcode, so both code paths are exercised without FFmpeg.
     """
 
-    def probe(self, *, data: bytes, filename: str = "") -> VideoMeta:
+    def probe(self, *, src: Path, filename: str = "") -> VideoMeta:
         container = (filename.rsplit(".", 1)[-1] if "." in filename else "").lower()
         web = container in _WEB_CONTAINERS
         return VideoMeta(
@@ -76,11 +84,11 @@ class FakeTranscoder(MediaTranscoder):
             is_web_playable=web,
         )
 
-    def transcode_to_mp4(self, *, data: bytes) -> bytes:
+    def transcode_to_mp4(self, *, src: Path) -> bytes:
         # Pretend-normalized bytes; a marker keeps it distinct from the original.
-        return b"FAKEMP4\x00" + data
+        return b"FAKEMP4\x00" + src.read_bytes()
 
-    def poster(self, *, data: bytes) -> bytes:
+    def poster(self, *, src: Path) -> bytes:
         # Minimal but valid-ish JPEG header so downstream sniffers see an image.
         return b"\xff\xd8\xff\xe0FAKEJPEG"
 
@@ -88,14 +96,13 @@ class FakeTranscoder(MediaTranscoder):
 class FFmpegTranscoder(MediaTranscoder):
     """Real transcoder over the bundled ffmpeg/ffprobe binaries."""
 
-    def probe(self, *, data: bytes, filename: str = "") -> VideoMeta:
-        with _tempfile(data) as src:
-            out = _run(
-                [
-                    _ffprobe(), "-v", "quiet", "-print_format", "json",
-                    "-show_format", "-show_streams", str(src),
-                ]
-            )
+    def probe(self, *, src: Path, filename: str = "") -> VideoMeta:
+        out = _run(
+            [
+                _ffprobe(), "-v", "quiet", "-print_format", "json",
+                "-show_format", "-show_streams", str(src),
+            ]
+        )
         try:
             info = json.loads(out or b"{}")
         except ValueError:
@@ -124,8 +131,8 @@ class FFmpegTranscoder(MediaTranscoder):
             ),
         )
 
-    def transcode_to_mp4(self, *, data: bytes) -> bytes:
-        with _tempfile(data) as src, tempfile.TemporaryDirectory() as d:
+    def transcode_to_mp4(self, *, src: Path) -> bytes:
+        with tempfile.TemporaryDirectory() as d:
             dst = Path(d) / "out.mp4"
             _run(
                 [
@@ -139,8 +146,8 @@ class FFmpegTranscoder(MediaTranscoder):
             )
             return dst.read_bytes()
 
-    def poster(self, *, data: bytes) -> bytes:
-        with _tempfile(data) as src, tempfile.TemporaryDirectory() as d:
+    def poster(self, *, src: Path) -> bytes:
+        with tempfile.TemporaryDirectory() as d:
             dst = Path(d) / "poster.jpg"
             _run(
                 [
@@ -184,23 +191,6 @@ def _ffmpeg() -> str:
 
 def _ffprobe() -> str:
     return _binary("FFPROBE_BINARY", "ffprobe", 1)
-
-
-class _tempfile:
-    """Context manager writing bytes to a temp file, yielding its Path."""
-
-    def __init__(self, data: bytes):
-        self._data = data
-
-    def __enter__(self) -> Path:
-        self._f = tempfile.NamedTemporaryFile(delete=False)
-        self._f.write(self._data)
-        self._f.flush()
-        self._f.close()
-        return Path(self._f.name)
-
-    def __exit__(self, *exc):
-        Path(self._f.name).unlink(missing_ok=True)
 
 
 def _run(cmd: list[str]) -> bytes:

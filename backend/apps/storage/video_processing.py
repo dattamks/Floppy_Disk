@@ -9,7 +9,10 @@ are always kept; `File.playable_object` points at the transcoded rendition
 """
 from __future__ import annotations
 
+import contextlib
 import logging
+import tempfile
+from pathlib import Path
 
 from django.db.models import F
 
@@ -53,46 +56,81 @@ def process_video(file_id) -> None:
     storage = get_storage_service()
     obj = file.storage_object
 
-    # Production R2 completion (streaming download) isn't wired yet; without
-    # local bytes we can't transcode, so serve the original as-is.
-    if not hasattr(storage, "read_bytes"):
-        _finalize(file, playable=obj)
-        return
+    # FFmpeg reads the source from disk; we never load the (potentially multi-GB)
+    # video into memory. If we can't obtain a local source path - e.g. a remote
+    # backend with no local mirror, or the blob is simply missing - fall back to
+    # serving the original as-is so the video still has a playable URL.
+    with _local_source(storage, obj) as src:
+        if src is None:
+            _finalize(file, playable=obj)
+            return
 
-    try:
-        data = storage.read_bytes(region=obj.region, object_key=obj.object_key)
-    except FileNotFoundError:
-        _finalize(file, playable=obj)
-        return
-
-    transcoder = get_media_transcoder()
-    poster_obj = None
-    playable_obj = obj
-
-    try:
-        meta = transcoder.probe(data=data, filename=file.name)
-        file.duration_seconds = meta.duration_seconds
-        file.width = meta.width
-        file.height = meta.height
-
-        if not meta.is_web_playable:
-            mp4 = transcoder.transcode_to_mp4(data=data)
-            playable_obj = _store_rendition(
-                storage, region=obj.region, object_key=f"{obj.object_key}.play.mp4", data=mp4
-            )
-    except Exception:  # noqa: BLE001 - never leave a video stuck; fall back to the original
-        logger.exception("Video transcode failed for file %s; serving original", file.id)
+        transcoder = get_media_transcoder()
+        poster_obj = None
         playable_obj = obj
 
-    try:
-        poster_bytes = transcoder.poster(data=data)
-        poster_obj = _store_rendition(
-            storage, region=obj.region, object_key=f"{obj.object_key}.poster.jpg", data=poster_bytes
-        )
-    except Exception:  # noqa: BLE001 - poster is optional
-        logger.warning("Poster generation failed for file %s", file.id, exc_info=True)
+        try:
+            meta = transcoder.probe(src=src, filename=file.name)
+            file.duration_seconds = meta.duration_seconds
+            file.width = meta.width
+            file.height = meta.height
+
+            if not meta.is_web_playable:
+                mp4 = transcoder.transcode_to_mp4(src=src)
+                playable_obj = _store_rendition(
+                    storage, region=obj.region, object_key=f"{obj.object_key}.play.mp4", data=mp4
+                )
+        except Exception:  # noqa: BLE001 - never leave a video stuck; fall back to the original
+            logger.exception("Video transcode failed for file %s; serving original", file.id)
+            playable_obj = obj
+
+        try:
+            poster_bytes = transcoder.poster(src=src)
+            poster_obj = _store_rendition(
+                storage, region=obj.region, object_key=f"{obj.object_key}.poster.jpg", data=poster_bytes
+            )
+        except Exception:  # noqa: BLE001 - poster is optional
+            logger.warning("Poster generation failed for file %s", file.id, exc_info=True)
 
     _finalize(file, playable=playable_obj, poster=poster_obj)
+
+
+@contextlib.contextmanager
+def _local_source(storage, obj):
+    """Yield an on-disk Path to the source blob, or None if it can't be reached.
+
+    Prefers the backend's own file (``local_path``) so nothing is copied. For a
+    backend that can only hand back bytes (``read_bytes``), stream them once to a
+    temp file and clean it up afterward - still never holding the whole blob and
+    a rendition in memory at the same time. Anything else (a pure-remote backend)
+    yields None so the caller serves the original untranscoded.
+    """
+    local_path = getattr(storage, "local_path", None)
+    if callable(local_path):
+        path = Path(local_path(region=obj.region, object_key=obj.object_key))
+        yield path if path.exists() else None
+        return
+
+    read_bytes = getattr(storage, "read_bytes", None)
+    if not callable(read_bytes):
+        yield None
+        return
+
+    tmp = None
+    try:
+        try:
+            data = read_bytes(region=obj.region, object_key=obj.object_key)
+        except FileNotFoundError:
+            yield None
+            return
+        with tempfile.NamedTemporaryFile(delete=False) as fh:
+            fh.write(data)
+            tmp = Path(fh.name)
+        yield tmp
+    finally:
+        if tmp is not None:
+            with contextlib.suppress(OSError):
+                tmp.unlink()
 
 
 def _finalize(file: File, *, playable: StorageObject, poster: StorageObject | None = None) -> None:

@@ -15,7 +15,9 @@ and runs in a Celery task off the request path.
 """
 from __future__ import annotations
 
+import logging
 import re
+import threading
 
 from django.db import transaction
 from django.utils import timezone
@@ -223,31 +225,81 @@ def _add_reference_edges(files, file_node, add) -> None:
 
 
 def _read_storage():
-    """The storage backend if it can read bytes here (local dev/self-host), else
-    None - REFERENCES scanning is skipped rather than fetching from remote R2."""
+    """A *local* storage backend whose blobs sit on this box, else None.
+
+    The un-indexed-doc fallback below reads a blob to scan it for references. We
+    gate that on ``local_path`` (present only on the local/self-host backend) so
+    a rebuild never fans out into remote R2 GETs - REFERENCES scanning is simply
+    skipped for R2-backed stores, where indexed ``content_text`` still covers the
+    common case."""
     try:
         from apps.storage.services.base import get_storage_service
         storage = get_storage_service()
     except Exception:  # noqa: BLE001
         return None
-    return storage if hasattr(storage, "read_bytes") else None
+    return storage if hasattr(storage, "local_path") else None
+
+
+# A first-ever graph build up to this many nodes is done inline (instant first
+# view); a larger store builds in the background so the read can't time out.
+_INLINE_FIRST_BUILD_MAX = 500
+
+_rebuilding: set = set()  # user ids with a background rebuild already in flight
+_rebuild_lock = threading.Lock()
+
+
+def _rebuild_in_background(user) -> None:
+    """Recompute the graph on a daemon thread; de-duplicated per user."""
+    uid = user.pk
+    with _rebuild_lock:
+        if uid in _rebuilding:
+            return
+        _rebuilding.add(uid)
+
+    def _run():
+        from django.db import connection
+
+        try:
+            rebuild_user_graph(user)
+        except Exception:  # noqa: BLE001 - never crash the background thread
+            logging.getLogger("graph").exception("graph rebuild failed for user %s", uid)
+        finally:
+            with _rebuild_lock:
+                _rebuilding.discard(uid)
+            connection.close()  # don't leak this thread's DB connection
+
+    threading.Thread(target=_run, name=f"graph-rebuild-{uid}", daemon=True).start()
 
 
 def ensure_fresh(user) -> None:
     """Rebuild the graph if it's missing or stale.
 
-    Stale = a file/folder changed after the last build. This keeps reads correct
-    without hooking every mutating view or firing global signals; the cost is two
-    cheap MAX(updated_at) probes and only pays when the graph is actually read.
+    Stale = a file/folder changed after the last build. In the single-container
+    standalone deployment the recompute would otherwise run INLINE in the graph
+    GET and, for a large store, blow past gunicorn's request timeout. So there we
+    rebuild on a background thread and serve the currently-stored graph (reads
+    become eventually-consistent, refreshing within a moment). The very first
+    build for a small store still runs inline so the first view is populated.
+    Elsewhere (tests, real Celery worker) it stays synchronous.
     """
+    from django.conf import settings
     from django.db.models import Max
 
+    background = getattr(settings, "STANDALONE", False)
     build = GraphBuild.objects.filter(owner=user).first()
     if build is None or build.built_at is None:
+        if background:
+            n = File.objects.filter(owner=user).count() + Folder.objects.filter(owner=user).count()
+            if n > _INLINE_FIRST_BUILD_MAX:
+                _rebuild_in_background(user)
+                return
         rebuild_user_graph(user)
         return
     f_latest = File.objects.filter(owner=user).aggregate(m=Max("updated_at"))["m"]
     d_latest = Folder.objects.filter(owner=user).aggregate(m=Max("updated_at"))["m"]
     latest = max([t for t in (f_latest, d_latest) if t is not None], default=None)
     if latest is not None and latest > build.built_at:
-        rebuild_user_graph(user)
+        if background:
+            _rebuild_in_background(user)  # serve the current graph; refresh behind the scenes
+        else:
+            rebuild_user_graph(user)

@@ -7,7 +7,7 @@ Upload flow (presigned direct-to-storage):
   3. POST uploads/<id>/complete -> dedup StorageObject, commit reservation, File ready
 """
 from django.db.models import F
-from django.http import FileResponse, HttpResponse, StreamingHttpResponse
+from django.http import HttpResponse, StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -780,8 +780,9 @@ class UploadCompleteView(APIView):
         object_key = _object_key(request.user.id, file.id)
         storage = get_storage_service()
 
-        # Determine the real size + content hash of the uploaded blob.
-        # (Dev/Local exposes stat(); production R2 completion is wired in a later slice.)
+        # Determine the real size + content hash of the uploaded blob. Both the
+        # Local and R2 backends implement stat(); a backend without it can't
+        # verify a completed upload, so we refuse rather than trust the client.
         if not hasattr(storage, "stat"):
             return Response(
                 {"detail": "Upload completion for this storage backend is not wired yet."},
