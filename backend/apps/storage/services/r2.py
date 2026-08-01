@@ -117,11 +117,16 @@ class R2StorageService(StorageService):
             url=post["url"], fields=post["fields"], object_key=object_key, expires_in=3600
         )
 
-    def presign_download(self, *, region, object_key, expires_in=3600) -> str:
+    def presign_download(self, *, region, object_key, expires_in=3600,
+                         filename=None, as_attachment=False) -> str:
+        params = {"Bucket": self._bucket_for(region), "Key": object_key}
+        if as_attachment and filename:
+            # R2/S3 honors response-content-disposition on a presigned GET, so the
+            # download is named the display name, not the opaque object key.
+            safe = filename.replace("\\", "_").replace("/", "_").replace('"', "")
+            params["ResponseContentDisposition"] = f'attachment; filename="{safe}"'
         return self._client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": self._bucket_for(region), "Key": object_key},
-            ExpiresIn=expires_in,
+            "get_object", Params=params, ExpiresIn=expires_in,
         )
 
     def create_multipart(self, *, region, object_key) -> str:

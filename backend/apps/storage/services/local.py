@@ -41,8 +41,15 @@ class LocalStorageService(StorageService):
             object_key=object_key,
         )
 
-    def presign_download(self, *, region, object_key, expires_in=3600) -> str:
-        return f"/api/v1/storage/_dev/blob/{region}/{object_key}"
+    def presign_download(self, *, region, object_key, expires_in=3600,
+                         filename=None, as_attachment=False) -> str:
+        url = f"/api/v1/storage/_dev/blob/{region}/{object_key}"
+        if as_attachment and filename:
+            from urllib.parse import quote
+
+            # DevBlobView reads ?dl= and sends an attachment Content-Disposition.
+            url += "?dl=" + quote(filename)
+        return url
 
     def create_multipart(self, *, region, object_key) -> str:
         return f"local-multipart-{object_key}"

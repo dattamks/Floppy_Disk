@@ -81,11 +81,26 @@ def _iter_file_range(path, start, length, block=_STREAM_BLOCK):
             yield data
 
 
-def _ranged_file_response(request, path, content_type):
+def _content_disposition(name: str) -> str:
+    """An attachment Content-Disposition that carries the display name.
+
+    Uses RFC 5987 `filename*` (UTF-8) for correctness with non-ASCII names, plus
+    an ASCII `filename=` fallback for old clients. Strips path separators/quotes
+    so the header can't be broken or spoofed.
+    """
+    from urllib.parse import quote
+
+    safe = (name or "download").replace("\\", "_").replace("/", "_").replace('"', "")
+    ascii_fallback = safe.encode("ascii", "ignore").decode("ascii") or "download"
+    return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(safe)}"
+
+
+def _ranged_file_response(request, path, content_type, download_name=None):
     """Serve a file from disk honoring the HTTP Range header (206 partial).
 
     Streams in bounded blocks (never reads the whole file, or a whole requested
-    range, into memory) so a large download can't OOM the worker.
+    range, into memory) so a large download can't OOM the worker. When
+    `download_name` is given, forces a download named that (else served inline).
     """
     import re
 
@@ -119,6 +134,8 @@ def _ranged_file_response(request, path, content_type):
         resp = FileResponse(path.open("rb"), content_type=content_type)
         resp["Content-Length"] = str(file_size)
     resp["Accept-Ranges"] = "bytes"
+    if download_name:
+        resp["Content-Disposition"] = _content_disposition(download_name)
     return resp
 
 
@@ -341,7 +358,13 @@ class FileDownloadView(APIView):
         if not file.storage_object_id or file.status != File.Status.READY:
             return Response({"detail": "File is not ready."}, status=status.HTTP_409_CONFLICT)
         obj = file.storage_object
-        url = get_storage_service().presign_download(region=obj.region, object_key=obj.object_key)
+        # `?download=1` -> force a download named the display name (the button);
+        # without it the URL serves inline (image/PDF/video previews).
+        as_attachment = bool(request.query_params.get("download"))
+        url = get_storage_service().presign_download(
+            region=obj.region, object_key=obj.object_key,
+            filename=file.name, as_attachment=as_attachment,
+        )
         return Response({"download_url": url, "name": file.name, "size_bytes": file.size_bytes})
 
 
@@ -945,7 +968,10 @@ class DevBlobView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if not path.exists():
             return Response(status=status.HTTP_404_NOT_FOUND)
-        resp = _ranged_file_response(request, path, self._content_type(object_key))
+        # ?dl=<name> forces an attachment download with the display name (set by
+        # the download button); without it the blob is served inline for previews.
+        dl = request.query_params.get("dl") or None
+        resp = _ranged_file_response(request, path, self._content_type(object_key), download_name=dl)
         # Same-origin previews embed this blob in an <iframe> (PDF reader) and
         # <img>/<video> tags; the site-wide X-Frame-Options: DENY would blank the
         # PDF viewer. Allow same-origin framing for this owner-scoped blob only.
