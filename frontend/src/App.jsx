@@ -1145,6 +1145,7 @@ export default class App extends React.Component {
           real: true,
         };
         this.setState((s) => ({ files: [item, ...s.files], creatingNote: false }));
+        this.loadUsage(); // a new note charges bytes - refresh the sidebar meter
         // Open it immediately in edit mode with an empty body - start typing.
         this.setState({
           modal: 'preview',
@@ -1245,6 +1246,7 @@ export default class App extends React.Component {
             ),
           }));
           this.toast('Saved');
+          this.loadUsage(); // content size changed - refresh the sidebar meter
           this._loadBacklinks(id); // links may have changed
         };
         if (desiredName && desiredName !== curName) {
@@ -1711,6 +1713,7 @@ export default class App extends React.Component {
         modal: null,
       }));
       this.toast('Deleted permanently');
+      this.loadUsage(); // purge freed committed bytes - refresh the sidebar meter
     } else {
       // Soft delete: move to trash (still counts toward quota until purged).
       if (f.real) {
@@ -1799,6 +1802,7 @@ export default class App extends React.Component {
           uploadQueue: s.uploadQueue.filter((u) => u.id !== qid),
         }));
         this.toast(file.status === 'processing' ? 'Uploaded - processing video…' : 'Uploaded');
+        this.loadUsage(); // committed bytes changed - refresh the sidebar meter
         // A video may still be transcoding; refresh shortly to pick up its
         // poster + ready state (prod worker; instant in dev).
         if (file.kind === 'video' && file.status === 'processing') {
