@@ -1,5 +1,6 @@
 import React from 'react';
 import { theme } from '../lib/theme';
+import { swipeX } from '../lib/ui';
 import { highlightJson, highlightYaml } from '../lib/highlight';
 
 // The WYSIWYG editor pulls in TipTap/ProseMirror (~160KB gzip); load it lazily
@@ -180,6 +181,11 @@ function Body(V) {
   }
   const k = V.previewKind;
   if (k === 'image') {
+    // Swipe left/right pages the gallery on touch devices.
+    const swipe = swipeX({
+      onLeft: () => V.previewHasNext && V.previewNext(),
+      onRight: () => V.previewHasPrev && V.previewPrev(),
+    });
     const arrow = (onClick, side, glyph) => (
       <button
         onClick={onClick}
@@ -189,8 +195,8 @@ function Body(V) {
           top: '50%',
           [side]: '10px',
           transform: 'translateY(-50%)',
-          width: '34px',
-          height: '34px',
+          width: '44px',
+          height: '44px',
           borderRadius: '50%',
           border: 'none',
           cursor: 'pointer',
@@ -213,7 +219,7 @@ function Body(V) {
       </button>
     );
     return (
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative' }} {...swipe}>
         <img
           src={V.previewUrl}
           alt={f.name}

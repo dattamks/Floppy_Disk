@@ -1,13 +1,15 @@
 import React from 'react';
 import { theme } from '../lib/theme';
-import { hov } from '../lib/ui';
+import { hov, longPress } from '../lib/ui';
 
 // Compact list-view row (alternative to FileCard's grid tile).
 export default function FileRow({ V, file }) {
+  const lp = longPress(file.onCtxMenu); // touch long-press -> context menu
   return (
     <div
       onClick={file.onOpen}
       onContextMenu={file.onCtxMenu}
+      {...lp}
       draggable={file.draggable}
       onDragStart={file.onDragStart}
       onDragEnd={file.onDragEnd}

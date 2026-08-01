@@ -152,10 +152,14 @@ export default class App extends React.Component {
     window.addEventListener('resize', this._onResize);
     this._onResize();
     this._onKey = (e) => {
+      const tag = (e.target && e.target.tagName) || '';
+      const typing =
+        tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable);
       if (e.key === 'Escape') {
         if (this.state.ctxMenu) this.closeCtxMenu();
         else if (this.state.modal) this.closeModal();
         else if (this.state.drawerOpen) this.closeDrawer();
+        else if (this.state.selectedIds.length) this.clearSelection();
         return;
       }
       // Arrow keys page through the image gallery in the preview modal.
@@ -166,6 +170,30 @@ export default class App extends React.Component {
       ) {
         if (e.key === 'ArrowLeft') this.previewStep(-1);
         else if (e.key === 'ArrowRight') this.previewStep(1);
+        return;
+      }
+      // The browser-level shortcuts below apply only to the file grid - never
+      // while typing in a field or with a dialog open.
+      if (typing || this.state.modal) return;
+      // Ctrl/Cmd+A: select (or clear) every selectable item in the current view.
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'a' || e.key === 'A')) {
+        if ((this._selectableIds || []).length) {
+          e.preventDefault();
+          this.selectAllVisible();
+        }
+        return;
+      }
+      // Delete / Backspace: trash the selection (permanent-delete inside Trash).
+      if ((e.key === 'Delete' || e.key === 'Backspace') && this.state.selectedIds.length) {
+        e.preventDefault();
+        if (this._inTrashView) this.bulkPurge();
+        else this.bulkTrash();
+        return;
+      }
+      // "/" jumps to the search box, like most file managers.
+      if (e.key === '/') {
+        e.preventDefault();
+        this.focusSearch();
       }
     };
     window.addEventListener('keydown', this._onKey);
@@ -1382,11 +1410,53 @@ export default class App extends React.Component {
   // --- Bulk selection --------------------------------------------------------
   toggleSelect(id, e) {
     if (e) e.stopPropagation();
+    const order = this._orderedIds || [];
+    // Shift-click extends a contiguous range from the last-clicked anchor,
+    // the way Finder / Explorer / Drive all behave.
+    if (
+      e &&
+      e.shiftKey &&
+      this._selectAnchor &&
+      order.includes(this._selectAnchor) &&
+      order.includes(id)
+    ) {
+      const a = order.indexOf(this._selectAnchor);
+      const b = order.indexOf(id);
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      const range = order.slice(lo, hi + 1);
+      this.setState((s) => {
+        const set = new Set(s.selectedIds);
+        range.forEach((x) => set.add(x));
+        return { selectedIds: [...set] };
+      });
+      return;
+    }
+    this._selectAnchor = id;
     this.setState((s) => ({
       selectedIds: s.selectedIds.includes(id)
         ? s.selectedIds.filter((x) => x !== id)
         : [...s.selectedIds, id],
     }));
+  }
+  // Select every selectable item in the current view, or clear if all already are.
+  selectAllVisible() {
+    const ids = this._selectableIds || [];
+    if (!ids.length) return;
+    this.setState((s) => ({
+      selectedIds: s.selectedIds.length >= ids.length ? [] : [...ids],
+    }));
+  }
+  focusSearch() {
+    const run = () => {
+      const el = document.querySelector('input[placeholder="Search files and folders"]');
+      if (el) el.focus();
+    };
+    // On mobile the search field is behind a toggle; open it first, then focus.
+    if ((this.state.vw || 1200) < 820 && !this.state.mobileSearchOpen) {
+      this.setState({ mobileSearchOpen: true }, () => setTimeout(run, 0));
+    } else {
+      run();
+    }
   }
   clearSelection() {
     if (this.state.selectedIds.length) this.setState({ selectedIds: [] });
@@ -1412,6 +1482,43 @@ export default class App extends React.Component {
       .filter((f) => ids.includes(f.id) && f.kind !== 'folder')
       .forEach((f) => this.downloadFile(f));
     this.setState({ selectedIds: [] });
+  }
+  bulkRestore() {
+    const ids = [...this.state.selectedIds];
+    ids.forEach((id) => {
+      const f = this.state.files.find((x) => x.id === id);
+      if (f && f.real)
+        (f.kind === 'folder' ? api.restoreFolder(id) : api.restoreFile(id)).catch(() => {});
+    });
+    this.setState((s) => ({
+      files: s.files.map((x) => (ids.includes(x.id) ? { ...x, trashed: false } : x)),
+      selectedIds: [],
+    }));
+    this.toast(`Restored ${ids.length} item${ids.length === 1 ? '' : 's'}`);
+    // The server may de-dupe restored names; reload so the grid shows the truth.
+    this.loadStorage();
+  }
+  bulkPurge() {
+    const ids = [...this.state.selectedIds];
+    ids.forEach((id) => {
+      const f = this.state.files.find((x) => x.id === id);
+      if (f && f.real)
+        (f.kind === 'folder' ? api.purgeFolder(id) : api.purgeFile(id)).catch(() => {});
+    });
+    this.setState((s) => ({
+      files: s.files.filter(
+        (x) =>
+          !ids.includes(x.id) &&
+          // Also drop any descendants of a purged folder still held in state.
+          !ids.some((pid) => {
+            const p = s.files.find((y) => y.id === pid);
+            return p && p.kind === 'folder' && this._isDescendantOf(x, pid, s.files);
+          })
+      ),
+      selectedIds: [],
+    }));
+    this.toast(`Deleted ${ids.length} permanently`);
+    this.loadUsage();
   }
   openBulkMove() {
     this.setState({
@@ -1975,8 +2082,9 @@ export default class App extends React.Component {
         onDragOver: (e) => this.onDragOverFolder(f, e),
         onDragLeave: () => this.onDragLeaveFolder(f),
         onDrop: (e) => this.onDropFolder(f, e),
-        // Bulk selection.
-        selectable: !f.trashed,
+        // Bulk selection (trashed items are selectable too, for bulk
+        // restore / permanent-delete in the Trash view).
+        selectable: true,
         selected: st.selectedIds.includes(f.id),
         onToggleSelect: (e) => this.toggleSelect(f.id, e),
       };
@@ -2028,6 +2136,11 @@ export default class App extends React.Component {
     }
 
     const visibleFiles = rawList.map(decorate);
+    // Remember the on-screen order + which view this is, so the keyboard
+    // shortcuts (select-all, shift-range, delete) act on exactly what's shown.
+    this._orderedIds = rawList.map((f) => f.id);
+    this._selectableIds = this._orderedIds;
+    this._inTrashView = !searchActive && filterKey === 'trash';
     const isEmpty = visibleFiles.length === 0;
     const emptyMessage = searchActive
       ? 'No files match your search'
@@ -2248,10 +2361,16 @@ export default class App extends React.Component {
       // Bulk selection.
       selectionActive: st.selectedIds.length > 0,
       selectionCount: st.selectedIds.length,
+      // In the Trash view the bulk bar offers Restore / Delete permanently
+      // instead of Move / Download / Trash.
+      selectionInTrash: !searchActive && filterKey === 'trash',
       onClearSelection: () => this.clearSelection(),
+      onSelectAll: () => this.selectAllVisible(),
       onBulkMove: () => this.openBulkMove(),
       onBulkDownload: () => this.bulkDownload(),
       onBulkTrash: () => this.bulkTrash(),
+      onBulkRestore: () => this.bulkRestore(),
+      onBulkPurge: () => this.bulkPurge(),
       // Search type filters (shown while searching).
       showSearchFilters: searchActive,
       searchTypeChips: [
