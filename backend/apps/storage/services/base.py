@@ -8,6 +8,7 @@ Region-pinned buckets come from settings.R2_REGION_BUCKETS.
 """
 from __future__ import annotations
 
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -22,6 +23,17 @@ class PresignedUpload:
 
 class StorageService(ABC):
     """Contract for the object-storage backend (R2 now, unchanged at AWS migration)."""
+
+    def content_hash(self, data: bytes) -> str:
+        """Content-address bytes we hold server-side (notes, edits, renditions).
+
+        Must match how ``stat()`` derives a directly-uploaded object's hash on
+        this backend, so the same bytes dedup whether they arrive via a direct
+        upload or a server-side write. Default is SHA-256 (local backend); R2
+        overrides to MD5 to match the object ETag it reads back."""
+        import hashlib
+
+        return hashlib.sha256(data).hexdigest()
 
     @abstractmethod
     def presign_upload(
@@ -61,7 +73,34 @@ class StorageService(ABC):
 
 
 def get_storage_service() -> StorageService:
+    """Return the active storage backend.
+
+    Precedence (mirrors DB selection): environment R2 (operator-configured) →
+    the owner-set StorageConfig row (UI) → local disk. Resolved per call so a
+    change saved in the UI takes effect immediately, with no restart.
+    """
     from django.conf import settings
     from django.utils.module_loading import import_string
 
+    # 1. Environment wins: if R2 (or any explicit STORAGE_SERVICE) is set in the
+    #    environment, honor it exactly as before - the UI shows it read-only.
+    if getattr(settings, "R2_CONFIGURED", False) or "STORAGE_SERVICE" in os.environ:
+        return import_string(settings.STORAGE_SERVICE)()
+
+    # 2. Owner-configured R2 from the database (decrypted secret injected).
+    from apps.storage.config import decrypt_secret
+    from apps.storage.models import StorageConfig
+    from apps.storage.services.r2 import R2StorageService
+
+    cfg = StorageConfig.load()
+    if cfg.backend == StorageConfig.Backend.R2 and cfg.r2_is_complete():
+        return R2StorageService(
+            endpoint_url=cfg.r2_endpoint_url,
+            access_key_id=cfg.r2_access_key_id,
+            secret_access_key=decrypt_secret(cfg.r2_secret_ciphertext),
+            bucket=cfg.r2_bucket,
+            region_buckets={},
+        )
+
+    # 3. Default: local disk (import the configured default, normally Local).
     return import_string(settings.STORAGE_SERVICE)()

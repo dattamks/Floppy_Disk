@@ -14,15 +14,24 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-import hashlib
 import uuid
 
 from django.db import transaction
 
 from .lifecycle import _release_object, purge_file, purge_folder
 from .models import File, Folder, StorageObject, StorageReservation
-from .naming import classify_kind, unique_name
-from .quota import FileTooLarge, QuotaExceeded, available_bytes, commit, reserve
+from .naming import classify_kind, sanitize_name, unique_name
+from .quota import (
+    FileTooLarge,
+    QuotaExceeded,
+    available_bytes,
+    commit,
+    disk_free_bytes,
+    instance_used_bytes,
+    overflow_allowed,
+    reserve,
+    storage_total_bytes,
+)
 from .scoping import folder_in_scope, is_scoped, scope_files, scope_folders, scoped_folder_ids
 from .serializers import (
     FileSerializer,
@@ -30,6 +39,7 @@ from .serializers import (
     FolderSerializer,
     UploadInitiateSerializer,
 )
+from .config import effective_backend
 from .services.base import get_storage_service
 
 
@@ -41,7 +51,7 @@ def _folder_filter_param(request, key="folder"):
     """Parse a folder/parent query param. Returns (value, ok):
       (None, True)      -> absent (list the storage root)
       (uuid_str, True)  -> a syntactically valid id
-      (None, False)     -> present but malformed — caller should return [] rather
+      (None, False)     -> present but malformed - caller should return [] rather
                            than let the DB raise (a bad ?folder= must not 500).
     """
     import uuid as _uuid
@@ -216,7 +226,7 @@ class FolderDetailView(APIView):
             fields.append("parent")
 
         if "name" in request.data:
-            name = (request.data.get("name") or "").strip()
+            name = sanitize_name(request.data.get("name") or "")
             if not name:
                 return Response({"detail": "Folder name cannot be empty."},
                                 status=status.HTTP_400_BAD_REQUEST)
@@ -270,7 +280,7 @@ class CameraBackupFolderView(APIView):
 
     def get(self, request):
         # Camera Backup is a top-level (parentless) folder, so a folder-scoped
-        # key can never legitimately reach it — refuse rather than silently
+        # key can never legitimately reach it - refuse rather than silently
         # create a folder outside the key's scope.
         if is_scoped(request):
             return Response({"detail": "This key is limited to a folder and cannot use device backup."},
@@ -336,7 +346,7 @@ class FileDownloadView(APIView):
 
 
 class FileContentView(APIView):
-    """Replace a (text) file's content in place — edit-in-place saving."""
+    """Replace a (text) file's content in place - edit-in-place saving."""
 
     permission_classes = [IsAuthenticated]
     MAX_BYTES = 5 * 1024 * 1024  # inline text editing cap
@@ -375,7 +385,7 @@ class FileContentView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
 
         region = request.user.storage_region
-        content_hash = hashlib.sha256(data).hexdigest()
+        content_hash = storage.content_hash(data)
         # New content addressed at a sibling key so releasing the old blob can't
         # clobber the new one.
         key = f"{_object_key(request.user.id, file.id)}.{content_hash[:12]}"
@@ -400,7 +410,7 @@ class FileContentView(APIView):
             get_user_model().objects.filter(pk=request.user.pk).update(
                 storage_used_bytes=F("storage_used_bytes") + delta
             )
-        # Content changed — refresh the full-text index and warm the graph.
+        # Content changed - refresh the full-text index and warm the graph.
         if file.kind == File.Kind.DOC:
             from .indexing import reindex_file
             reindex_file(file)
@@ -433,11 +443,21 @@ class UsageView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        u = request.user
+        # Single-tenant: usage + ceiling are instance-wide (one shared pool),
+        # not per user. "used" is the deduplicated real footprint.
+        total = storage_total_bytes()
+        used = instance_used_bytes()
         return Response({
-            "quota_bytes": u.quota_bytes,
-            "used_bytes": u.storage_used_bytes,
-            "available_bytes": available_bytes(u),
+            "quota_bytes": total,
+            "used_bytes": used,
+            "available_bytes": available_bytes(),
+            # Real free space on the server volume (null on R2), so the UI can
+            # warn before the disk is physically full.
+            "disk_free_bytes": disk_free_bytes(),
+            "backend": effective_backend(),
+            # R2 budget can be a soft cap (overflow on) that usage may exceed.
+            "overflow_allowed": overflow_allowed(),
+            "over_cap": used > total,
         })
 
 
@@ -458,7 +478,7 @@ class FileDetailView(APIView):
         if "folder" in request.data:
             folder_id = request.data["folder"] or None
             # Destination must be within the key's scope (moving to the storage
-            # root — folder=None — is outside a scoped key).
+            # root - folder=None - is outside a scoped key).
             if not folder_in_scope(request, folder_id):
                 return Response({"detail": "Destination is outside this key's allowed folder."},
                                 status=status.HTTP_400_BAD_REQUEST)
@@ -474,7 +494,7 @@ class FileDetailView(APIView):
             fields.append("folder")
 
         if "name" in request.data:
-            name = (request.data.get("name") or "").strip()
+            name = sanitize_name(request.data.get("name") or "")
             if not name:
                 return Response({"detail": "File name cannot be empty."},
                                 status=status.HTTP_400_BAD_REQUEST)
@@ -575,7 +595,7 @@ class FolderRestoreView(APIView):
         except Folder.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
         # Restore everything trashed together with this folder (but NOT items the
-        # user had independently trashed earlier — those have a different/no root).
+        # user had independently trashed earlier - those have a different/no root).
         now = timezone.now()
         Folder.objects.filter(owner=request.user, trashed_root=folder.pk).update(
             deleted_at=None, trashed_root=None, updated_at=now
@@ -596,7 +616,7 @@ class TrashView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        # Only top-level trashed items — children trashed via an ancestor folder
+        # Only top-level trashed items - children trashed via an ancestor folder
         # (trashed_root set) come back with that folder, not on their own.
         folders = scope_folders(
             Folder.objects.filter(
@@ -631,7 +651,11 @@ class UploadInitiateView(APIView):
             return Response({"detail": "This key can only upload inside its allowed folder."},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        name = unique_name(data["name"], _active_file_names(request.user, data.get("folder")))
+        safe = sanitize_name(data["name"])
+        if not safe:
+            return Response({"detail": "File name cannot be empty."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        name = unique_name(safe, _active_file_names(request.user, data.get("folder")))
         # Derive kind from the name/content-type when the client left it at the
         # generic default (REST/MCP clients often omit it). This keeps the
         # knowledge graph able to scan documents regardless of upload path; a
@@ -654,10 +678,10 @@ class UploadInitiateView(APIView):
             return Response({"detail": str(exc), "code": "file_too_large"}, status=status.HTTP_400_BAD_REQUEST)
         except QuotaExceeded as exc:
             file.delete()
-            # Device backup pauses on quota — notify the user, don't fail silently.
+            # Device backup pauses on quota - notify the user, don't fail silently.
             if request.data.get("is_backup"):
                 from apps.notifications.dispatch import notify
-                notify(request.user, type="quota", title="Backup paused — storage full",
+                notify(request.user, type="quota", title="Backup paused - storage full",
                        body="Free up space to resume Camera Backup.")
             return Response({"detail": str(exc), "code": "quota_exceeded"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -750,12 +774,12 @@ class UploadCompleteView(APIView):
 
 
 class NoteCreateView(APIView):
-    """Create a note — a Markdown document — in a single call.
+    """Create a note - a Markdown document - in a single call.
 
     Notes are ordinary doc-kind files, but a note editor shouldn't have to run
     the 3-step upload dance just to make a blank page. This collapses
     initiate+put+complete: it creates the file, stores the (optional) initial
-    text, commits quota, and indexes it for search + the knowledge graph — so
+    text, commits quota, and indexes it for search + the knowledge graph - so
     the editor can create-then-edit smoothly. Content is then edited in place via
     PUT /files/{id}/content like any other document.
     """
@@ -784,7 +808,15 @@ class NoteCreateView(APIView):
             return Response({"detail": "This key can only create inside its allowed folder."},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        raw = (str(request.data.get("name") or "").strip()) or "Untitled note"
+        # Notes are written server-side, so the backend must accept bytes here.
+        # Refuse up front (rather than create a phantom note that charges quota
+        # but stored nothing) on a backend that can't - mirrors FileContentView.
+        storage = get_storage_service()
+        if not hasattr(storage, "save_bytes"):
+            return Response({"detail": "Creating notes is not supported on this backend."},
+                            status=status.HTTP_501_NOT_IMPLEMENTED)
+
+        raw = sanitize_name(str(request.data.get("name") or "")) or "Untitled note"
         if not raw.lower().endswith(".md"):
             raw += ".md"
         name = unique_name(raw, _active_file_names(request.user, folder))
@@ -803,16 +835,14 @@ class NoteCreateView(APIView):
             kind=File.Kind.DOC, size_bytes=size, status=File.Status.READY,
         )
         region = request.user.storage_region
-        content_hash = hashlib.sha256(data).hexdigest()
+        content_hash = storage.content_hash(data)
         object_key = _object_key(request.user.id, file.id)
         obj, _created = StorageObject.objects.get_or_create(
             content_hash=content_hash, region=region,
             defaults={"size_bytes": size, "status": StorageObject.Status.READY, "object_key": object_key},
         )
         StorageObject.objects.filter(pk=obj.pk).update(ref_count=F("ref_count") + 1)
-        storage = get_storage_service()
-        if hasattr(storage, "save_bytes"):
-            storage.save_bytes(region=region, object_key=obj.object_key, data=data)
+        storage.save_bytes(region=region, object_key=obj.object_key, data=data)
         file.storage_object = obj
         file.save(update_fields=["storage_object"])
         if size:
@@ -848,7 +878,7 @@ class DevBlobView(APIView):
     def _can_read(self, user, object_key: str) -> bool:
         """Authorize a blob read. Own-namespace keys pass directly; a key under
         another user's namespace is allowed only when this user owns a File that
-        references it — which is exactly the content-addressed dedup case (a
+        references it - which is exactly the content-addressed dedup case (a
         second uploader's File reuses the first uploader's StorageObject, whose
         object_key stays under the first uploader). Without this, an owner can't
         download their own deduplicated file."""
@@ -915,7 +945,12 @@ class DevBlobView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if not path.exists():
             return Response(status=status.HTTP_404_NOT_FOUND)
-        return _ranged_file_response(request, path, self._content_type(object_key))
+        resp = _ranged_file_response(request, path, self._content_type(object_key))
+        # Same-origin previews embed this blob in an <iframe> (PDF reader) and
+        # <img>/<video> tags; the site-wide X-Frame-Options: DENY would blank the
+        # PDF viewer. Allow same-origin framing for this owner-scoped blob only.
+        resp["X-Frame-Options"] = "SAMEORIGIN"
+        return resp
 
     @staticmethod
     def _content_type(object_key):

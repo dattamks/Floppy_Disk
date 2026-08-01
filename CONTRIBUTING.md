@@ -6,10 +6,10 @@ server), licensed under Apache-2.0.
 
 ## Repository layout
 
-- `backend/` — Django + DRF API and Celery workers
-- `frontend/` — React (Vite) single-page app
-- `mcp/` — Python FastMCP server wrapping the REST API
-- `docs/` — API reference (`docs/api/`) and change notes
+- `backend/` - Django + DRF API and Celery workers
+- `frontend/` - React (Vite) single-page app
+- `mcp/` - Python FastMCP server wrapping the REST API
+- `docs/` - API reference (`docs/api/`) and change notes
 
 ## Local setup
 
@@ -67,13 +67,13 @@ cd mcp && pip install -r requirements.txt && \
 
 ## Reporting security issues
 
-Please do **not** open a public issue for security vulnerabilities — see
+Please do **not** open a public issue for security vulnerabilities - see
 [`SECURITY.md`](SECURITY.md).
 
 ## Contribution terms
 
 By contributing you agree to the project's [Contribution Terms](CONTRIBUTION_TERMS.md):
 your contributions are licensed under the Apache License 2.0 (inbound = outbound),
-and each commit must be signed off under the Developer Certificate of Origin —
+and each commit must be signed off under the Developer Certificate of Origin -
 add a `Signed-off-by` line with `git commit -s`. See
 [`CONTRIBUTION_TERMS.md`](CONTRIBUTION_TERMS.md) for the full text.

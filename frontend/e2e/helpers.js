@@ -17,7 +17,10 @@ export function uniqueEmail() {
 }
 
 // Register a fresh account through the UI and land in the app.
-export async function registerNewUser(page, { email = uniqueEmail(), dob = '2000-01-01' } = {}) {
+export async function registerNewUser(
+  page,
+  { email = uniqueEmail(), dob = '2000-01-01', dismissSetup = true } = {}
+) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.getByPlaceholder('Full name').fill('E2E User');
@@ -26,5 +29,12 @@ export async function registerNewUser(page, { email = uniqueEmail(), dob = '2000
   await page.getByPlaceholder('Password').fill('s3cretpass99');
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.getByRole('button', { name: 'Upload' }).waitFor();
+  // If this account is the instance Owner (first user ever), the first-run
+  // storage setup appears over the app; dismiss it so specs interact freely.
+  const setup = page.getByTestId('setup-modal');
+  if (dismissSetup && (await setup.isVisible().catch(() => false))) {
+    await page.getByTestId('setup-skip').click();
+    await setup.waitFor({ state: 'hidden' }).catch(() => {});
+  }
   return email;
 }

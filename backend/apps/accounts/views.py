@@ -146,7 +146,7 @@ class PasswordResetRequestView(APIView):
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         get_auth_provider().start_password_reset(email=serializer.validated_data["email"])
-        # Always 204 — never reveal whether the account exists.
+        # Always 204 - never reveal whether the account exists.
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

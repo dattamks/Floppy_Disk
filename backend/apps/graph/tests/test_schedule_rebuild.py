@@ -18,7 +18,7 @@ def user():
 
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
 def test_noop_in_eager_mode(user):
-    # Standalone (eager): don't rebuild inline — read-time ensure_fresh handles it.
+    # Standalone (eager): don't rebuild inline - read-time ensure_fresh handles it.
     with mock.patch("apps.graph.tasks.rebuild_graph_task.delay") as delay:
         schedule_rebuild(user)
         delay.assert_not_called()

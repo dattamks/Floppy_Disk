@@ -1,6 +1,6 @@
 """Name de-duplication for files & folders (Drive-style "naming sense").
 
-Keeps names unique among *active* siblings by appending " (2)", " (3)", … —
+Keeps names unique among *active* siblings by appending " (2)", " (3)", … -
 preserving a file's extension ("report.pdf" -> "report (2).pdf"). Used on
 create, rename, move, and restore so a collision never produces two
 indistinguishable items in the same place.
@@ -31,7 +31,7 @@ def classify_kind(name: str, content_type: str | None = None, fallback: str = "f
 
     Mirrors the SPA's kindOf(): video/image/audio by MIME family, common
     text/document types as "doc", otherwise ``fallback``. The server does this
-    so REST/MCP uploads that omit ``kind`` still classify correctly — otherwise
+    so REST/MCP uploads that omit ``kind`` still classify correctly - otherwise
     every programmatic upload defaults to the generic "file" kind and the
     knowledge graph never scans documents for cross-references.
 
@@ -49,6 +49,28 @@ def classify_kind(name: str, content_type: str | None = None, fallback: str = "f
     if mime.startswith("text") or mime in _DOC_MIMES or ext.lower() in _DOC_EXTS:
         return "doc"
     return fallback
+
+
+# Characters that must never appear in a stored display name: path separators
+# (which could confuse any name-based path handling) and ASCII control chars
+# (which corrupt listings, logs, and downloads). We strip rather than reject so
+# a paste with a stray slash still yields a usable name instead of an error.
+_UNSAFE_RE = re.compile(r"[\x00-\x1f\x7f/\\]")
+
+
+def sanitize_name(name: str) -> str:
+    """Clean a user-supplied file/folder name to a safe display string.
+
+    Removes path separators and control characters, collapses surrounding
+    whitespace, caps length at 255, and maps the reserved names "." and ".."
+    to empty so the caller's own empty-name check rejects them. Returns "" when
+    nothing usable remains. Applied on every create/rename/note path so no
+    exposed endpoint can persist a name with a slash or control byte.
+    """
+    cleaned = _UNSAFE_RE.sub("", name or "").strip()
+    if cleaned in (".", ".."):
+        return ""
+    return cleaned[:255]
 
 
 def _split_ext(name: str) -> tuple[str, str]:

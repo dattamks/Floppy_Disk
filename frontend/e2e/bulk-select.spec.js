@@ -36,3 +36,55 @@ test('select multiple files and bulk-trash them', async ({ page }) => {
   await expect(page.getByText('one.txt', { exact: true })).toHaveCount(0);
   await expect(page.getByText('two.txt', { exact: true })).toHaveCount(0);
 });
+
+test('keyboard select-all and Delete trashes the whole listing', async ({ page }) => {
+  await registerNewUser(page);
+  for (const name of ['ka.txt', 'kb.txt', 'kc.txt']) {
+    await page.getByRole('button', { name: 'Upload' }).click();
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(name) });
+    await page.keyboard.press('Escape');
+    await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
+  }
+
+  // Ctrl+A selects every item, Delete moves them all to trash.
+  await page.mouse.move(400, 400);
+  await page.keyboard.press('Control+a');
+  await expect(page.getByText('3 selected')).toBeVisible();
+  await page.keyboard.press('Delete');
+  await expect(page.getByText('ka.txt', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('kc.txt', { exact: true })).toHaveCount(0);
+});
+
+test('Trash view supports bulk restore', async ({ page }) => {
+  await registerNewUser(page);
+  for (const name of ['r1.txt', 'r2.txt']) {
+    await page.getByRole('button', { name: 'Upload' }).click();
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(name) });
+    await page.keyboard.press('Escape');
+    await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
+  }
+  // Trash both.
+  await page.mouse.move(400, 400);
+  await page.keyboard.press('Control+a');
+  await page.getByRole('button', { name: 'Trash', exact: true }).click();
+  await expect(page.getByText('r1.txt', { exact: true })).toHaveCount(0);
+
+  // In Trash, the bulk bar offers Restore / Delete permanently instead.
+  await page.getByText('Trash', { exact: false }).first().click();
+  await expect(page.getByText('r1.txt', { exact: true }).first()).toBeVisible();
+  await page.mouse.move(400, 400);
+  await page.keyboard.press('Control+a');
+  const bar = page.getByTestId('selection-bar');
+  await expect(bar.getByText('2 selected')).toBeVisible();
+  await expect(bar.getByRole('button', { name: 'Delete permanently' })).toBeVisible();
+  await bar.getByRole('button', { name: 'Restore', exact: true }).click();
+
+  // Back in My Files, the restored files are listed again.
+  await page.getByText('My Files', { exact: false }).first().click();
+  await expect(page.getByText('r1.txt', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText('r2.txt', { exact: true }).first()).toBeVisible();
+});

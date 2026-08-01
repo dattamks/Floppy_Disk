@@ -86,7 +86,7 @@ class GraphView extends React.Component {
         <React.Fragment>
           {header}
           <div style={{ color: theme.textMuted, fontSize: '13.5px', padding: '18px 2px' }}>
-            The graph is empty — upload some files and it builds itself.
+            The graph is empty - upload some files and it builds itself.
           </div>
         </React.Fragment>
       );

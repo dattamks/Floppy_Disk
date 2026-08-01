@@ -1,14 +1,14 @@
 """
-Folder scoping for API keys — the single chokepoint every read/write funnels
+Folder scoping for API keys - the single chokepoint every read/write funnels
 through so a folder-scoped key can only ever touch its own subtree.
 
 Design: a Bearer API key may carry a `root_folder` (see accounts.ApiKey). When
-it does, the request is confined to that folder plus all descendants — for
+it does, the request is confined to that folder plus all descendants - for
 listing, detail, download, rename/move/delete, upload target, search, AND the
 knowledge graph (graph reads call `scoped_folder_ids` too). A request with no
 key, or a key with no `root_folder` (session users, full-access keys), is
 unrestricted. Building the graph is global and trusted; *reading* it is scoped
-here, exactly like the file store — one filter, no per-view divergence.
+here, exactly like the file store - one filter, no per-view divergence.
 
 `request.auth` is the ApiKey instance for Bearer auth and None for session auth
 (DRF sets it from the authenticator's return value), so the scope travels with
@@ -31,7 +31,7 @@ def scoped_folder_ids(request):
 
     Includes the scope root and every structural descendant (ignoring
     soft-delete, so a scoped key can still see/restore its own trash). Cached on
-    the request — the subtree is walked once per request, not per view.
+    the request - the subtree is walked once per request, not per view.
     """
     root_id = key_root_folder_id(request)
     if not root_id:

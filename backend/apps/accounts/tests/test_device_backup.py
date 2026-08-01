@@ -37,7 +37,7 @@ def test_string_false_disables_flag(user):
     """Form-encoded / stringy 'false' must turn a flag OFF, not ON.
 
     bool('false') is True, so the old coercion flipped 'disable wifi-only' into
-    'enable wifi-only' — backing up over cellular against the user's choice.
+    'enable wifi-only' - backing up over cellular against the user's choice.
     """
     user.backup_wifi_only = True
     user.auto_backup_enabled = True
@@ -77,9 +77,23 @@ def test_camera_backup_folder_is_created_once(user):
 
 
 def test_backup_upload_over_quota_pauses_and_notifies(user):
-    user.quota_bytes = 1 * GB
-    user.storage_used_bytes = 1 * GB
-    user.save()
+    # Instance-wide storage: an enforced 1 GB R2 budget (overflow off) that's
+    # already full, so the next upload is rejected.
+    from apps.storage.models import StorageConfig, StorageObject
+
+    cfg = StorageConfig.load()
+    cfg.backend = StorageConfig.Backend.R2
+    cfg.r2_endpoint_url = "https://x.r2.cloudflarestorage.com"
+    cfg.r2_access_key_id = "k"
+    cfg.r2_secret_ciphertext = "enc"
+    cfg.r2_bucket = "b"
+    cfg.r2_quota_bytes = 1 * GB
+    cfg.allow_overflow = False
+    cfg.save()
+    StorageObject.objects.create(
+        content_hash="f" * 64, region=user.storage_region, size_bytes=1 * GB,
+        ref_count=1, status=StorageObject.Status.READY,
+    )
     c = _client(user)
     folder = c.get("/api/v1/storage/camera-backup").json()
 

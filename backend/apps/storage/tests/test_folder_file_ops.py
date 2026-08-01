@@ -213,3 +213,37 @@ def test_restore_file_into_reused_name_gets_variant(client, user):
     resp = client.post(f"/api/v1/storage/files/{a.id}/restore")
     assert resp.status_code == 200
     assert resp.json()["name"] == "notes (2).md"
+
+
+# --- name sanitization (path separators / control chars stripped) -----------
+def test_rename_file_strips_path_separators(client, user):
+    f = _file(user, "a.txt")
+    resp = client.patch(f"/api/v1/storage/files/{f.id}", {"name": "a/b\\c.txt"}, format="json")
+    assert resp.status_code == 200, resp.content
+    assert resp.json()["name"] == "abc.txt"  # slashes removed
+
+
+def test_rename_file_strips_control_chars(client, user):
+    f = _file(user, "a.txt")
+    resp = client.patch(f"/api/v1/storage/files/{f.id}", {"name": "no\x00tes\t.md"}, format="json")
+    assert resp.status_code == 200, resp.content
+    assert resp.json()["name"] == "notes.md"
+
+
+def test_rename_to_only_separators_is_rejected(client, user):
+    f = _file(user, "a.txt")
+    resp = client.patch(f"/api/v1/storage/files/{f.id}", {"name": "///"}, format="json")
+    assert resp.status_code == 400
+
+
+def test_create_folder_strips_separators(client, user):
+    resp = client.post("/api/v1/storage/folders", {"name": "sub/dir\\name"}, format="json")
+    assert resp.status_code == 201, resp.content
+    assert resp.json()["name"] == "subdirname"  # separators gone, no nesting via name
+
+
+def test_create_note_strips_separators(client, user):
+    resp = client.post("/api/v1/storage/notes",
+                       {"name": "my/secret", "content": "hi"}, format="json")
+    assert resp.status_code == 201, resp.content
+    assert resp.json()["name"] == "mysecret.md"

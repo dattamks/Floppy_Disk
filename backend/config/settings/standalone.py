@@ -1,11 +1,11 @@
 """
 Standalone (single-deployment) settings.
 
-Run the ENTIRE product as ONE process — no Redis, no separate Celery worker or
+Run the ENTIRE product as ONE process - no Redis, no separate Celery worker or
 beat, no external Postgres required:
 
 * **SQLite by default** (point DATABASE_URL at Postgres if you'd rather).
-* **Background jobs run in-process** (Celery eager) — no broker.
+* **Background jobs run in-process** (Celery eager) - no broker.
 * **Periodic maintenance** runs on a lightweight in-process thread (see
   apps.common.apps), replacing Celery beat.
 * **Django serves the built SPA** (frontend/dist) at the root, so a single
@@ -13,7 +13,7 @@ beat, no external Postgres required:
 * **A persistent SECRET_KEY is generated on first run** and stored under the
   data dir, so nothing needs configuring for sessions to survive restarts.
 
-Everything persists under one directory (FLOPPY_DATA_DIR) — bind-mount that and
+Everything persists under one directory (FLOPPY_DATA_DIR) - bind-mount that and
 the whole instance is durable. This is the recommended way to self-host.
 """
 from pathlib import Path
@@ -92,14 +92,46 @@ SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=False)
 CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
-EMAIL_BACKEND = env(
-    "EMAIL_BACKEND",
-    # Console backend by default: verification/reset emails print to the log, so
-    # a solo self-host works with no SMTP configured.
-    default="django.core.mail.backends.console.EmailBackend",
-)
+# When TLS is terminated by a reverse proxy (Caddy/nginx/Traefik) in front, the
+# app receives plain HTTP on the internal hop. Enable this so Django trusts the
+# proxy's X-Forwarded-Proto header and knows the original request was HTTPS -
+# otherwise SECURE_SSL_REDIRECT loops and secure cookies never set. ONLY enable
+# when actually behind such a proxy (else the header can be spoofed).
+if env.bool("USE_PROXY_SSL_HEADER", default=False):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# Verification / password-reset links must point at THIS app's own origin — the
+# Optional HSTS for a public HTTPS deployment (0 = off, the safe default). Set to
+# e.g. 31536000 (1 year) once you're certain everything is served over HTTPS.
+_hsts = env.int("SECURE_HSTS_SECONDS", default=0)
+if _hsts > 0:
+    SECURE_HSTS_SECONDS = _hsts
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", default=True)
+    SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
+
+# --- Email delivery ---
+# Zero config: with no SMTP set, verification/reset emails print to the container
+# log (console backend), so a solo self-host works out of the box. To send real
+# email, just set EMAIL_HOST (+ credentials) - that alone switches to SMTP; an
+# explicit EMAIL_BACKEND always wins.
+EMAIL_HOST = env("EMAIL_HOST", default="")
+_email_backend = env("EMAIL_BACKEND", default="")
+if _email_backend:
+    EMAIL_BACKEND = _email_backend
+elif EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_SSL = env.bool("EMAIL_USE_SSL", default=False)
+# TLS (STARTTLS, port 587) is the common case; SSL (port 465) is the alternative.
+# Django rejects both being on at once, so SSL wins when explicitly enabled.
+EMAIL_USE_TLS = False if EMAIL_USE_SSL else env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=15)
+
+# Verification / password-reset links must point at THIS app's own origin - the
 # SPA is served from here in standalone mode, not the dev Vite server on :5173
 # (the base default). Set this to your public URL for a real deployment.
 FRONTEND_BASE_URL = env("FRONTEND_BASE_URL", default="http://localhost:8000")

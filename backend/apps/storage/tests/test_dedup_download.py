@@ -47,7 +47,7 @@ def test_second_owner_can_download_deduped_file():
     b_obj = File.objects.get(pk=b_fid).storage_object_id
     assert a_obj == b_obj and a_obj is not None
 
-    # B downloads B's file — the object_key is under A's namespace, but B owns a
+    # B downloads B's file - the object_key is under A's namespace, but B owns a
     # File referencing it, so delivery must succeed with the real bytes.
     dl = cb.get(f"/api/v1/storage/files/{b_fid}/download").json()
     resp = cb.get(dl["download_url"])
@@ -64,3 +64,16 @@ def test_stranger_cannot_read_key_they_own_no_file_for():
     # C owns no file referencing A's key -> refused.
     resp = _client(c).get(f"/api/v1/storage/_dev/blob/ap-south/{obj_key}")
     assert resp.status_code == 404
+
+
+def test_blob_is_same_origin_frameable_for_pdf_preview():
+    """The in-app PDF reader embeds the blob in a same-origin <iframe>. The
+    site-wide X-Frame-Options: DENY would blank it, so the local blob response
+    must send SAMEORIGIN instead."""
+    a = User.objects.create_user(email="framer@floppy.disk", password="pw")
+    ca = _client(a)
+    fid = _upload(ca, b"%PDF-1.4 fake pdf bytes", "report.pdf")
+    dl = ca.get(f"/api/v1/storage/files/{fid}/download").json()
+    resp = ca.get(dl["download_url"])
+    assert resp.status_code == 200
+    assert resp.headers.get("X-Frame-Options") == "SAMEORIGIN"

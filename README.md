@@ -1,16 +1,16 @@
 # Floppy Disk
 
-A **self-hostable, Google-Drive-style cloud storage app** — upload, organize,
+A **self-hostable, Google-Drive-style cloud storage app** - upload, organize,
 preview, and share your files and folders, with self-hosted video playback.
 Single storage tier, no subscriptions. Apache-2.0.
 
 > **Product focus:** Floppy Disk is a file-storage product. The earlier
-> "media platform" features were dropped in the Drive-focus pivot — **Channels**
+> "media platform" features were dropped in the Drive-focus pivot - **Channels**
 > were removed entirely, and the **third-party video streaming platform**
 > (Cloudflare Stream) was replaced by **self-hosted transcoding**. See
 > [`docs/deactivated-features.md`](docs/deactivated-features.md).
 
-> **📦 Just want to install it?** Follow the [**Setup Guide**](docs/SETUP.md) —
+> **📦 Just want to install it?** Follow the [**Setup Guide**](docs/SETUP.md) -
 > one container, one command, covering self-hosting, development, and AI/MCP
 > integration.
 
@@ -43,7 +43,7 @@ Single storage tier, no subscriptions. Apache-2.0.
 ## Features
 
 Built test-first (pytest) with the frontend wired and Playwright end-to-end
-coverage. **161 backend tests · 18 Vitest unit — all green**, plus Playwright
+coverage. **275 backend tests · 20 Vitest unit - all green**, plus Playwright
 E2E specs for the main flows.
 
 | Area | Endpoints (under `/api/v1/`) | Highlights |
@@ -52,11 +52,15 @@ E2E specs for the main flows.
 | **Storage** | `storage/{folders,files,uploads,usage,trash}` | nested folders, per-region dedup, **reserve-then-commit quota**, presigned upload |
 | **Rename / move** | `PATCH storage/{folders,files}/{id}` | rename + move (cycle-safe); **name-collision auto-suffix** `" (n)"` |
 | **Trash** | `storage/{files,folders}/{id}/{restore,purge}`, `storage/trash` | soft-delete with **folder cascade**, restore-as-a-unit, ref-count release, retention job |
+| **Notes** | `storage/notes`, `PUT storage/files/{id}/content` | in-app **rich-text notes** (WYSIWYG editor with Write/Markdown/Preview), `[[wiki-links]]` + backlinks |
+| **Knowledge graph** | `graph/`, `graph/related/{id}` | auto-built graph of your files (CONTAINS / SHARED_TOKEN / REFERENCES); "related files" + whole-graph view |
+| **Storage admin** (owner) | `admin/storage/{,test,migrate}` | first user is the **Owner**; configure **Cloudflare R2** or local disk in-app, test, and one-click move local files to R2 |
 | **Viewers** | `storage/files/{id}/download` | inline **image / PDF / audio / Markdown / JSON / YAML / text** preview of your own files |
 | **Video** | `storage/files/{id}/play` | **self-hosted** FFmpeg transcode → browser-playable MP4 + poster, served over HTTP Range (no third-party streaming) |
 | **Sharing** | `storage/files/{id}/share`, `storage/shares`, `public/share/{token}` | public token links, expiry, optional password gate, **link management** (list/revoke) |
 | **Notifications** | `notifications/…/{read,read-all}` | in-app notifications, unread counts |
-| **Search** | `storage/search`, `storage/files/{id}/discoverable` | own + discoverable content; Postgres FTS (prod), portable (dev) |
+| **Search** | `storage/search`, `storage/files/{id}/discoverable` | searches file **names + contents** (documents indexed on upload/edit); Postgres FTS (prod), portable substring (SQLite/dev) |
+| **Recovery** | `auth/password-reset{,/confirm}`, `manage.py set_password` | forgot-password email links (SMTP or console) + an offline CLI reset for self-hosts |
 | **Compliance** | `auth/account/{delete,export,consent,settings}` | DPDPA soft→hard delete, export, consent, backup settings |
 | **Device backup** | `storage/camera-backup` | Camera Backup folder, quota-pause notify |
 
@@ -65,24 +69,27 @@ share-unlock/verify-email.
 Scheduled (Celery beat): trash purge, expired-reservation release, and 30-day
 account hard-delete.
 
-Service boundaries are abstracted for the vendor migration: `AuthProvider`
-(Cognito), `StorageService` (R2/S3), `SearchService` (Postgres FTS/OpenSearch),
-and `MediaTranscoder` (FFmpeg). Dev/test use in-process fakes
-(`LocalStorageService`, `FakeTranscoder`) so the whole stack runs without
-external credentials.
+Service boundaries are abstracted behind interfaces: `AuthProvider` (Cognito),
+`StorageService`, `SearchService` (Postgres FTS/OpenSearch), and
+`MediaTranscoder` (FFmpeg). Storage ships with a working **Cloudflare R2**
+backend (`R2StorageService`, S3-compatible via boto3) and a **local-disk**
+backend (`LocalStorageService`); the active one is auto-detected from R2
+credentials (env vars or the owner's in-app settings), falling back to local
+disk. Dev/test use in-process fakes (`LocalStorageService`, `FakeTranscoder`)
+so the whole stack runs without external credentials.
 
 ## Self-hosted video
 
 Uploaded videos are normalized on our own servers with **FFmpeg** (installed in
 the backend image): a background task probes each upload and, if it isn't
 already browser-playable, transcodes an H.264/AAC MP4 rendition and grabs a
-poster frame. Playback is served over the existing HTTP **Range** endpoint —
+poster frame. Playback is served over the existing HTTP **Range** endpoint -
 progressive download + native seeking, no CDN or streaming SaaS. The original
 file is always kept alongside the rendition.
 
-## Run it — one container (recommended for self-hosting)
+## Run it - one container (recommended for self-hosting)
 
-The whole product runs as a **single deployment** — no Redis, no separate Celery
+The whole product runs as a **single deployment** - no Redis, no separate Celery
 worker/beat, no external database to set up:
 
 ```bash
@@ -110,7 +117,7 @@ DJANGO_SETTINGS_MODULE=config.settings.standalone gunicorn config.wsgi:applicati
 # in-process automatically when serving.
 ```
 
-## Backend — run (development, multi-service)
+## Backend - run (development, multi-service)
 
 For local development the full compose stack runs each piece separately:
 
@@ -123,7 +130,7 @@ docker compose up --build        # postgres + redis + web + worker + beat (image
 pytest                            # run the test suite
 ```
 
-## Frontend — run
+## Frontend - run
 
 ```bash
 cd frontend
@@ -149,13 +156,13 @@ sharing, video playback, notifications) for MCP-aware clients. See
 - **Storage:** Cloudflare R2 (S3-compatible) in prod; local disk in dev
 - **Video:** self-hosted FFmpeg transcoding + HTTP Range delivery
 - **Auth:** email/password via Django auth behind an `AuthProvider` abstraction
-- **CI:** GitHub Actions — backend pytest, frontend build + unit + E2E, MCP smoke
+- **CI:** GitHub Actions - backend pytest, frontend build + unit + E2E, MCP smoke
 
 See [`docs/api/`](docs/api) for the API reference (OpenAPI + README).
 
 ## Contributing
 
-Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and
+Contributions are welcome - see [CONTRIBUTING.md](CONTRIBUTING.md) for setup and
 test instructions. To report a security issue, see [SECURITY.md](SECURITY.md).
 
 ## License

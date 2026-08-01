@@ -2,6 +2,7 @@
 from rest_framework import serializers
 
 from .models import File, Folder
+from .naming import sanitize_name
 from .services.base import get_storage_service
 
 
@@ -24,7 +25,7 @@ class FolderCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
     def validate_name(self, value):
-        value = value.strip()
+        value = sanitize_name(value)
         if not value:
             raise serializers.ValidationError("Folder name cannot be empty.")
         return value

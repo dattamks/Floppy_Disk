@@ -12,9 +12,12 @@ export default class App extends React.Component {
     authName: '',
     authEmail: '',
     authPassword: '',
+    authPassword2: '', // confirm field for the reset-password view
     authDob: '',
     authError: '',
     authBusy: false,
+    resetToken: '', // token from a /reset-password?token=… link
+    verifyBanner: '', // status message after a /verify-email?token=… link
     usedGB: 4.6,
     newFolderName: '',
     videoVolume: 1,
@@ -89,6 +92,24 @@ export default class App extends React.Component {
     newKeyReadOnly: false,
     newKeyFolder: '', // '' = full storage; otherwise a folder id
     newKeyToken: '', // show-once secret after creation
+    // Storage administration (owner only).
+    isOwner: false,
+    storageConfig: null,
+    storageMigration: null,
+    setupOpen: false,
+    setupChoice: '',
+    storageBannerDismissed: false,
+    sfEndpoint: '',
+    sfAccess: '',
+    sfSecret: '',
+    sfBucket: '',
+    sfTestState: 'idle', // idle | testing | ok | error
+    sfTestMsg: '',
+    sfBusy: false,
+    sfDeleteLocal: false,
+    sfCapInput: '',
+    sfOverflow: true,
+    sfCapBusy: false,
     uploadQueue: [],
     shareAccess: 'restricted',
     sharePermission: 'view',
@@ -103,11 +124,16 @@ export default class App extends React.Component {
     videoMuted: false,
     videoCC: true,
     videoFullscreen: false,
+    previewFullscreen: false,
     unreadCount: 0,
     notifications: [],
     discoverResults: [],
     realUsedBytes: null,
     realQuotaBytes: null,
+    realBackend: null,
+    realOverflow: false,
+    realOverCap: false,
+    quotaBannerDismissed: false,
     ctxMenu: null,
     toastMsg: '',
   };
@@ -133,10 +159,14 @@ export default class App extends React.Component {
     window.addEventListener('resize', this._onResize);
     this._onResize();
     this._onKey = (e) => {
+      const tag = (e.target && e.target.tagName) || '';
+      const typing =
+        tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable);
       if (e.key === 'Escape') {
         if (this.state.ctxMenu) this.closeCtxMenu();
         else if (this.state.modal) this.closeModal();
         else if (this.state.drawerOpen) this.closeDrawer();
+        else if (this.state.selectedIds.length) this.clearSelection();
         return;
       }
       // Arrow keys page through the image gallery in the preview modal.
@@ -147,9 +177,34 @@ export default class App extends React.Component {
       ) {
         if (e.key === 'ArrowLeft') this.previewStep(-1);
         else if (e.key === 'ArrowRight') this.previewStep(1);
+        return;
+      }
+      // The browser-level shortcuts below apply only to the file grid - never
+      // while typing in a field or with a dialog open.
+      if (typing || this.state.modal) return;
+      // Ctrl/Cmd+A: select (or clear) every selectable item in the current view.
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'a' || e.key === 'A')) {
+        if ((this._selectableIds || []).length) {
+          e.preventDefault();
+          this.selectAllVisible();
+        }
+        return;
+      }
+      // Delete / Backspace: trash the selection (permanent-delete inside Trash).
+      if ((e.key === 'Delete' || e.key === 'Backspace') && this.state.selectedIds.length) {
+        e.preventDefault();
+        if (this._inTrashView) this.bulkPurge();
+        else this.bulkTrash();
+        return;
+      }
+      // "/" jumps to the search box, like most file managers.
+      if (e.key === '/') {
+        e.preventDefault();
+        this.focusSearch();
       }
     };
     window.addEventListener('keydown', this._onKey);
+    this._handleAuthLinks();
     this.bootstrapSession();
     try {
       const raw = localStorage.getItem('floppydisk-state');
@@ -178,7 +233,7 @@ export default class App extends React.Component {
       localStorage.setItem(
         'floppydisk-state',
         JSON.stringify({
-          // Files/folders are server-owned and reloaded on start — never cached
+          // Files/folders are server-owned and reloaded on start - never cached
           // here. Only lightweight prefs are persisted.
           usedGB: s.usedGB,
           profileName: s.profileName,
@@ -208,6 +263,31 @@ export default class App extends React.Component {
   }
   gotoForgot() {
     this.setState({ authView: 'forgot', authError: '' });
+  }
+  // Handle links from account emails: /reset-password?token=… and
+  // /verify-email?token=…. Reads the token, drives the right view, and cleans
+  // the token out of the address bar.
+  _handleAuthLinks() {
+    if (typeof window === 'undefined') return;
+    const path = window.location.pathname || '';
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (!token) return;
+    const clean = () => {
+      try { window.history.replaceState({}, '', '/'); } catch (e) {}
+    };
+    if (path.startsWith('/reset-password')) {
+      this.setState({ authView: 'reset', resetToken: token, authError: '', authPassword: '', authPassword2: '' });
+      clean();
+    } else if (path.startsWith('/verify-email')) {
+      api
+        .verifyEmail(token)
+        .then(() => this.setState({ verifyBanner: 'ok' }))
+        .catch(() => this.setState({ verifyBanner: 'fail' }))
+        .finally(() => clean());
+    }
+  }
+  setAuthPassword2(e) {
+    this.setState({ authPassword2: e.target.value, authError: '' });
   }
   logout() {
     api.logout().catch(() => {});
@@ -243,10 +323,12 @@ export default class App extends React.Component {
       emailVerified: !!user.email_verified,
       profileName: user.display_name || this.state.profileName,
       twofa: !!user.two_factor_enabled,
+      isOwner: !!user.is_owner,
     });
     this.loadStorage();
     this.loadUsage();
     this.loadNotifications();
+    if (user.is_owner) this.loadStorageConfig();
   }
 
   // Real quota/usage for the sidebar meter (falls back to demo values on failure).
@@ -257,6 +339,9 @@ export default class App extends React.Component {
         this.setState({
           realUsedBytes: u.used_bytes != null ? u.used_bytes : 0,
           realQuotaBytes: u.quota_bytes != null ? u.quota_bytes : null,
+          realBackend: u.backend || null,
+          realOverflow: !!u.overflow_allowed,
+          realOverCap: !!u.over_cap,
         })
       )
       .catch(() => {});
@@ -343,6 +428,20 @@ export default class App extends React.Component {
           this.setState({ authBusy: false, authView: 'login' });
           this.toast('If that email exists, a reset link is on its way');
         });
+    } else if (v === 'reset') {
+      const pw = s.authPassword || '';
+      if (pw.length < 8) return this.setState({ authError: 'Password must be at least 8 characters' });
+      if (pw !== s.authPassword2) return this.setState({ authError: 'Passwords do not match' });
+      this.setState({ authBusy: true, authError: '' });
+      api
+        .passwordResetConfirm(s.resetToken, pw)
+        .then(() => {
+          this.setState({ authBusy: false, authView: 'login', authPassword: '', authPassword2: '', resetToken: '' });
+          this.toast('Password updated - sign in with your new password');
+        })
+        .catch((err) =>
+          this.setState({ authBusy: false, authError: firstError(err, 'This reset link is invalid or has expired') })
+        );
     }
   }
   toastForgot() {
@@ -467,6 +566,174 @@ export default class App extends React.Component {
   setSettingsSecurity() {
     this.setState({ settingsTab: 'security' });
   }
+  setSettingsStorage() {
+    this.setState({ settingsTab: 'storage' });
+    this.loadStorageConfig();
+  }
+  // --- Storage administration (owner only) ---------------------------------
+  loadStorageConfig() {
+    return api
+      .storageConfig()
+      .then((cfg) => {
+        const s = this.state;
+        this.setState({
+          storageConfig: cfg,
+          storageMigration: cfg.migration || null,
+          // Prefill the form from the saved config (secret stays write-only).
+          sfEndpoint: s.sfEndpoint || cfg.r2.endpoint_url || '',
+          sfAccess: s.sfAccess || cfg.r2.access_key_id || '',
+          sfBucket: s.sfBucket || cfg.r2.bucket || '',
+          // Budget cap (shown in GB) + overflow toggle.
+          sfCapInput:
+            s.sfCapInput ||
+            (cfg.r2_quota_bytes != null ? String(Math.round(cfg.r2_quota_bytes / 1073741824)) : ''),
+          sfOverflow: cfg.allow_overflow != null ? cfg.allow_overflow : true,
+        });
+        // First-run: show the one-question setup once to the owner, only while
+        // storage is still local and not env-managed.
+        if (
+          this.state.isOwner &&
+          !cfg.setup_completed &&
+          !cfg.env_managed &&
+          cfg.effective_backend === 'local'
+        ) {
+          this.setState({ setupOpen: true });
+        }
+        // Resume polling a migration that's still running.
+        if (cfg.migration && (cfg.migration.status === 'running' || cfg.migration.status === 'pending')) {
+          this._pollMigration();
+        }
+      })
+      .catch(() => {});
+  }
+  testStorage() {
+    const s = this.state;
+    this.setState({ sfTestState: 'testing', sfTestMsg: '' });
+    const creds = {
+      endpoint_url: s.sfEndpoint.trim(),
+      access_key_id: s.sfAccess.trim(),
+      bucket: s.sfBucket.trim(),
+    };
+    if (s.sfSecret) creds.secret_access_key = s.sfSecret;
+    api
+      .testStorage(creds)
+      .then((res) =>
+        this.setState({
+          sfTestState: res.ok ? 'ok' : 'error',
+          sfTestMsg: res.ok ? '' : res.error || 'Connection failed.',
+        })
+      )
+      .catch((err) => this.setState({ sfTestState: 'error', sfTestMsg: firstError(err, 'Connection failed.') }));
+  }
+  saveStorage() {
+    const s = this.state;
+    const patch = {
+      backend: 'r2',
+      endpoint_url: s.sfEndpoint.trim(),
+      access_key_id: s.sfAccess.trim(),
+      bucket: s.sfBucket.trim(),
+      setup_completed: true,
+    };
+    if (s.sfSecret) patch.secret_access_key = s.sfSecret;
+    this.setState({ sfBusy: true });
+    api
+      .saveStorageConfig(patch)
+      .then((cfg) => {
+        this.setState({
+          sfBusy: false,
+          sfSecret: '',
+          storageConfig: cfg,
+          storageMigration: cfg.migration || null,
+        });
+        this.toast('Storage switched to Cloudflare R2');
+      })
+      .catch((err) => {
+        this.setState({ sfBusy: false });
+        this.toast(firstError(err, 'Could not save storage settings'));
+      });
+  }
+  // Save the R2 storage budget cap + overflow toggle (owner only).
+  saveCap() {
+    const gb = parseFloat(this.state.sfCapInput);
+    if (!(gb > 0)) {
+      this.toast('Enter a storage cap greater than zero');
+      return;
+    }
+    const bytes = Math.round(gb * 1073741824);
+    this.setState({ sfCapBusy: true });
+    api
+      .saveStorageConfig({ r2_quota_bytes: bytes, allow_overflow: this.state.sfOverflow })
+      .then((cfg) => {
+        this.setState({ sfCapBusy: false, storageConfig: cfg });
+        this.loadUsage(); // meter total changed
+        this.toast(
+          cfg.over_cap
+            ? 'Saved. Heads up: stored files already exceed this cap.'
+            : 'Storage budget updated'
+        );
+      })
+      .catch((err) => {
+        this.setState({ sfCapBusy: false });
+        this.toast(firstError(err, 'Could not update storage budget'));
+      });
+  }
+  // First-run setup choices.
+  setupChooseLocal() {
+    this.setState({ setupChoice: 'local' });
+    api.saveStorageConfig({ backend: 'local', setup_completed: true }).then((cfg) =>
+      this.setState({ storageConfig: cfg, setupOpen: false })
+    );
+  }
+  setupChooseR2() {
+    // Jump into the Storage settings tab to enter credentials.
+    this.setState({ setupOpen: false, modal: 'settings', settingsTab: 'storage' });
+  }
+  skipSetup() {
+    api.saveStorageConfig({ setup_completed: true }).then((cfg) =>
+      this.setState({ storageConfig: cfg, setupOpen: false })
+    );
+  }
+  openStorageSettings() {
+    this.setState({ modal: 'settings', settingsTab: 'storage' });
+    this.loadStorageConfig();
+  }
+  dismissStorageBanner() {
+    this.setState({ storageBannerDismissed: true });
+  }
+  startMigration() {
+    this.setState({ sfBusy: true });
+    api
+      .startStorageMigration(this.state.sfDeleteLocal)
+      .then((job) => {
+        this.setState({ sfBusy: false, storageMigration: job });
+        this._pollMigration();
+      })
+      .catch((err) => {
+        this.setState({ sfBusy: false });
+        this.toast(firstError(err, 'Could not start the move'));
+      });
+  }
+  pauseMigration() {
+    api.pauseStorageMigration().then((job) => this.setState({ storageMigration: job }));
+  }
+  _pollMigration() {
+    clearTimeout(this._migT);
+    const tick = () => {
+      api
+        .storageMigration()
+        .then((job) => {
+          this.setState({ storageMigration: job && job.status !== 'none' ? job : null });
+          if (job && (job.status === 'running' || job.status === 'pending')) {
+            this._migT = setTimeout(tick, 1200);
+          } else {
+            // Refresh the config so the local-file count / backend reflect the move.
+            this.loadStorageConfig();
+          }
+        })
+        .catch(() => {});
+    };
+    this._migT = setTimeout(tick, 1000);
+  }
   openRelated(f) {
     this.setState({
       modal: 'related',
@@ -524,7 +791,7 @@ export default class App extends React.Component {
           newKeyFolder: '',
         });
         this.loadApiKeys();
-        this.toast('API key created — copy it now, it won’t be shown again');
+        this.toast('API key created - copy it now, it won’t be shown again');
       })
       .catch((err) => this.toast(firstError(err, 'Could not create API key')));
   }
@@ -616,7 +883,7 @@ export default class App extends React.Component {
     // complete it via the link. Status comes from the backend (/me).
     api
       .resendVerification()
-      .then(() => this.toast('Verification email sent — check your inbox'))
+      .then(() => this.toast('Verification email sent - check your inbox'))
       .catch((err) => this.toast(firstError(err, 'Could not send verification email')));
   }
 
@@ -651,7 +918,7 @@ export default class App extends React.Component {
       .catch((err) => this.toast(firstError(err, 'Could not create folder')));
   }
 
-  // Merge fetched folders into state (dedupe by id — never duplicate).
+  // Merge fetched folders into state (dedupe by id - never duplicate).
   _mergeFolders(folders) {
     this.setState((s) => {
       const existing = new Set(s.files.map((f) => f.id));
@@ -779,6 +1046,7 @@ export default class App extends React.Component {
       videoCurrent: 0,
       videoDuration: 0,
       videoFullscreen: false,
+      previewFullscreen: false,
       shareCopied: false,
       editing: false,
       editText: '',
@@ -819,9 +1087,9 @@ export default class App extends React.Component {
             this.forceUpdate();
           })
           .catch((err) => {
-            // Still transcoding on the server — tell the user and close.
+            // Still transcoding on the server - tell the user and close.
             if (err && err.status === 409) {
-              this.toast('Video is still processing — try again shortly');
+              this.toast('Video is still processing - try again shortly');
               this.closeModal();
             }
           });
@@ -839,6 +1107,7 @@ export default class App extends React.Component {
       previewText: '',
       previewError: '',
       previewLoading: !!file.real,
+      previewFullscreen: false,
       editing: false,
       editText: '',
       editName: '',
@@ -916,7 +1185,8 @@ export default class App extends React.Component {
           real: true,
         };
         this.setState((s) => ({ files: [item, ...s.files], creatingNote: false }));
-        // Open it immediately in edit mode with an empty body — start typing.
+        this.loadUsage(); // a new note charges bytes - refresh the sidebar meter
+        // Open it immediately in edit mode with an empty body - start typing.
         this.setState({
           modal: 'preview',
           activeFileId: f.id,
@@ -1016,6 +1286,7 @@ export default class App extends React.Component {
             ),
           }));
           this.toast('Saved');
+          this.loadUsage(); // content size changed - refresh the sidebar meter
           this._loadBacklinks(id); // links may have changed
         };
         if (desiredName && desiredName !== curName) {
@@ -1181,11 +1452,53 @@ export default class App extends React.Component {
   // --- Bulk selection --------------------------------------------------------
   toggleSelect(id, e) {
     if (e) e.stopPropagation();
+    const order = this._orderedIds || [];
+    // Shift-click extends a contiguous range from the last-clicked anchor,
+    // the way Finder / Explorer / Drive all behave.
+    if (
+      e &&
+      e.shiftKey &&
+      this._selectAnchor &&
+      order.includes(this._selectAnchor) &&
+      order.includes(id)
+    ) {
+      const a = order.indexOf(this._selectAnchor);
+      const b = order.indexOf(id);
+      const [lo, hi] = a < b ? [a, b] : [b, a];
+      const range = order.slice(lo, hi + 1);
+      this.setState((s) => {
+        const set = new Set(s.selectedIds);
+        range.forEach((x) => set.add(x));
+        return { selectedIds: [...set] };
+      });
+      return;
+    }
+    this._selectAnchor = id;
     this.setState((s) => ({
       selectedIds: s.selectedIds.includes(id)
         ? s.selectedIds.filter((x) => x !== id)
         : [...s.selectedIds, id],
     }));
+  }
+  // Select every selectable item in the current view, or clear if all already are.
+  selectAllVisible() {
+    const ids = this._selectableIds || [];
+    if (!ids.length) return;
+    this.setState((s) => ({
+      selectedIds: s.selectedIds.length >= ids.length ? [] : [...ids],
+    }));
+  }
+  focusSearch() {
+    const run = () => {
+      const el = document.querySelector('input[placeholder="Search files and folders"]');
+      if (el) el.focus();
+    };
+    // On mobile the search field is behind a toggle; open it first, then focus.
+    if ((this.state.vw || 1200) < 820 && !this.state.mobileSearchOpen) {
+      this.setState({ mobileSearchOpen: true }, () => setTimeout(run, 0));
+    } else {
+      run();
+    }
   }
   clearSelection() {
     if (this.state.selectedIds.length) this.setState({ selectedIds: [] });
@@ -1211,6 +1524,43 @@ export default class App extends React.Component {
       .filter((f) => ids.includes(f.id) && f.kind !== 'folder')
       .forEach((f) => this.downloadFile(f));
     this.setState({ selectedIds: [] });
+  }
+  bulkRestore() {
+    const ids = [...this.state.selectedIds];
+    ids.forEach((id) => {
+      const f = this.state.files.find((x) => x.id === id);
+      if (f && f.real)
+        (f.kind === 'folder' ? api.restoreFolder(id) : api.restoreFile(id)).catch(() => {});
+    });
+    this.setState((s) => ({
+      files: s.files.map((x) => (ids.includes(x.id) ? { ...x, trashed: false } : x)),
+      selectedIds: [],
+    }));
+    this.toast(`Restored ${ids.length} item${ids.length === 1 ? '' : 's'}`);
+    // The server may de-dupe restored names; reload so the grid shows the truth.
+    this.loadStorage();
+  }
+  bulkPurge() {
+    const ids = [...this.state.selectedIds];
+    ids.forEach((id) => {
+      const f = this.state.files.find((x) => x.id === id);
+      if (f && f.real)
+        (f.kind === 'folder' ? api.purgeFolder(id) : api.purgeFile(id)).catch(() => {});
+    });
+    this.setState((s) => ({
+      files: s.files.filter(
+        (x) =>
+          !ids.includes(x.id) &&
+          // Also drop any descendants of a purged folder still held in state.
+          !ids.some((pid) => {
+            const p = s.files.find((y) => y.id === pid);
+            return p && p.kind === 'folder' && this._isDescendantOf(x, pid, s.files);
+          })
+      ),
+      selectedIds: [],
+    }));
+    this.toast(`Deleted ${ids.length} permanently`);
+    this.loadUsage();
   }
   openBulkMove() {
     this.setState({
@@ -1403,6 +1753,7 @@ export default class App extends React.Component {
         modal: null,
       }));
       this.toast('Deleted permanently');
+      this.loadUsage(); // purge freed committed bytes - refresh the sidebar meter
     } else {
       // Soft delete: move to trash (still counts toward quota until purged).
       if (f.real) {
@@ -1417,7 +1768,7 @@ export default class App extends React.Component {
     }
   }
   emptyTrash() {
-    // Permanently purge real trashed items server-side (releasing quota) — not
+    // Permanently purge real trashed items server-side (releasing quota) - not
     // just hiding them locally, which left them on the server to reappear on the
     // next reload. Demo-only items are dropped from local state.
     const trashed = this.state.files.filter((f) => f.trashed);
@@ -1490,7 +1841,8 @@ export default class App extends React.Component {
           files: [nf, ...s.files.filter((x) => x.id !== qid)],
           uploadQueue: s.uploadQueue.filter((u) => u.id !== qid),
         }));
-        this.toast(file.status === 'processing' ? 'Uploaded — processing video…' : 'Uploaded');
+        this.toast(file.status === 'processing' ? 'Uploaded - processing video…' : 'Uploaded');
+        this.loadUsage(); // committed bytes changed - refresh the sidebar meter
         // A video may still be transcoding; refresh shortly to pick up its
         // poster + ready state (prod worker; instant in dev).
         if (file.kind === 'video' && file.status === 'processing') {
@@ -1581,6 +1933,10 @@ export default class App extends React.Component {
     } catch (e) {}
   }
 
+  togglePreviewFull() {
+    this.setState((s) => ({ previewFullscreen: !s.previewFullscreen }));
+  }
+
   toggleCC() {
     this.setState((s) => ({ videoCC: !s.videoCC }));
   }
@@ -1631,7 +1987,7 @@ export default class App extends React.Component {
 
   // Destination folders for the Move dialog: "My Files" (root) + every folder,
   // indented by depth, excluding the item being moved and (for a folder) its
-  // own subtree — those would create a cycle.
+  // own subtree - those would create a cycle.
   moveDestOptions() {
     const { files, moveTargetId, moveIsFolder, moveBulk, selectedIds } = this.state;
     const excluded = new Set();
@@ -1697,6 +2053,7 @@ export default class App extends React.Component {
       videoMuted,
       videoCC,
       videoFullscreen,
+      previewFullscreen,
       toastMsg,
       discoverResults,
     } = st;
@@ -1769,8 +2126,9 @@ export default class App extends React.Component {
         onDragOver: (e) => this.onDragOverFolder(f, e),
         onDragLeave: () => this.onDragLeaveFolder(f),
         onDrop: (e) => this.onDropFolder(f, e),
-        // Bulk selection.
-        selectable: !f.trashed,
+        // Bulk selection (trashed items are selectable too, for bulk
+        // restore / permanent-delete in the Trash view).
+        selectable: true,
         selected: st.selectedIds.includes(f.id),
         onToggleSelect: (e) => this.toggleSelect(f.id, e),
       };
@@ -1822,6 +2180,11 @@ export default class App extends React.Component {
     }
 
     const visibleFiles = rawList.map(decorate);
+    // Remember the on-screen order + which view this is, so the keyboard
+    // shortcuts (select-all, shift-range, delete) act on exactly what's shown.
+    this._orderedIds = rawList.map((f) => f.id);
+    this._selectableIds = this._orderedIds;
+    this._inTrashView = !searchActive && filterKey === 'trash';
     const isEmpty = visibleFiles.length === 0;
     const emptyMessage = searchActive
       ? 'No files match your search'
@@ -1859,6 +2222,23 @@ export default class App extends React.Component {
     const storageUsedGB = _realUsedGB != null ? _realUsedGB : st.usedGB;
     const storagePct =
       storageTotalGB > 0 ? Math.min(100, Math.round((storageUsedGB / storageTotalGB) * 100)) : 0;
+    // Shared storage is instance-wide, so warn everyone at >=90% full or when
+    // stored bytes are over the R2 budget cap. Only the owner gets a manage link.
+    const quotaWarn = {
+      show:
+        st.realQuotaBytes != null &&
+        !st.quotaBannerDismissed &&
+        (storagePct >= 90 || st.realOverCap),
+      pct: storagePct,
+      over: !!st.realOverCap,
+      overflow: !!st.realOverflow,
+      isR2: st.realBackend === 'r2',
+      usedLabel: fmtStorage(storageUsedGB),
+      totalLabel: fmtStorage(storageTotalGB),
+      canManage: st.isOwner,
+      openStorageSettings: () => this.openStorageSettings(),
+      dismiss: () => this.setState({ quotaBannerDismissed: true }),
+    };
     // Context-menu items for the right-clicked / ⋯-tapped tile.
     let ctxMenuView = null;
     if (st.ctxMenu) {
@@ -1927,15 +2307,24 @@ export default class App extends React.Component {
           modalMaxH: '86vh',
         };
     const theater = modal === 'video' && videoFullscreen;
+    // Image / PDF previews can expand to fill the screen via a toggle in the
+    // preview header. Only the visual kinds are expandable; text/audio stay put.
+    const previewExpandable =
+      modal === 'preview' &&
+      !st.editing &&
+      (st.previewKind === 'image' || st.previewKind === 'pdf');
+    const previewFull = previewExpandable && previewFullscreen;
     const authTitles = {
       login: 'Welcome back',
       register: 'Create your account',
       forgot: 'Reset password',
+      reset: 'Choose a new password',
     };
     const authSubs = {
       login: 'Sign in to your Floppy Disk account',
       register: 'Create a Floppy Disk account',
       forgot: 'Enter your email and we\u2019ll send a reset link',
+      reset: 'Enter a new password for your account',
     };
 
     return {
@@ -1952,16 +2341,20 @@ export default class App extends React.Component {
       showDemoCreds: !!(import.meta && import.meta.env && import.meta.env.DEV),
       authIsRegister: authView === 'register',
       authIsForgot: authView === 'forgot',
+      authIsReset: authView === 'reset',
       authNeedsEmail: authView === 'login' || authView === 'register' || authView === 'forgot',
       authNeedsPassword: authView === 'login' || authView === 'register',
       authName: st.authName,
       authEmail: st.authEmail,
       authPassword: st.authPassword,
+      authPassword2: st.authPassword2,
       authDob: st.authDob,
       authBusy: st.authBusy,
+      verifyBanner: st.verifyBanner,
       setAuthName: (e) => this.setAuthName(e),
       setAuthEmail: (e) => this.setAuthEmail(e),
       setAuthPassword: (e) => this.setAuthPassword(e),
+      setAuthPassword2: (e) => this.setAuthPassword2(e),
       setAuthDob: (e) => this.setAuthDob(e),
       authPrimary: () => this.authPrimary(),
       authPrimaryLabel:
@@ -1969,6 +2362,7 @@ export default class App extends React.Component {
           login: 'Sign in',
           register: 'Create account',
           forgot: 'Send reset link',
+          reset: 'Set new password',
         }[authView] || 'Continue',
       gotoRegister: () => this.gotoRegister(),
       gotoLogin: () => this.gotoLogin(),
@@ -2028,10 +2422,16 @@ export default class App extends React.Component {
       // Bulk selection.
       selectionActive: st.selectedIds.length > 0,
       selectionCount: st.selectedIds.length,
+      // In the Trash view the bulk bar offers Restore / Delete permanently
+      // instead of Move / Download / Trash.
+      selectionInTrash: !searchActive && filterKey === 'trash',
       onClearSelection: () => this.clearSelection(),
+      onSelectAll: () => this.selectAllVisible(),
       onBulkMove: () => this.openBulkMove(),
       onBulkDownload: () => this.bulkDownload(),
       onBulkTrash: () => this.bulkTrash(),
+      onBulkRestore: () => this.bulkRestore(),
+      onBulkPurge: () => this.bulkPurge(),
       // Search type filters (shown while searching).
       showSearchFilters: searchActive,
       searchTypeChips: [
@@ -2084,6 +2484,7 @@ export default class App extends React.Component {
       storageTotalLabel: fmtStorage(storageTotalGB),
       storagePct,
       storageBarColor: storagePct > 90 ? '#E5484D' : storagePct > 75 ? '#D97706' : '#5145E5',
+      quotaWarn,
       ctxMenuView,
       closeCtxMenu: () => this.closeCtxMenu(),
       openUpload: () => this.openUpload(),
@@ -2141,6 +2542,14 @@ export default class App extends React.Component {
       previewKind: st.previewKind,
       previewUrl: st.previewUrl,
       previewText: st.previewText,
+      // Expand image / PDF previews to fill the screen (toggle in the header).
+      previewExpandable,
+      previewFull,
+      togglePreviewFull: () => this.togglePreviewFull(),
+      // Media heights: fixed when boxed, grow to fill when expanded. The
+      // subtraction leaves room for the header, footer meta line, and padding.
+      imgMaxH: previewFull ? 'calc(96vh - 132px)' : '360px',
+      pdfH: previewFull ? 'calc(96vh - 132px)' : '460px',
       // Image gallery navigation (prev/next among images in the same folder).
       ...(() => {
         if (st.previewKind !== 'image' || !activeFile) return {};
@@ -2246,6 +2655,55 @@ export default class App extends React.Component {
       stSecurityColor: settingsTab === 'security' ? '#15171C' : '#656B76',
       stDeveloperBg: settingsTab === 'developer' ? '#FFFFFF' : 'transparent',
       stDeveloperColor: settingsTab === 'developer' ? '#15171C' : '#656B76',
+      stIsStorage: settingsTab === 'storage',
+      setSettingsStorage: () => this.setSettingsStorage(),
+      stStorageBg: settingsTab === 'storage' ? '#FFFFFF' : 'transparent',
+      stStorageColor: settingsTab === 'storage' ? '#15171C' : '#656B76',
+      // Storage administration (owner only)
+      isOwner: st.isOwner,
+      storage: {
+        config: st.storageConfig,
+        migration: st.storageMigration,
+        endpoint: st.sfEndpoint,
+        accessKey: st.sfAccess,
+        secret: st.sfSecret,
+        bucket: st.sfBucket,
+        testState: st.sfTestState,
+        testMsg: st.sfTestMsg,
+        busy: st.sfBusy,
+        deleteLocal: st.sfDeleteLocal,
+        setEndpoint: (e) => this.setState({ sfEndpoint: e.target.value, sfTestState: 'idle' }),
+        setAccessKey: (e) => this.setState({ sfAccess: e.target.value, sfTestState: 'idle' }),
+        setSecret: (e) => this.setState({ sfSecret: e.target.value, sfTestState: 'idle' }),
+        setBucket: (e) => this.setState({ sfBucket: e.target.value, sfTestState: 'idle' }),
+        test: () => this.testStorage(),
+        save: () => this.saveStorage(),
+        // R2 budget cap + overflow toggle.
+        capInput: st.sfCapInput,
+        overflow: st.sfOverflow,
+        capBusy: st.sfCapBusy,
+        setCap: (e) => this.setState({ sfCapInput: e.target.value.replace(/[^0-9.]/g, '') }),
+        toggleOverflow: () => this.setState({ sfOverflow: !this.state.sfOverflow }),
+        saveCap: () => this.saveCap(),
+        toggleDeleteLocal: () => this.setState({ sfDeleteLocal: !this.state.sfDeleteLocal }),
+        startMigration: () => this.startMigration(),
+        pauseMigration: () => this.pauseMigration(),
+        // First-run setup
+        setupOpen: st.setupOpen,
+        setupChoice: st.setupChoice,
+        chooseLocal: () => this.setupChooseLocal(),
+        chooseR2: () => this.setupChooseR2(),
+        skipSetup: () => this.skipSetup(),
+        // Ephemeral-storage banner
+        showBanner:
+          st.isOwner &&
+          !st.storageBannerDismissed &&
+          !!st.storageConfig &&
+          !st.storageConfig.env_managed &&
+          st.storageConfig.effective_backend === 'local',
+        openStorageSettings: () => this.openStorageSettings(),
+        dismissBanner: () => this.dismissStorageBanner(),
+      },
       // Developer / API keys
       apiKeys: st.apiKeys,
       apiKeysLoading: st.apiKeysLoading,
@@ -2311,27 +2769,36 @@ export default class App extends React.Component {
       volumeColor: videoMuted ? '#E5484D' : theater ? '#fff' : '#15171C',
       ccColor: videoCC ? (theater ? '#B9B2FF' : '#5145E5') : '#9AA1AC',
       ccBorder: videoCC ? '#C7C3F5' : theater ? '#3A3D44' : '#E5E7EC',
-      overlayBg: theater ? 'rgba(8,9,12,0.92)' : 'rgba(20,23,28,0.42)',
+      overlayBg: theater || previewFull ? 'rgba(8,9,12,0.92)' : 'rgba(20,23,28,0.42)',
       overlayAlign: theater ? 'stretch' : d.modalAlign,
-      overlayPad: theater ? 0 : d.modalPad,
+      overlayPad: theater ? 0 : previewFull ? Math.min(d.modalPad, 16) : d.modalPad,
       boxW: theater
         ? '100%'
-        : modal === 'graph'
-          ? 'min(1040px, 95vw)'
-          : modal === 'preview' && st.editing && st.previewKind === 'markdown'
-            ? 'min(1280px, 96vw)'
-            : d.modalW,
+        : previewFull
+          ? '96vw'
+          : modal === 'graph'
+            ? 'min(1040px, 95vw)'
+            : modal === 'preview' && st.editing && st.previewKind === 'markdown'
+              ? 'min(1280px, 96vw)'
+              : d.modalW,
       boxMaxH: theater
         ? '100vh'
-        : modal === 'graph'
-          ? '92vh'
-          : modal === 'preview' && st.editing
+        : previewFull
+          ? '96vh'
+          : modal === 'graph'
             ? '92vh'
-            : d.modalMaxH,
-      // The note editor gets a definite, near-full-screen height so the write /
-      // preview panes fill the window instead of a small fixed textarea.
+            : modal === 'preview' && st.editing
+              ? '92vh'
+              : d.modalMaxH,
+      // The note editor and expanded image/PDF previews get a definite,
+      // near-full-screen height so the content fills the window instead of a
+      // small fixed box.
       boxH:
-        modal === 'preview' && st.editing && st.previewKind === 'markdown' ? '92vh' : undefined,
+        modal === 'preview' && st.editing && st.previewKind === 'markdown'
+          ? '92vh'
+          : previewFull
+            ? '96vh'
+            : undefined,
       boxBg: theater ? '#0B0C0F' : '#FFFFFF',
       boxBorder: theater ? 'none' : '1px solid #E5E7EC',
       boxRadius: theater ? '0px' : d.modalRadius,

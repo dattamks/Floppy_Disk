@@ -82,6 +82,82 @@ export const previewKindOf = (name, kind) => {
   return 'doc';
 };
 
+// Which way a touch was swiped, or null if it wasn't a decisive horizontal
+// swipe (too short, or more vertical than horizontal -> treat as a scroll).
+// Pure + exported so the threshold logic is unit-testable.
+export const swipeDirection = (dx, dy, threshold = 45) => {
+  if (Math.abs(dx) < threshold || Math.abs(dx) <= Math.abs(dy) * 1.3) return null;
+  return dx < 0 ? 'left' : 'right';
+};
+
+// Touch handlers for a horizontal swipe (e.g. paging the image gallery).
+export const swipeX = ({ onLeft, onRight, threshold = 45 } = {}) => {
+  let sx = 0,
+    sy = 0,
+    active = false;
+  return {
+    onTouchStart: (e) => {
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+      sx = t.clientX;
+      sy = t.clientY;
+      active = true;
+    },
+    onTouchEnd: (e) => {
+      if (!active) return;
+      active = false;
+      const t = e.changedTouches && e.changedTouches[0];
+      if (!t) return;
+      const dir = swipeDirection(t.clientX - sx, t.clientY - sy, threshold);
+      if (dir === 'left' && onLeft) onLeft();
+      else if (dir === 'right' && onRight) onRight();
+    },
+  };
+};
+
+// Long-press handlers: fire `fn` after `ms` unless the finger lifts or moves
+// first. Used to open the context menu on touch, which doesn't reliably get the
+// desktop `contextmenu` event. `fn` receives a synthetic event carrying the
+// press coordinates. A module-level timestamp lets onClickCapture swallow the
+// click that follows a fired long-press, so it doesn't also open the item.
+let _lpFiredAt = 0;
+export const longPress = (fn, ms = 500) => {
+  let timer = null,
+    sx = 0,
+    sy = 0;
+  const clear = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+  return {
+    onTouchStart: (e) => {
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+      sx = t.clientX;
+      sy = t.clientY;
+      clear();
+      timer = setTimeout(() => {
+        _lpFiredAt = Date.now();
+        fn({ preventDefault() {}, stopPropagation() {}, clientX: sx, clientY: sy });
+      }, ms);
+    },
+    onTouchMove: (e) => {
+      const t = e.touches && e.touches[0];
+      if (t && (Math.abs(t.clientX - sx) > 10 || Math.abs(t.clientY - sy) > 10)) clear();
+    },
+    onTouchEnd: clear,
+    onTouchCancel: clear,
+    onClickCapture: (e) => {
+      if (Date.now() - _lpFiredAt < 700) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+  };
+};
+
 // Inline hover styling helper: swaps style props on enter, restores on leave.
 export const hov = (styles) => ({
   onMouseEnter: (e) => {

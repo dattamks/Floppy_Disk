@@ -19,7 +19,7 @@ updated on the fix.
   default. Serve it only to authenticated users you trust with their own
   namespace; the blob endpoint is owner-scoped and rejects path traversal, but
   it is still an authenticated surface.
-- **`SECRET_KEY`.** Production refuses to start on the built-in dev key — always
+- **`SECRET_KEY`.** Production refuses to start on the built-in dev key - always
   set `DJANGO_SECRET_KEY`.
 - **Deployment.** Run behind TLS, set `DJANGO_ALLOWED_HOSTS`,
   `CORS_ALLOWED_ORIGINS`, and `CSRF_TRUSTED_ORIGINS` for your domain (the

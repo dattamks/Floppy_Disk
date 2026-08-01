@@ -14,6 +14,24 @@ services:
       # ALLOWED_HOSTS: "files.example.com"
       # SECURE_SSL_REDIRECT: "true"   # if you terminate TLS in front
       # DATABASE_URL: "postgres://…"  # else SQLite in /data
+      #
+      # File storage. Unset = local disk in the `floppydata` volume (durable only
+      # if that volume is persistent). Set all four to store files in Cloudflare
+      # R2 instead - auto-detected, no server disk needed:
+      # R2_ENDPOINT_URL: "https://<account-id>.r2.cloudflarestorage.com"
+      # R2_ACCESS_KEY_ID: "<access-key-id>"
+      # R2_SECRET_ACCESS_KEY: "<secret-access-key>"
+      # R2_BUCKET: "my-floppy-bucket"
+      #
+      # Real email (verification + password-reset links). Without these, links
+      # print to this container's log. Setting EMAIL_HOST alone switches on SMTP:
+      # EMAIL_HOST: "smtp.gmail.com"
+      # EMAIL_PORT: "587"             # 587 = TLS (default), 465 = SSL
+      # EMAIL_HOST_USER: "you@gmail.com"
+      # EMAIL_HOST_PASSWORD: "your-app-password"
+      # EMAIL_USE_TLS: "true"         # for port 465 instead: EMAIL_USE_SSL "true" + EMAIL_USE_TLS "false"
+      # DEFAULT_FROM_EMAIL: "Floppy Disk <no-reply@example.com>"
+      # FRONTEND_BASE_URL: "https://files.example.com"  # so email links point at your app
       WEB_CONCURRENCY: "3"
     volumes:
       - floppydata:/data

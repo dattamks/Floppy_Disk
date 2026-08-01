@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const backendDir = path.resolve(__dirname, '../backend');
 
 // Environment-portable knobs (portable defaults; GitHub Actions overrides some
-// via env — see .github/workflows/ci.yml):
+// via env - see .github/workflows/ci.yml):
 //  - PW_MANAGED_BROWSER=1  -> use Playwright's own installed Chromium (default)
 //  - PW_CHROMIUM_PATH      -> explicit Chromium binary
 //  - BACKEND_PYTHON        -> python that runs the E2E backend (needs the backend
@@ -22,7 +22,7 @@ const E2E_DB = process.env.E2E_DB || path.join(os.tmpdir(), 'floppy-e2e.sqlite3'
 
 export default defineConfig({
   testDir: './e2e',
-  // Deactivated features (Drive-focus pivot) aren't run — see docs/deactivated-features.md
+  // Deactivated features (Drive-focus pivot) aren't run - see docs/deactivated-features.md
   testIgnore: '**/deactivated/**',
   timeout: 60_000,
   expect: { timeout: 10_000 },

@@ -89,7 +89,7 @@ def test_complete_after_reservation_expiry_stays_symmetric(client, user):
 
 def test_purge_of_processing_video_releases_quota(user):
     """A video committed while still transcoding (PROCESSING) must refund its
-    quota on purge — previously only READY files were refunded, leaking quota."""
+    quota on purge - previously only READY files were refunded, leaking quota."""
     from apps.storage.models import StorageObject
 
     obj = StorageObject.objects.create(

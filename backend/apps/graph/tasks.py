@@ -21,7 +21,7 @@ def schedule_rebuild(user) -> None:
     the rebuild inline would slow uploads, and the read-time ``ensure_fresh``
     already rebuilds a stale graph on the next view. In a worker-backed prod
     deploy it dispatches the rebuild asynchronously, moving the cost off both
-    the upload and the first graph read. Best-effort — a broker hiccup never
+    the upload and the first graph read. Best-effort - a broker hiccup never
     fails the originating request.
     """
     from django.conf import settings

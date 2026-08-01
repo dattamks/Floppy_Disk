@@ -1,7 +1,7 @@
 """TDD spec for folder-scoped API keys (least-privilege by location).
 
 A key with no root_folder = full account access (unchanged, back-compat).
-A key with a root_folder = restricted to that folder's subtree — for reads
+A key with a root_folder = restricted to that folder's subtree - for reads
 (list/detail/download/search) AND writes (create/move/delete). This is the
 mechanism that lets an owner hand a specific LLM access to just one folder.
 Graph reads reuse the same scope filter (asserted in the graph test suite).

@@ -12,10 +12,14 @@ MIN_SIGNUP_AGE = 18  # PRD 5.1: minimum account age
 
 
 class UserSerializer(serializers.ModelSerializer):
+    # True for the instance Owner (first user or a superuser). The SPA uses this
+    # to reveal the owner-only Storage/Admin settings; regular users get False.
+    is_owner = serializers.BooleanField(source="is_owner_effective", read_only=True)
+
     class Meta:
         model = User
         fields = ["id", "email", "email_verified", "display_name", "storage_region",
-                  "status", "quota_bytes", "two_factor_enabled"]
+                  "status", "quota_bytes", "two_factor_enabled", "is_owner"]
         read_only_fields = fields
 
 

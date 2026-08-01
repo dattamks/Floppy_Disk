@@ -1,5 +1,5 @@
 """
-Self-hosted video transcoding — no third-party streaming service.
+Self-hosted video transcoding - no third-party streaming service.
 
 Users upload videos in any format; browsers only natively play a narrow set
 (H.264/AAC in MP4, plus WebM/Ogg). To let a user watch back *their own* upload
@@ -11,7 +11,7 @@ Stream, no external accounts, no per-minute fees.
 - `MediaTranscoder` is the abstraction; `settings.MEDIA_TRANSCODER` selects an
   implementation (mirrors STORAGE_SERVICE).
 - `FFmpegTranscoder` shells out to the bundled `ffmpeg` / `ffprobe` binaries.
-- `FakeTranscoder` needs no binaries — used in dev/tests so the suite stays
+- `FakeTranscoder` needs no binaries - used in dev/tests so the suite stays
   fast and hermetic.
 """
 from __future__ import annotations
@@ -24,7 +24,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
-# Containers/codecs a browser can play natively from a progressive MP4 — if the
+# Containers/codecs a browser can play natively from a progressive MP4 - if the
 # upload already matches, we skip transcoding and serve the original bytes.
 _WEB_CONTAINERS = {"mp4", "mov", "m4v"}
 _WEB_VIDEO_CODECS = {"h264", "avc1"}

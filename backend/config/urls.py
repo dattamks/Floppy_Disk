@@ -11,6 +11,7 @@ urlpatterns = [
     path("health/", health, name="health"),
     path("api/v1/auth/", include("apps.accounts.urls")),
     path("api/v1/storage/", include("apps.storage.urls")),
+    path("api/v1/admin/storage/", include("apps.storage.admin_urls")),
     path("api/v1/storage/", include((sharing_owner, "sharing_owner"))),
     path("api/v1/public/", include((sharing_public, "sharing_public"))),
     path("api/v1/notifications/", include("apps.notifications.urls")),

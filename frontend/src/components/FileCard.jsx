@@ -1,15 +1,20 @@
 import React from 'react';
 import { theme } from '../lib/theme';
-import { hov } from '../lib/ui';
+import { hov, longPress } from '../lib/ui';
 
 // One card in the grid/carousel. Receives the view-model V and its item.
 export default function FileCard({ V, file }) {
+  // Long-press opens the context menu on touch devices (which don't fire the
+  // desktop contextmenu event); the onClickCapture guard stops the press from
+  // also opening the item.
+  const lp = longPress(file.onCtxMenu);
   return (
     <React.Fragment>
       {' '}
       <div
         onClick={file.onOpen}
         onContextMenu={file.onCtxMenu}
+        {...lp}
         draggable={file.draggable}
         onDragStart={file.onDragStart}
         onDragEnd={file.onDragEnd}

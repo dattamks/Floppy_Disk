@@ -38,7 +38,7 @@ def hard_delete_expired_accounts(*, now) -> int:
     for user in qs:
         # Each account is purged atomically so a mid-loop failure can't leave one
         # half-deleted (some blobs gone, user row still present) and doesn't abort
-        # the whole batch — the rest of the accounts still get processed.
+        # the whole batch - the rest of the accounts still get processed.
         try:
             with transaction.atomic():
                 for f in list(File.objects.filter(owner=user)):

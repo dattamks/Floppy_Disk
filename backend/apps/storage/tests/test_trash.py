@@ -65,6 +65,40 @@ def test_restore_brings_file_back(client, user):
     assert client.get("/api/v1/storage/trash").json()["files"] == []
 
 
+def test_restore_collision_autosuffixes_and_keeps_both(client, user):
+    """Delete a file, create a new one with the same name in the same folder,
+    then restore the original. Both must survive; the restored one is renamed
+    rather than overwriting or erroring."""
+    obj = StorageObject.objects.create(
+        content_hash="b" * 64, region=user.storage_region, size_bytes=10,
+        ref_count=1, status=StorageObject.Status.READY,
+    )
+    original = File.objects.create(
+        owner=user, name="new_file.txt", size_bytes=10, kind=File.Kind.DOC,
+        status=File.Status.READY, storage_object=obj,
+    )
+    client.delete(f"/api/v1/storage/files/{original.id}")  # -> trash
+
+    # A brand-new file grabs the "new_file.txt" slot while the original sits in trash.
+    obj2 = StorageObject.objects.create(
+        content_hash="c" * 64, region=user.storage_region, size_bytes=20,
+        ref_count=1, status=StorageObject.Status.READY,
+    )
+    fresh = File.objects.create(
+        owner=user, name="new_file.txt", size_bytes=20, kind=File.Kind.DOC,
+        status=File.Status.READY, storage_object=obj2,
+    )
+
+    resp = client.post(f"/api/v1/storage/files/{original.id}/restore")
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "new_file (2).txt"  # de-duped, not overwritten
+
+    names = sorted(x["name"] for x in client.get("/api/v1/storage/files").json())
+    assert names == ["new_file (2).txt", "new_file.txt"]  # both coexist
+    fresh.refresh_from_db()
+    assert fresh.name == "new_file.txt"  # the incumbent is untouched
+
+
 def test_purge_releases_quota_and_drops_ref_count(client, user):
     user.storage_used_bytes = 1000
     user.save()

@@ -40,7 +40,7 @@ def test_upload_without_kind_is_classified(client, django_user_model):
     c = Client()
     c.force_login(user)
     content = b"# Plan\nsee budget.json"
-    # No `kind` in the payload — the server must classify it as a document.
+    # No `kind` in the payload - the server must classify it as a document.
     r = c.post("/api/v1/storage/uploads",
                {"name": "plan.md", "size_bytes": len(content)},
                content_type="application/json")

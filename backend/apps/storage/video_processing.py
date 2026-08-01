@@ -1,6 +1,6 @@
 """
 Self-hosted video processing: probe an uploaded video, transcode it to a
-browser-playable MP4 when needed, and grab a poster frame — all on our own
+browser-playable MP4 when needed, and grab a poster frame - all on our own
 servers with FFmpeg (no Cloudflare Stream, no external service).
 
 Called as a background task right after upload completes. The original bytes
@@ -9,7 +9,6 @@ are always kept; `File.playable_object` points at the transcoded rendition
 """
 from __future__ import annotations
 
-import hashlib
 import logging
 
 from django.db.models import F
@@ -23,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 def _store_rendition(storage, *, region: str, object_key: str, data: bytes) -> StorageObject:
     """Persist derived bytes as a content-addressed StorageObject (per-region dedup)."""
-    content_hash = hashlib.sha256(data).hexdigest()
+    content_hash = storage.content_hash(data)
     obj, _created = StorageObject.objects.get_or_create(
         content_hash=content_hash,
         region=region,

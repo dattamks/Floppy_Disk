@@ -76,6 +76,20 @@ def test_malformed_folder_is_400_not_500(client):
     assert r.status_code == 400, r.content
 
 
+def test_note_refused_when_backend_cannot_store_bytes(client, monkeypatch):
+    # On a remote backend without server-side writes (the R2 stub today), notes
+    # must be refused with 501 - not created as a phantom that charges quota but
+    # stored nothing. Mirrors FileContentView / UploadCompleteView.
+    class _RemoteOnly:
+        pass  # no save_bytes
+
+    monkeypatch.setattr("apps.storage.views.get_storage_service", lambda: _RemoteOnly())
+    r = client.post("/api/v1/storage/notes", {"name": "n", "content": "hi"}, format="json")
+    assert r.status_code == 501, r.content
+    # And nothing was persisted.
+    assert not File.objects.filter(name="n.md").exists()
+
+
 def test_note_respects_folder_scope(client, user):
     from apps.accounts.models import ApiKey
 

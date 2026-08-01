@@ -156,10 +156,20 @@ R2_SECRET_ACCESS_KEY = env("R2_SECRET_ACCESS_KEY", default="")
 R2_ENDPOINT_URL = env("R2_ENDPOINT_URL", default="")
 # Region -> bucket name map for data residency (per-region dedup). JSON in env.
 R2_REGION_BUCKETS = env.json("R2_REGION_BUCKETS", default={})
+# One-bucket convenience for a simple self-host: set R2_BUCKET (a single bucket
+# name) instead of the JSON map above. It's used for any region not explicitly
+# listed in R2_REGION_BUCKETS, so a single bucket serves every user.
+R2_BUCKET = env("R2_BUCKET", default="")
 
-# Automatic fallback: when the R2 env vars are missing, serve media from a local
-# media folder. An explicit STORAGE_SERVICE env var still overrides the default.
-R2_CONFIGURED = bool(R2_ENDPOINT_URL and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_REGION_BUCKETS)
+# Automatic backend selection, mirroring the DATABASE_URL -> Postgres detection:
+# when R2 credentials + a bucket are present, use R2; otherwise fall back to the
+# local-disk backend. An explicit STORAGE_SERVICE env var always overrides.
+R2_CONFIGURED = bool(
+    R2_ENDPOINT_URL
+    and R2_ACCESS_KEY_ID
+    and R2_SECRET_ACCESS_KEY
+    and (R2_REGION_BUCKETS or R2_BUCKET)
+)
 
 STORAGE_SERVICE = env(
     "STORAGE_SERVICE",
@@ -169,7 +179,17 @@ STORAGE_SERVICE = env(
 # Local media folder used by LocalStorageService when R2 isn't configured.
 DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(BASE_DIR / "media"))
 
-# --- Video transcoding (self-hosted, FFmpeg — no third-party streaming) -----
+# Storage quota shown in the sidebar meter and enforced on upload. 0 = auto:
+# the per-user quota, but on local storage capped to the real disk size (so the
+# meter isn't a fictional flat 2 TB). Set a byte count to pin a fixed logical
+# quota for everyone (e.g. 107374182400 for 100 GB).
+STORAGE_QUOTA_BYTES = env.int("STORAGE_QUOTA_BYTES", default=0)
+# When True (default) and storage is local, the quota ceiling tracks the real
+# disk and uploads are rejected once the disk is physically full. Turn off to
+# use the plain per-user quota (also disabled in tests for determinism).
+STORAGE_TRACK_DISK = env.bool("STORAGE_TRACK_DISK", default=True)
+
+# --- Video transcoding (self-hosted, FFmpeg - no third-party streaming) -----
 # Uploaded videos are normalized to a browser-playable H.264/AAC MP4 with
 # FFmpeg and served over the local Range endpoint. FFMPEG_BINARY/FFPROBE_BINARY
 # override the binary locations; otherwise they're found on PATH (the Docker

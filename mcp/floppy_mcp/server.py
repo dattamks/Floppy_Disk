@@ -7,7 +7,7 @@ notifications.
 
 Aligned with the MCP 2026-07-28 spec:
 
-* **Stateless core.** The server runs with `stateless_http=True` — no
+* **Stateless core.** The server runs with `stateless_http=True` - no
   `initialize` handshake, no `Mcp-Session-Id`, no per-session state. Every tool
   is a single, self-contained REST call under the caller's Bearer key, so
   requests are independent and the server scales horizontally. The stateless
@@ -17,7 +17,7 @@ Aligned with the MCP 2026-07-28 spec:
 * **Streamable HTTP, no legacy SSE.** Remote clients use the `streamable-http`
   transport; the deprecated HTTP+SSE transport is not offered.
 * **No deprecated server-initiated features.** The server uses none of Roots,
-  Sampling, or Logging, so it needs no MRTR (multi-round-trip) fallbacks — tool
+  Sampling, or Logging, so it needs no MRTR (multi-round-trip) fallbacks - tool
   calls never open a server->client stream.
 * **Auth.** Bearer API key (see below). We deliberately do not run an OAuth
   flow, so the 2026-07-28 OAuth hardening (RFC 9207 `iss`, CIMD) does not apply;
@@ -100,7 +100,10 @@ def whoami() -> dict:
 
 @mcp.tool
 def get_usage() -> dict:
-    """Storage usage: quota_bytes, used_bytes, available_bytes."""
+    """Instance-wide storage usage (one shared pool): used_bytes, quota_bytes
+    (the total ceiling), available_bytes, backend ("local"/"r2"), and
+    over_cap. Read-only - the storage backend and budget cap can be changed
+    only by the owner from the web app, never via an API key or MCP."""
     return client().get("storage/usage")
 
 
@@ -217,12 +220,42 @@ def list_trash() -> dict:
 
 @mcp.tool
 def search_files(query: str) -> dict:
-    """Search your files plus public discoverable (non-mature) files by name.
+    """Search your files plus public discoverable (non-mature) files.
 
-    Returns {"results": [...]} where each result has id, name, kind, size_bytes,
-    is_own, and is_discoverable.
+    Matches file names *and* document contents (text/Markdown/JSON etc. are
+    indexed on upload/edit). Returns {"results": [...]} where each result has
+    id, name, kind, size_bytes, is_own, and is_discoverable.
     """
     return client().get("storage/search", params={"q": query})
+
+
+@mcp.tool
+def create_note(
+    name: str,
+    content: str = "",
+    folder_id: Optional[str] = None,
+) -> dict:
+    """Create a Markdown note in one call and return the ready File.
+
+    A note is a `.md` document (`.md` is appended if missing). Use
+    `[[Other note]]` wiki-links to connect notes in the knowledge graph.
+    """
+    body: dict = {"name": name, "content": content}
+    if folder_id:
+        body["folder"] = _uid(folder_id, "folder_id")
+    return client().post("storage/notes", json=body)
+
+
+@mcp.tool
+def edit_file_content(file_id: str, content: str) -> dict:
+    """Replace a text document's contents in place (edit-in-place save).
+
+    For text/Markdown documents (e.g. notes). Returns the updated File; the
+    content is re-indexed for search and the knowledge graph is refreshed.
+    """
+    return client().put(
+        f"storage/files/{_uid(file_id, 'file_id')}/content", json={"content": content}
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -396,7 +429,7 @@ def graph_search(query: str) -> dict:
 @mcp.tool
 def get_related_files(file_id: str) -> dict:
     """What relates to this file in the graph (containing folder, shared-token
-    siblings, references) — each edge explained. Scoped like everything else."""
+    siblings, references) - each edge explained. Scoped like everything else."""
     return client().get(f"graph/related/{_uid(file_id, 'file_id')}")
 
 
@@ -404,7 +437,7 @@ def get_related_files(file_id: str) -> dict:
 def rebuild_graph() -> dict:
     """Force a full rebuild of the knowledge graph from the current files.
 
-    Normally unnecessary — the graph refreshes itself when files change. A
+    Normally unnecessary - the graph refreshes itself when files change. A
     folder-scoped key cannot rebuild the whole graph.
     """
     return client().post("graph/rebuild")
@@ -435,9 +468,9 @@ def main() -> None:
     """Entry point.
 
     Transport is chosen by FLOPPY_MCP_TRANSPORT:
-      * "stdio" (default) — local clients (Claude Code, Codex) spawn the server
+      * "stdio" (default) - local clients (Claude Code, Codex) spawn the server
         and talk over stdin/stdout.
-      * "streamable-http" (aliases: "http") — remote clients connect over
+      * "streamable-http" (aliases: "http") - remote clients connect over
         Streamable HTTP; host/port from FLOPPY_MCP_HOST / FLOPPY_MCP_PORT.
 
     The legacy HTTP+SSE transport was deprecated in the MCP 2026-07-28 spec and

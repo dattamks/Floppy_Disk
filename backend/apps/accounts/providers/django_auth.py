@@ -1,5 +1,5 @@
 """
-DjangoAuthProvider — Phase 1 email/password implementation of AuthProvider.
+DjangoAuthProvider - Phase 1 email/password implementation of AuthProvider.
 
 Uses Django's auth (password hashing, tokens) under the hood. Verification and
 reset use Django's signed token generators; email delivery goes through the
@@ -12,6 +12,7 @@ from django.contrib.auth import authenticate as dj_authenticate
 from django.contrib.auth import get_user_model
 from django.contrib.auth.tokens import PasswordResetTokenGenerator, default_token_generator
 from django.core.mail import send_mail
+from django.db import transaction
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
@@ -48,7 +49,14 @@ def _send_link_email(user, *, subject, intro, path, token_generator=default_toke
 
 class DjangoAuthProvider(AuthProvider):
     def register(self, *, email: str, password: str, **profile) -> AuthResult:
-        user = User.objects.create_user(email=email, password=password, **profile)
+        # The very first account to register becomes the instance Owner (the
+        # self-host admin who can configure storage etc.). Done atomically so two
+        # simultaneous first signups can't both claim it.
+        with transaction.atomic():
+            first_user = not User.objects.exists()
+            user = User.objects.create_user(
+                email=email, password=password, is_owner=first_user, **profile
+            )
         self.send_email_verification(user_id=str(user.pk))
         return AuthResult(user_id=str(user.pk), email=user.email, is_new=True)
 

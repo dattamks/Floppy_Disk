@@ -1,7 +1,7 @@
 """TDD: anonymous download of a shared file's bytes (works in local mode too).
 
 Previously the public share payload handed back a presigned URL that, in
-local/no-Cloudflare mode, pointed at an auth-required dev endpoint — so a
+local/no-Cloudflare mode, pointed at an auth-required dev endpoint - so a
 public recipient got 403. The public download route fixes that.
 """
 import uuid

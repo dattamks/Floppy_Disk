@@ -4,9 +4,9 @@ Wraps the `/api/v1` surface with Bearer (API-key) authentication and hides two
 deployment differences from the tool layer:
 
 * **Presigned URLs.** Uploads/downloads may return either an absolute URL
-  (Cloudflare R2 presigned PUT/GET — self-authenticating, must NOT carry our
+  (Cloudflare R2 presigned PUT/GET - self-authenticating, must NOT carry our
   Authorization header) or a relative dev URL (`/api/v1/storage/_dev/blob/...`
-  — same origin, needs the Bearer header). `blob_request()` resolves both.
+  - same origin, needs the Bearer header). `blob_request()` resolves both.
 * **Errors.** Non-2xx responses are raised as `FloppyApiError` carrying the
   API's `{detail, code}` body so tools return a useful message.
 """
@@ -72,6 +72,9 @@ class FloppyClient:
 
     def post(self, path: str, **kw) -> Any:
         return self.request("POST", path, **kw)
+
+    def put(self, path: str, **kw) -> Any:
+        return self.request("PUT", path, **kw)
 
     def patch(self, path: str, **kw) -> Any:
         return self.request("PATCH", path, **kw)

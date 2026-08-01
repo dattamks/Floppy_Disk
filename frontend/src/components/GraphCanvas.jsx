@@ -5,7 +5,7 @@ import GraphSimWorker from '../lib/graphSim.worker.js?worker';
 // Interactive force-directed knowledge graph (Barnes-Hut, O(n log n)). Physics
 // runs in a Web Worker so the UI stays smooth while large graphs settle; if no
 // worker tick arrives quickly (e.g. some dev servers don't wire module workers),
-// it transparently falls back to the same simulation on the main thread — so the
+// it transparently falls back to the same simulation on the main thread - so the
 // graph always works. This component owns rendering (canvas) + interaction.
 // Features: wheel-zoom, drag-pan, drag a node, hover-highlight, click-to-open,
 // type filters, local-graph focus + depth, color-by-folder, search highlight,
@@ -396,7 +396,7 @@ export default class GraphCanvas extends React.Component {
     ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * (w / 2 + tx), dpr * (h / 2 + ty));
 
     // Viewport culling (sim-space bounds of what's on screen, + margin). Keeps
-    // per-frame draw cost proportional to what's visible, not the whole graph —
+    // per-frame draw cost proportional to what's visible, not the whole graph -
     // this is what lets big graphs stay smooth when zoomed in.
     const margin = 48 / k;
     const vxMin = (-w / 2 - tx) / k - margin;

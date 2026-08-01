@@ -1,4 +1,4 @@
-// Design palette — single source of truth for colors (PRD-01: easy to re-skin).
+// Design palette - single source of truth for colors (PRD-01: easy to re-skin).
 // Generated from the design export's colours; swap values here to re-theme.
 export const theme = {
   brand: '#5145E5',

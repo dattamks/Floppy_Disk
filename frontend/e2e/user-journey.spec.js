@@ -70,7 +70,7 @@ test('full user journey: sign up → upload → share → play → trash → log
   await page.keyboard.press('Escape');
 
   // 6. Move the uploaded file to trash via its context menu (accounts start
-  //    empty now — no demo seed — so we trash the file we just uploaded).
+  //    empty now - no demo seed - so we trash the file we just uploaded).
   await page.getByText('beach-sunset.png', { exact: false }).first().click({ button: 'right' });
   await page.getByTestId('ctx-menu').getByRole('button', { name: 'Move to trash' }).click();
 

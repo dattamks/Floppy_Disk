@@ -24,7 +24,7 @@ urlpatterns = [
     path("notes", views.NoteCreateView.as_view(), name="note_create"),
     path("uploads", views.UploadInitiateView.as_view(), name="upload_initiate"),
     path("uploads/<uuid:file_id>/complete", views.UploadCompleteView.as_view(), name="upload_complete"),
-    # Video — self-hosted inline playback of your own files (FFmpeg transcode,
+    # Video - self-hosted inline playback of your own files (FFmpeg transcode,
     # served over the Range endpoint below; no third-party streaming).
     path("files/<uuid:file_id>/play", video_views.VideoPlayView.as_view(), name="video_play"),
     # dev-only blob store (object_key can contain '/')

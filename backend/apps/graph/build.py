@@ -1,5 +1,5 @@
 """
-Deterministic graph builder — no LLM, no embeddings, no vector store.
+Deterministic graph builder - no LLM, no embeddings, no vector store.
 
 Turns a user's live folders and files into nodes, and derives edges from
 signals that are fully explainable:
@@ -37,7 +37,7 @@ _MAX_SCAN_BYTES = 64 * 1024
 _MAX_REFS_PER_FILE = 25
 # Markdown link target: the "(...)" in [label](target). Path-like token: any
 # word that carries a file extension (matches "budget.json", "./docs/x.md").
-# Wiki-link: [[Note]] / [[Note|alias]] / [[Note#heading]] — the note name.
+# Wiki-link: [[Note]] / [[Note|alias]] / [[Note#heading]] - the note name.
 # Brackets may be backslash-escaped (\[\[…\]\]) when a WYSIWYG editor's Markdown
 # serializer escapes them, so tolerate an optional backslash before each "[" and
 # stop the capture at "\", "]", "|", or "#".
@@ -145,7 +145,7 @@ def rebuild_user_graph(user) -> dict:
 
 
 def _add_reference_edges(files, file_node, add) -> None:
-    """Link a document to files it references — via Markdown links, path-like
+    """Link a document to files it references - via Markdown links, path-like
     tokens, or plain-prose mentions of another file's name. Deterministic and
     bounded; reuses the file's cached ``content_text`` (from search indexing)
     and only reads a blob as a fallback for un-indexed documents."""
@@ -224,7 +224,7 @@ def _add_reference_edges(files, file_node, add) -> None:
 
 def _read_storage():
     """The storage backend if it can read bytes here (local dev/self-host), else
-    None — REFERENCES scanning is skipped rather than fetching from remote R2."""
+    None - REFERENCES scanning is skipped rather than fetching from remote R2."""
     try:
         from apps.storage.services.base import get_storage_service
         storage = get_storage_service()

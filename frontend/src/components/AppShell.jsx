@@ -33,6 +33,7 @@ function SelectionBar(V) {
   );
   return (
     <div
+      data-testid="selection-bar"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -47,9 +48,19 @@ function SelectionBar(V) {
         {V.selectionCount} selected
       </span>
       <div style={{ flex: '1' }} />
-      {action(V.onBulkMove, 'Move')}
-      {action(V.onBulkDownload, 'Download')}
-      {action(V.onBulkTrash, 'Trash', true)}
+      {V.selectionInTrash ? (
+        <React.Fragment>
+          {action(V.onBulkRestore, 'Restore')}
+          {action(V.onBulkPurge, 'Delete permanently', true)}
+        </React.Fragment>
+      ) : (
+        <React.Fragment>
+          {action(V.onBulkMove, 'Move')}
+          {action(V.onBulkDownload, 'Download')}
+          {action(V.onBulkTrash, 'Trash', true)}
+        </React.Fragment>
+      )}
+      {action(V.onSelectAll, 'Select all')}
       {action(V.onClearSelection, 'Clear')}
     </div>
   );

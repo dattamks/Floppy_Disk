@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { humanSize, fmtStorage, fmtDuration, extOf, previewKindOf } from './ui';
+import { humanSize, fmtStorage, fmtDuration, extOf, previewKindOf, swipeDirection } from './ui';
+
+describe('swipeDirection', () => {
+  it('detects a decisive horizontal swipe', () => {
+    expect(swipeDirection(-80, 5)).toBe('left'); // finger moved left -> next
+    expect(swipeDirection(80, -5)).toBe('right'); // finger moved right -> prev
+  });
+  it('ignores short or mostly-vertical swipes (scrolls)', () => {
+    expect(swipeDirection(20, 2)).toBe(null); // under threshold
+    expect(swipeDirection(50, 60)).toBe(null); // more vertical than horizontal
+    expect(swipeDirection(0, 100)).toBe(null); // pure vertical scroll
+  });
+});
 
 describe('humanSize', () => {
   it('shows KB under a megabyte and MB above', () => {

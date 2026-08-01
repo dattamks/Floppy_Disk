@@ -63,6 +63,9 @@ export const api = {
   changePassword: (current_password, new_password) =>
     request('/auth/password-change', { method: 'POST', body: { current_password, new_password } }),
   passwordReset: (email) => request('/auth/password-reset', { method: 'POST', body: { email } }),
+  passwordResetConfirm: (token, new_password) =>
+    request('/auth/password-reset/confirm', { method: 'POST', body: { token, new_password } }),
+  verifyEmail: (token) => request('/auth/verify-email', { method: 'POST', body: { token } }),
   resendVerification: () => request('/auth/verify-email/resend', { method: 'POST' }),
 
   // Storage
@@ -132,7 +135,7 @@ export const api = {
   graphRelated: (fileId) => request(`/graph/related/${fileId}`),
 
   // API keys (programmatic / MCP access). `root_folder` (a folder id) confines
-  // the key to that folder's subtree — including the knowledge graph.
+  // the key to that folder's subtree - including the knowledge graph.
   listApiKeys: () => request('/auth/api-keys'),
   createApiKey: ({ name, readOnly, rootFolder } = {}) =>
     request('/auth/api-keys', {
@@ -144,4 +147,14 @@ export const api = {
       },
     }),
   revokeApiKey: (id) => request(`/auth/api-keys/${id}`, { method: 'DELETE' }),
+
+  // Storage administration (owner only). Where uploaded files live: local disk
+  // or Cloudflare R2. The secret is write-only - never returned by the server.
+  storageConfig: () => request('/admin/storage/'),
+  saveStorageConfig: (patch) => request('/admin/storage/', { method: 'PUT', body: patch }),
+  testStorage: (creds) => request('/admin/storage/test', { method: 'POST', body: creds }),
+  storageMigration: () => request('/admin/storage/migrate'),
+  startStorageMigration: (deleteLocal) =>
+    request('/admin/storage/migrate', { method: 'POST', body: { delete_local: !!deleteLocal } }),
+  pauseStorageMigration: () => request('/admin/storage/migrate/pause', { method: 'POST' }),
 };

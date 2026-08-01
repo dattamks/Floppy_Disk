@@ -1,4 +1,4 @@
-"""PostgresSearchService — production SearchService using Postgres full-text search."""
+"""PostgresSearchService - production SearchService using Postgres full-text search."""
 from __future__ import annotations
 
 from django.db.models import Q
@@ -31,7 +31,7 @@ class PostgresSearchService(SearchService):
         base = File.objects.filter(deleted_at__isnull=True, status=File.Status.READY)
         if folder_ids is not None:
             # Folder-scoped key: only the owner's files inside the allowed
-            # subtree — never other users' discoverable content.
+            # subtree - never other users' discoverable content.
             base = base.filter(owner_id=user_id, folder_id__in=folder_ids)
         else:
             base = base.filter(Q(owner_id=user_id) | Q(is_discoverable=True, is_mature_content=False))

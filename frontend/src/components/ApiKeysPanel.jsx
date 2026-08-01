@@ -14,7 +14,7 @@ export default function ApiKeysPanel(V) {
       {' '}
       <span style={{ fontSize: '12.5px', color: theme.textMuted }}>
         Keys let automation tools and LLMs (over MCP) act on your storage. Scope a
-        key to a single folder to give one assistant access to just that folder —
+        key to a single folder to give one assistant access to just that folder -
         its search and knowledge graph are limited to that subtree too.
       </span>{' '}
       {V.newKeyToken ? (
@@ -30,7 +30,7 @@ export default function ApiKeysPanel(V) {
           }}
         >
           <span style={{ fontSize: '12px', fontWeight: '600', color: theme.text }}>
-            Copy your key now — it won’t be shown again
+            Copy your key now - it won’t be shown again
           </span>
           <code
             style={{
