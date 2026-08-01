@@ -66,6 +66,34 @@ def test_edit_releases_the_old_blob(client, user, settings, tmp_path):
     assert not StorageObject.objects.filter(pk=old_obj_id).exists()
 
 
+def test_large_note_body_survives_request_body_cap(client, user, settings, tmp_path):
+    """A note between Django's old 2.5MB body cap and the 5MB edit cap must save.
+
+    DATA_UPLOAD_MAX_MEMORY_SIZE defaults to 2.5MB, which would 400 a ~3MB note
+    JSON body before the view's own 5MB limit ever applied. We raise the body cap
+    to 8MB so the view-level limit is what actually governs.
+    """
+    settings.DEV_STORAGE_DIR = str(tmp_path)
+    fid = _upload_text(client, "big.md", b"seed")
+    big = "x" * (3 * 1024 * 1024)  # 3 MB: over 2.5MB, under the 5MB edit cap
+    resp = client.put(f"/api/v1/storage/files/{fid}/content",
+                      {"content": big}, format="json")
+    assert resp.status_code == 200, resp.content
+    assert resp.json()["size_bytes"] == len(big)
+
+
+def test_note_over_edit_cap_is_rejected(client, user, settings, tmp_path):
+    """Still bounded: a body past the 5MB inline-edit cap is refused cleanly."""
+    settings.DEV_STORAGE_DIR = str(tmp_path)
+    settings.DATA_UPLOAD_MAX_MEMORY_SIZE = 16 * 1024 * 1024  # let it reach the view
+    fid = _upload_text(client, "huge.md", b"seed")
+    too_big = "y" * (5 * 1024 * 1024 + 1)
+    resp = client.put(f"/api/v1/storage/files/{fid}/content",
+                      {"content": too_big}, format="json")
+    assert resp.status_code == 400
+    assert resp.json()["code"] == "file_too_large"
+
+
 def test_cannot_edit_another_users_file(client, user):
     other = User.objects.create_user(email="x@floppy.disk", password="hunter2pass")
     obj = StorageObject.objects.create(content_hash="a" * 64, region=other.storage_region,

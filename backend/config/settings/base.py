@@ -239,6 +239,35 @@ CSRF_TRUSTED_ORIGINS = env.list(
     default=["http://localhost:5173", "http://127.0.0.1:5173"],
 )
 
+# --- Request body limits ----------------------------------------------------
+# Notes / text edits are JSON bodies capped at 5 MB by the views; Django's
+# default DATA_UPLOAD_MAX_MEMORY_SIZE (2.5 MB) would reject them first with a
+# generic error. Raise it so the view-level limit is what actually applies.
+# (Binary file uploads don't go through here - they stream to storage.)
+DATA_UPLOAD_MAX_MEMORY_SIZE = env.int("DATA_UPLOAD_MAX_MEMORY_SIZE", default=8 * 1024 * 1024)
+
+# Never let a hung SMTP server pin a worker: bound the connect/send time.
+EMAIL_TIMEOUT = env.int("EMAIL_TIMEOUT", default=15)
+
+# The container/proxy health probe hits /health/ over plain HTTP; exempt it from
+# any HTTPS redirect so it can't loop (or falsely pass while users are stuck).
+SECURE_REDIRECT_EXEMPT = [r"^health/?$"]
+
+# --- Logging ----------------------------------------------------------------
+# Emit request errors (5xx tracebacks) to stdout regardless of DEBUG, so a
+# self-hosted deploy (Railway, Docker) surfaces them in the container logs
+# instead of swallowing them. Sentry, if configured, is layered on separately.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"simple": {"format": "%(asctime)s %(levelname)s %(name)s %(message)s"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "simple"}},
+    "root": {"handlers": ["console"], "level": env("LOG_LEVEL", default="INFO")},
+    "loggers": {
+        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
+    },
+}
+
 # --- Email -------------------------------------------------------------------
 # Delivery goes through EMAIL_BACKEND (console in dev, SES/SMTP in prod).
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="Floppy Disk <no-reply@floppy.disk>")

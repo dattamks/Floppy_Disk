@@ -38,13 +38,29 @@ email_verify_token = EmailVerifyTokenGenerator()
 
 
 def _send_link_email(user, *, subject, intro, path, token_generator=default_token_generator):
-    """Compose a `uidb64:token` link and email it via the configured backend."""
+    """Compose a `uidb64:token` link and email it via the configured backend.
+
+    In the single-container standalone deployment there's no Celery worker, so a
+    slow SMTP handshake would otherwise block the register/reset HTTP response
+    (EMAIL_TIMEOUT bounds it, but even 15s is a bad signup experience). There we
+    hand the send to a daemon thread and return immediately. Elsewhere (tests,
+    real worker) it stays synchronous so `mail.outbox` assertions hold.
+    """
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = token_generator.make_token(user)
     base = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
     link = f"{base}{path}?token={uid}:{token}"
     body = f"{intro}\n\n{link}\n\nIf you didn't request this, you can ignore this email."
-    send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=True)
+
+    def _send():
+        send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, [user.email], fail_silently=True)
+
+    if getattr(settings, "STANDALONE", False):
+        import threading
+
+        threading.Thread(target=_send, name="send-auth-email", daemon=True).start()
+    else:
+        _send()
 
 
 class DjangoAuthProvider(AuthProvider):

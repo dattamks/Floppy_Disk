@@ -222,8 +222,12 @@ class PublicShareDownloadView(APIView):
             from apps.storage.views import _ranged_file_response
 
             ctype = mimetypes.guess_type(link.file.name)[0] or "application/octet-stream"
-            return _ranged_file_response(request, path, ctype)
+            # A public download link should save with the file's display name.
+            return _ranged_file_response(request, path, ctype, download_name=link.file.name)
         # R2 mode: the presigned URL is itself anonymously fetchable.
         from django.shortcuts import redirect
 
-        return redirect(storage.presign_download(region=obj.region, object_key=obj.object_key))
+        return redirect(storage.presign_download(
+            region=obj.region, object_key=obj.object_key,
+            filename=link.file.name, as_attachment=True,
+        ))

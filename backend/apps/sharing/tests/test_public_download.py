@@ -60,6 +60,9 @@ def test_anonymous_can_download_public_share_bytes(user):
     assert b"".join(resp.streaming_content) == b"PNGBYTES-123"
     assert resp["Content-Type"] == "image/png"
     assert resp["Accept-Ranges"] == "bytes"
+    # Saved with the display name, not the opaque object key.
+    cd = resp.headers.get("Content-Disposition", "")
+    assert "attachment" in cd and "pic.png" in cd
 
 
 def test_password_share_download_requires_password(paid_user):

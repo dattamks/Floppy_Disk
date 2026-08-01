@@ -42,8 +42,14 @@ class StorageService(ABC):
         """Presigned direct-to-R2 upload; enforces max_bytes via content-length-range."""
 
     @abstractmethod
-    def presign_download(self, *, region: str, object_key: str, expires_in: int = 3600) -> str:
-        """Time-limited signed GET URL (also used for private-video range streaming)."""
+    def presign_download(
+        self, *, region: str, object_key: str, expires_in: int = 3600,
+        filename: str | None = None, as_attachment: bool = False,
+    ) -> str:
+        """Time-limited signed GET URL (also used for private-video range streaming).
+
+        When `as_attachment` is set, the URL forces a download named `filename`
+        (the file's display name) rather than the opaque object key."""
 
     @abstractmethod
     def create_multipart(self, *, region: str, object_key: str) -> str:

@@ -85,7 +85,8 @@ export const api = {
     request(`/storage/files/${id}/content`, { method: 'PUT', body: { content } }),
   createNote: (body) => request('/storage/notes', { method: 'POST', body }),
   deleteFile: (id) => request(`/storage/files/${id}`, { method: 'DELETE' }),
-  fileDownload: (id) => request(`/storage/files/${id}/download`),
+  fileDownload: (id, opts) =>
+    request(`/storage/files/${id}/download${opts && opts.download ? '?download=1' : ''}`),
   restoreFile: (id) => request(`/storage/files/${id}/restore`, { method: 'POST' }),
   purgeFile: (id) => request(`/storage/files/${id}/purge`, { method: 'POST' }),
 

@@ -7,7 +7,7 @@ Upload flow (presigned direct-to-storage):
   3. POST uploads/<id>/complete -> dedup StorageObject, commit reservation, File ready
 """
 from django.db.models import F
-from django.http import FileResponse, HttpResponse, StreamingHttpResponse
+from django.http import HttpResponse, StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -81,11 +81,62 @@ def _iter_file_range(path, start, length, block=_STREAM_BLOCK):
             yield data
 
 
-def _ranged_file_response(request, path, content_type):
+def _kick_off_transcode(file_id: str) -> None:
+    """Start the video transcode without blocking the request.
+
+    In the single-container standalone deployment a Celery `.delay()` runs the
+    FFmpeg transcode INLINE (eager), which for a real video easily exceeds
+    gunicorn's request timeout and kills the worker (the upload then appears to
+    fail). Run it in a daemon thread instead: the file stays PROCESSING and the
+    client polls for READY. In tests (eager but not standalone) and with a real
+    Celery worker, dispatch the task as usual so behavior stays synchronous /
+    worker-driven respectively.
+    """
+    from django.conf import settings
+
+    from .tasks import transcode_video_task
+
+    if getattr(settings, "STANDALONE", False):
+        import logging
+        import threading
+
+        from django.db import connection
+
+        def _run():
+            try:
+                from .video_processing import process_video
+
+                process_video(file_id)
+            except Exception:  # noqa: BLE001 - never crash the background thread
+                logging.getLogger("storage").exception("video transcode failed: %s", file_id)
+            finally:
+                connection.close()  # don't leak this thread's DB connection
+
+        threading.Thread(target=_run, name=f"transcode-{file_id}", daemon=True).start()
+    else:
+        transcode_video_task.delay(file_id)
+
+
+def _content_disposition(name: str) -> str:
+    """An attachment Content-Disposition that carries the display name.
+
+    Uses RFC 5987 `filename*` (UTF-8) for correctness with non-ASCII names, plus
+    an ASCII `filename=` fallback for old clients. Strips path separators/quotes
+    so the header can't be broken or spoofed.
+    """
+    from urllib.parse import quote
+
+    safe = (name or "download").replace("\\", "_").replace("/", "_").replace('"', "")
+    ascii_fallback = safe.encode("ascii", "ignore").decode("ascii") or "download"
+    return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(safe)}"
+
+
+def _ranged_file_response(request, path, content_type, download_name=None):
     """Serve a file from disk honoring the HTTP Range header (206 partial).
 
     Streams in bounded blocks (never reads the whole file, or a whole requested
-    range, into memory) so a large download can't OOM the worker.
+    range, into memory) so a large download can't OOM the worker. When
+    `download_name` is given, forces a download named that (else served inline).
     """
     import re
 
@@ -116,9 +167,17 @@ def _ranged_file_response(request, path, content_type):
         resp["Content-Range"] = f"bytes {start}-{end}/{file_size}"
         resp["Content-Length"] = str(length)
     else:
-        resp = FileResponse(path.open("rb"), content_type=content_type)
+        # Stream via a plain generator rather than FileResponse's wsgi.file_wrapper
+        # (sendfile). Some HTTP/2 edge proxies (e.g. Railway) mis-frame the
+        # sendfile path and the browser aborts with ERR_HTTP2_PROTOCOL_ERROR;
+        # a normal chunked generator with an explicit Content-Length is safe.
+        resp = StreamingHttpResponse(
+            _iter_file_range(path, 0, file_size), content_type=content_type
+        )
         resp["Content-Length"] = str(file_size)
     resp["Accept-Ranges"] = "bytes"
+    if download_name:
+        resp["Content-Disposition"] = _content_disposition(download_name)
     return resp
 
 
@@ -341,7 +400,13 @@ class FileDownloadView(APIView):
         if not file.storage_object_id or file.status != File.Status.READY:
             return Response({"detail": "File is not ready."}, status=status.HTTP_409_CONFLICT)
         obj = file.storage_object
-        url = get_storage_service().presign_download(region=obj.region, object_key=obj.object_key)
+        # `?download=1` -> force a download named the display name (the button);
+        # without it the URL serves inline (image/PDF/video previews).
+        as_attachment = bool(request.query_params.get("download"))
+        url = get_storage_service().presign_download(
+            region=obj.region, object_key=obj.object_key,
+            filename=file.name, as_attachment=as_attachment,
+        )
         return Response({"download_url": url, "name": file.name, "size_bytes": file.size_bytes})
 
 
@@ -715,8 +780,9 @@ class UploadCompleteView(APIView):
         object_key = _object_key(request.user.id, file.id)
         storage = get_storage_service()
 
-        # Determine the real size + content hash of the uploaded blob.
-        # (Dev/Local exposes stat(); production R2 completion is wired in a later slice.)
+        # Determine the real size + content hash of the uploaded blob. Both the
+        # Local and R2 backends implement stat(); a backend without it can't
+        # verify a completed upload, so we refuse rather than trust the client.
         if not hasattr(storage, "stat"):
             return Response(
                 {"detail": "Upload completion for this storage backend is not wired yet."},
@@ -755,9 +821,8 @@ class UploadCompleteView(APIView):
             charge_usage(request.user, size_bytes)
 
         if is_video:
-            from .tasks import transcode_video_task
-            transcode_video_task.delay(str(file.id))
-            file.refresh_from_db()  # eager task (dev/tests) may already have finished
+            _kick_off_transcode(str(file.id))
+            file.refresh_from_db()  # background/eager run may already have finished
 
         # Extract document text for full-text (content) search (best-effort).
         if file.kind == File.Kind.DOC:
@@ -920,14 +985,29 @@ class DevBlobView(APIView):
         f = self._file_for_key(request.user, object_key)
         return f is None or not folder_in_scope(request, f.folder_id)
 
+    # No DRF body parsing: we stream the raw request straight to disk, so parsers
+    # (which would buffer the whole upload and enforce DATA_UPLOAD_MAX_MEMORY_SIZE)
+    # must not touch it.
+    parser_classes = []
+
     def put(self, request, region, object_key):
         if not self._owns_key(request.user, object_key) or self._blocked_by_scope(request, object_key):
             return Response(status=status.HTTP_404_NOT_FOUND)
         storage = get_storage_service()
-        if not hasattr(storage, "save_bytes"):
-            return Response(status=status.HTTP_404_NOT_FOUND)
         try:
-            storage.save_bytes(region=region, object_key=object_key, data=request.body)
+            if hasattr(storage, "save_stream"):
+                # Stream chunks to disk - never buffer the whole (possibly multi-GB
+                # video) upload in memory, and bypass Django's 2.5 MB request.body
+                # cap that was aborting large uploads (ERR_HTTP2_PROTOCOL_ERROR).
+                src = request._request  # underlying Django HttpRequest (raw stream)
+                storage.save_stream(
+                    region=region, object_key=object_key,
+                    chunks=iter(lambda: src.read(1024 * 1024), b""),
+                )
+            elif hasattr(storage, "save_bytes"):
+                storage.save_bytes(region=region, object_key=object_key, data=request.body)
+            else:
+                return Response(status=status.HTTP_404_NOT_FOUND)
         except ValueError:
             return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -945,7 +1025,10 @@ class DevBlobView(APIView):
             return Response(status=status.HTTP_404_NOT_FOUND)
         if not path.exists():
             return Response(status=status.HTTP_404_NOT_FOUND)
-        resp = _ranged_file_response(request, path, self._content_type(object_key))
+        # ?dl=<name> forces an attachment download with the display name (set by
+        # the download button); without it the blob is served inline for previews.
+        dl = request.query_params.get("dl") or None
+        resp = _ranged_file_response(request, path, self._content_type(object_key), download_name=dl)
         # Same-origin previews embed this blob in an <iframe> (PDF reader) and
         # <img>/<video> tags; the site-wide X-Frame-Options: DENY would blank the
         # PDF viewer. Allow same-origin framing for this owner-scoped blob only.

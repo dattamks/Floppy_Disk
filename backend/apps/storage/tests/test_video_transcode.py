@@ -114,6 +114,35 @@ def test_purging_a_video_releases_its_rendition_blobs(client, user, settings, tm
     assert StorageObject.objects.filter(pk__in=obj_ids).count() == 0
 
 
+def test_transcode_reads_source_from_disk_not_memory(client, user, settings, tmp_path, monkeypatch):
+    """Transcode must feed FFmpeg the on-disk source path, never read_bytes().
+
+    Loading a multi-GB video into RAM (read_bytes) could OOM a small self-host
+    box, so process_video uses the backend's local_path. Guard it: with
+    read_bytes stubbed to fail, re-running process_video must still transcode
+    (it reaches the source via local_path).
+    """
+    settings.DEV_STORAGE_DIR = str(tmp_path)
+    from apps.storage.services.local import LocalStorageService
+    from apps.storage.video_processing import process_video
+
+    file_id, resp = _upload(client, "home-movie.mkv")
+    assert resp.status_code == 200, resp.content
+
+    # Now forbid read_bytes and re-process: it must still succeed via local_path.
+    monkeypatch.setattr(
+        LocalStorageService, "read_bytes",
+        lambda self, **kw: (_ for _ in ()).throw(
+            AssertionError("read_bytes must not be called during transcode")
+        ),
+    )
+    process_video(str(file_id))
+
+    f = File.objects.get(pk=file_id)
+    assert f.status == File.Status.READY
+    assert f.playable_object_id and f.playable_object_id != f.storage_object_id
+
+
 def test_transcode_falls_back_to_original_when_bytes_missing(user):
     """process_video is defensive: missing blob bytes -> serve the original, ready."""
     from apps.storage.video_processing import process_video

@@ -41,8 +41,15 @@ class LocalStorageService(StorageService):
             object_key=object_key,
         )
 
-    def presign_download(self, *, region, object_key, expires_in=3600) -> str:
-        return f"/api/v1/storage/_dev/blob/{region}/{object_key}"
+    def presign_download(self, *, region, object_key, expires_in=3600,
+                         filename=None, as_attachment=False) -> str:
+        url = f"/api/v1/storage/_dev/blob/{region}/{object_key}"
+        if as_attachment and filename:
+            from urllib.parse import quote
+
+            # DevBlobView reads ?dl= and sends an attachment Content-Disposition.
+            url += "?dl=" + quote(filename)
+        return url
 
     def create_multipart(self, *, region, object_key) -> str:
         return f"local-multipart-{object_key}"
@@ -65,6 +72,22 @@ class LocalStorageService(StorageService):
     # --- dev-only helpers (not part of the interface) -----------------------
     def save_bytes(self, *, region, object_key, data: bytes) -> None:
         self._path(region, object_key).write_bytes(data)
+
+    def save_stream(self, *, region, object_key, chunks) -> int:
+        """Write an uploaded blob by streaming byte chunks straight to disk.
+
+        Avoids buffering the whole (possibly multi-GB) upload in memory - which
+        both blows past Django's DATA_UPLOAD_MAX_MEMORY_SIZE and risks OOM.
+        Returns the number of bytes written.
+        """
+        path = self._path(region, object_key)
+        total = 0
+        with path.open("wb") as fh:
+            for chunk in chunks:
+                if chunk:
+                    fh.write(chunk)
+                    total += len(chunk)
+        return total
 
     def read_bytes(self, *, region, object_key) -> bytes:
         return self._path(region, object_key).read_bytes()

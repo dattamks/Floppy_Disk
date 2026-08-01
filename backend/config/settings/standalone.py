@@ -86,10 +86,18 @@ else:
             pass
 
 # Security: don't force HTTPS (a self-host may be plain-http on a LAN or behind
-# the user's own TLS proxy). Turn these on via env for a public TLS deployment.
+# the user's own TLS proxy). A public TLS deployment sets USE_PROXY_SSL_HEADER
+# (TLS terminated by a proxy) or SECURE_SSL_REDIRECT; when either is on we know
+# the site is served over HTTPS, so secure cookies default ON there (they'd
+# otherwise be sent in the clear). Plain-HTTP LAN self-hosts stay non-secure so
+# the login cookie isn't silently dropped. Each flag is still individually
+# overridable via its own env var.
+_behind_tls = env.bool("USE_PROXY_SSL_HEADER", default=False) or env.bool(
+    "SECURE_SSL_REDIRECT", default=False
+)
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)
-SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=False)
-CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=_behind_tls)
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=_behind_tls)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # When TLS is terminated by a reverse proxy (Caddy/nginx/Traefik) in front, the

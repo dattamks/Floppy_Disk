@@ -1685,7 +1685,7 @@ export default class App extends React.Component {
     }
     if (file.real) {
       api
-        .fileDownload(file.id)
+        .fileDownload(file.id, { download: true }) // force a download named the display name
         .then((d) => {
           if (d && d.download_url) window.open(d.download_url, '_blank');
           this.toast('Download started');
