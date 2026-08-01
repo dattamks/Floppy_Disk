@@ -34,7 +34,10 @@ COPY backend/ ./
 COPY --from=frontend /web/dist /app/frontend_dist
 RUN mkdir -p /data && chmod +x scripts/standalone-entrypoint.sh
 
-VOLUME ["/data"]
+# NOTE: no `VOLUME /data` instruction. Persist /data by attaching a real volume
+# at runtime - `docker run -v floppydata:/data`, the compose file's named volume,
+# or a Railway Volume mounted at /data. (Railway rejects Dockerfiles that declare
+# VOLUME; the instruction only created an anonymous volume anyway.)
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 \
   CMD curl -fsS http://localhost:8000/health/ || exit 1
