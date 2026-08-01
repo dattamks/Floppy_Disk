@@ -5,8 +5,10 @@ Closes the TOCTOU race where concurrent uploads all pass a stale
 `storage_used_bytes` check: quota is atomically reserved when a presigned upload
 is issued, committed on completion, and released when the reservation expires.
 """
+import shutil
 from datetime import timedelta
 
+from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
 
@@ -41,14 +43,80 @@ def _live_reserved_bytes(user) -> int:
     return agg["total"] or 0
 
 
+def _storage_dir() -> str | None:
+    """The filesystem path local blobs live under, or None if not configured."""
+    return getattr(settings, "DEV_STORAGE_DIR", None)
+
+
+def disk_usage():
+    """(total, used, free) bytes of the local storage volume, or None on failure
+    or when a directory in the chain doesn't exist yet."""
+    path = _storage_dir()
+    if not path:
+        return None
+    import os
+
+    # disk_usage needs an existing path; walk up to the nearest existing parent.
+    while path and not os.path.exists(path):
+        parent = os.path.dirname(path)
+        if parent == path:
+            return None
+        path = parent
+    try:
+        return shutil.disk_usage(path)
+    except OSError:
+        return None
+
+
+def _disk_tracking() -> bool:
+    """True when the quota should follow the real local disk."""
+    if not getattr(settings, "STORAGE_TRACK_DISK", True):
+        return False
+    from .config import effective_backend
+
+    return effective_backend() == "local"
+
+
+def disk_free_bytes(user) -> int | None:
+    """Real free space on the local storage volume, or None on R2/unknown/off."""
+    if not _disk_tracking():
+        return None
+    du = disk_usage()
+    return du.free if du else None
+
+
+def effective_quota_bytes(user) -> int:
+    """The storage ceiling actually shown + enforced.
+
+    Precedence: an explicit STORAGE_QUOTA_BYTES override wins; otherwise the
+    per-user quota, but on local storage capped to the real disk size so the
+    sidebar meter isn't a fictional flat 2 TB. Enforcement uses the same value,
+    so what's shown and what's allowed never diverge.
+    """
+    override = int(getattr(settings, "STORAGE_QUOTA_BYTES", 0) or 0)
+    if override > 0:
+        return override
+    quota = user.quota_bytes
+    if _disk_tracking():
+        du = disk_usage()
+        if du:
+            return min(quota, du.total)
+    return quota
+
+
+# Back-compat alias: some call sites/tests reference the old name.
 def _quota_limit(user) -> int:
-    """The account's storage quota."""
-    return user.quota_bytes
+    return effective_quota_bytes(user)
 
 
 def available_bytes(user) -> int:
-    """Remaining quota after committed usage AND live reservations."""
-    return _quota_limit(user) - user.storage_used_bytes - _live_reserved_bytes(user)
+    """Remaining quota after committed usage AND live reservations, never more
+    than what the disk can actually still hold (local)."""
+    logical = effective_quota_bytes(user) - user.storage_used_bytes - _live_reserved_bytes(user)
+    free = disk_free_bytes(user)
+    if free is not None:
+        return max(0, min(logical, free))
+    return logical
 
 
 @transaction.atomic
@@ -66,11 +134,18 @@ def reserve(user, *, size_bytes: int, file: File | None = None) -> StorageReserv
             f"File exceeds the {per_file_cap(user) // 1024**3} GB per-file limit."
         )
 
+    # Reject up front if the local disk physically can't hold this - otherwise
+    # the write later fails deep in the storage layer with a raw "No space left
+    # on device" 500 instead of a clean, actionable error.
+    free = disk_free_bytes(user)
+    if free is not None and size_bytes > free:
+        raise QuotaExceeded("Not enough free disk space on the server.")
+
     # Lock the owner row: serializes concurrent reservations for this user.
     locked = user.__class__.objects.select_for_update().get(pk=user.pk)
     used = locked.storage_used_bytes
     reserved = _live_reserved_bytes(locked)
-    if used + reserved + size_bytes > _quota_limit(locked):
+    if used + reserved + size_bytes > effective_quota_bytes(locked):
         raise QuotaExceeded("Not enough storage quota remaining.")
 
     return StorageReservation.objects.create(

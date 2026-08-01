@@ -20,6 +20,9 @@ REST_FRAMEWORK = {**REST_FRAMEWORK, "DEFAULT_THROTTLE_CLASSES": []}  # noqa: F40
 # (portable + hermetic - no machine-specific path).
 STORAGE_SERVICE = "apps.storage.services.local.LocalStorageService"
 DEV_STORAGE_DIR = tempfile.mkdtemp(prefix="floppy-test-storage-")
+# Keep quota math deterministic: don't tie the ceiling to the test machine's
+# real disk. Tests that need the disk path opt in with @override_settings.
+STORAGE_TRACK_DISK = False
 # The local-storage persistence warning is expected here (tests run on local
 # disk by design); silence it so test/command output stays clean.
 SILENCED_SYSTEM_CHECKS = ["storage.W001"]

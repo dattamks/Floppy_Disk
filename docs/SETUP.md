@@ -172,6 +172,8 @@ shell for the no-Docker path):
 | `R2_ACCESS_KEY_ID` | _(empty)_ | R2 access key ID (R2 API token). |
 | `R2_SECRET_ACCESS_KEY` | _(empty)_ | R2 secret access key. |
 | `R2_BUCKET` | _(empty)_ | Your R2 bucket name. One bucket is all a self-host needs. |
+| `STORAGE_QUOTA_BYTES` | `0` (auto) | Storage ceiling shown in the sidebar meter and enforced on upload. `0` = auto: the per-user quota, but on local storage capped to the real disk size. Set a byte count to pin a fixed quota for everyone (e.g. `107374182400` = 100 GB). |
+| `STORAGE_TRACK_DISK` | `true` | On local storage, track the real disk: the quota follows the disk size and uploads are refused once the disk is physically full. Set `false` to use the plain per-user quota. |
 | `WEB_CONCURRENCY` | `3` | gunicorn worker processes. |
 | `PORT` | `8000` | Port inside the container. |
 | `MAINTENANCE_INTERVAL_SECONDS` | `3600` | How often in-process maintenance runs. |
@@ -364,6 +366,21 @@ picks up where it left off.
 - **Back up** by snapshotting that volume (stop the container first for a
   consistent copy), e.g.
   `docker run --rm -v floppydata:/data -v "$PWD":/backup alpine tar czf /backup/floppy-backup.tar.gz -C /data .`
+
+**Storage meter looks wrong?** The used/total figure in the sidebar is a fast
+counter kept in step with uploads and deletes. If it ever drifts (e.g. after an
+interrupted job or a manual DB edit), recompute it from the actual files:
+
+```
+python manage.py recompute_storage_usage --dry-run   # report drift only
+python manage.py recompute_storage_usage             # fix it
+# containerized:
+docker compose -f docker-compose.standalone.yml exec floppy \
+    python manage.py recompute_storage_usage
+```
+
+The **total** in the meter reflects the real disk on local storage (not a flat
+number); tune or pin it with `STORAGE_QUOTA_BYTES` / `STORAGE_TRACK_DISK` above.
 
 ### Upgrade
 

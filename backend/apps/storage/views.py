@@ -21,7 +21,15 @@ from django.db import transaction
 from .lifecycle import _release_object, purge_file, purge_folder
 from .models import File, Folder, StorageObject, StorageReservation
 from .naming import classify_kind, sanitize_name, unique_name
-from .quota import FileTooLarge, QuotaExceeded, available_bytes, commit, reserve
+from .quota import (
+    FileTooLarge,
+    QuotaExceeded,
+    available_bytes,
+    commit,
+    disk_free_bytes,
+    effective_quota_bytes,
+    reserve,
+)
 from .scoping import folder_in_scope, is_scoped, scope_files, scope_folders, scoped_folder_ids
 from .serializers import (
     FileSerializer,
@@ -433,10 +441,15 @@ class UsageView(APIView):
 
     def get(self, request):
         u = request.user
+        # quota_bytes is the *effective* ceiling (real disk on local, override,
+        # or the per-user default) so the sidebar meter reflects reality.
         return Response({
-            "quota_bytes": u.quota_bytes,
+            "quota_bytes": effective_quota_bytes(u),
             "used_bytes": u.storage_used_bytes,
             "available_bytes": available_bytes(u),
+            # Real free space on the server volume (null on R2), so the UI can
+            # warn before the disk is physically full.
+            "disk_free_bytes": disk_free_bytes(u),
         })
 
 

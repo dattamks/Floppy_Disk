@@ -179,6 +179,16 @@ STORAGE_SERVICE = env(
 # Local media folder used by LocalStorageService when R2 isn't configured.
 DEV_STORAGE_DIR = env("DEV_STORAGE_DIR", default=str(BASE_DIR / "media"))
 
+# Storage quota shown in the sidebar meter and enforced on upload. 0 = auto:
+# the per-user quota, but on local storage capped to the real disk size (so the
+# meter isn't a fictional flat 2 TB). Set a byte count to pin a fixed logical
+# quota for everyone (e.g. 107374182400 for 100 GB).
+STORAGE_QUOTA_BYTES = env.int("STORAGE_QUOTA_BYTES", default=0)
+# When True (default) and storage is local, the quota ceiling tracks the real
+# disk and uploads are rejected once the disk is physically full. Turn off to
+# use the plain per-user quota (also disabled in tests for determinism).
+STORAGE_TRACK_DISK = env.bool("STORAGE_TRACK_DISK", default=True)
+
 # --- Video transcoding (self-hosted, FFmpeg - no third-party streaming) -----
 # Uploaded videos are normalized to a browser-playable H.264/AAC MP4 with
 # FFmpeg and served over the local Range endpoint. FFMPEG_BINARY/FFPROBE_BINARY
