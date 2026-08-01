@@ -131,7 +131,13 @@ def _ranged_file_response(request, path, content_type, download_name=None):
         resp["Content-Range"] = f"bytes {start}-{end}/{file_size}"
         resp["Content-Length"] = str(length)
     else:
-        resp = FileResponse(path.open("rb"), content_type=content_type)
+        # Stream via a plain generator rather than FileResponse's wsgi.file_wrapper
+        # (sendfile). Some HTTP/2 edge proxies (e.g. Railway) mis-frame the
+        # sendfile path and the browser aborts with ERR_HTTP2_PROTOCOL_ERROR;
+        # a normal chunked generator with an explicit Content-Length is safe.
+        resp = StreamingHttpResponse(
+            _iter_file_range(path, 0, file_size), content_type=content_type
+        )
         resp["Content-Length"] = str(file_size)
     resp["Accept-Ranges"] = "bytes"
     if download_name:
