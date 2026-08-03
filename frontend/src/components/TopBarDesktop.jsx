@@ -15,7 +15,7 @@ export default function TopBarDesktop(V) {
           gap: '9px',
           background: theme.surface,
           border: `1px solid ${theme.border}`,
-          borderRadius: '10px',
+          borderRadius: theme.radius,
           padding: '9px 13px',
           maxWidth: '380px',
         }}
@@ -167,6 +167,7 @@ export default function TopBarDesktop(V) {
       <button
         onClick={V.openNotifications}
         title="Notifications"
+        data-round
         style={{
           position: 'relative',
           width: '34px',
@@ -218,6 +219,7 @@ export default function TopBarDesktop(V) {
         onClick={V.openSettings}
         aria-label="Settings"
         title="Settings"
+        data-round
         style={{
           width: '34px',
           height: '34px',

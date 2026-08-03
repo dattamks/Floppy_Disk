@@ -67,6 +67,8 @@ export default class App extends React.Component {
     // Bulk selection.
     selectedIds: [],
     moveBulk: false,
+    // Settings is a full page (not a modal) with its own secondary nav.
+    settingsPage: false,
     settingsTab: 'profile',
     profileName: '',
     profileUsername: '',
@@ -165,6 +167,7 @@ export default class App extends React.Component {
       if (e.key === 'Escape') {
         if (this.state.ctxMenu) this.closeCtxMenu();
         else if (this.state.modal) this.closeModal();
+        else if (this.state.settingsPage) this.closeSettings();
         else if (this.state.drawerOpen) this.closeDrawer();
         else if (this.state.selectedIds.length) this.clearSelection();
         return;
@@ -456,6 +459,7 @@ export default class App extends React.Component {
       drawerOpen: false,
       mobileSearchOpen: false,
       selectedIds: [],
+      settingsPage: false, // leaving Settings when a primary nav item is chosen
     });
   }
   navToAll() {
@@ -551,11 +555,14 @@ export default class App extends React.Component {
 
   openSettings() {
     this.setState({
-      modal: 'settings',
+      settingsPage: true,
       settingsTab: 'profile',
       drawerOpen: false,
       newKeyToken: '',
     });
+  }
+  closeSettings() {
+    this.setState({ settingsPage: false });
   }
   setSettingsProfile() {
     this.setState({ settingsTab: 'profile' });
@@ -686,7 +693,8 @@ export default class App extends React.Component {
   }
   setupChooseR2() {
     // Jump into the Storage settings tab to enter credentials.
-    this.setState({ setupOpen: false, modal: 'settings', settingsTab: 'storage' });
+    this.setState({ setupOpen: false, settingsPage: true, settingsTab: 'storage' });
+    this.loadStorageConfig();
   }
   skipSetup() {
     api.saveStorageConfig({ setup_completed: true }).then((cfg) =>
@@ -694,7 +702,7 @@ export default class App extends React.Component {
     );
   }
   openStorageSettings() {
-    this.setState({ modal: 'settings', settingsTab: 'storage' });
+    this.setState({ settingsPage: true, settingsTab: 'storage' });
     this.loadStorageConfig();
   }
   dismissStorageBanner() {
@@ -1587,12 +1595,17 @@ export default class App extends React.Component {
     const file = (this.state.files || []).find((f) => f.id === fileId && !f.trashed);
     if (file && file.kind !== 'folder') this.openFile(file);
   }
-  openLinks() {
-    this.setState({ modal: 'links', drawerOpen: false, linksLoading: true, linksList: [] });
+  loadShares() {
+    this.setState({ linksLoading: true, linksList: [] });
     api
       .listShares()
       .then((links) => this.setState({ linksList: links || [], linksLoading: false }))
       .catch(() => this.setState({ linksLoading: false }));
+  }
+  // Share-link management now lives under Settings → Links (not a standalone modal).
+  setSettingsLinks() {
+    this.setState({ settingsTab: 'links' });
+    this.loadShares();
   }
   revokeLink(id) {
     api.revokeShare(id).catch((err) => this.toast(firstError(err, 'Could not revoke')));
@@ -2510,7 +2523,6 @@ export default class App extends React.Component {
       videoLoading: st.videoLoading,
       modalOpen: !!modal,
       isUploadModal: modal === 'upload',
-      isSettingsModal: modal === 'settings',
       isNotificationsModal: modal === 'notifications',
       isRelatedModal: modal === 'related',
       relatedList: st.relatedList,
@@ -2519,9 +2531,6 @@ export default class App extends React.Component {
       isPreviewModal: modal === 'preview',
       isVideoModal: modal === 'video',
       isShareModal: modal === 'share',
-      // Share-link management.
-      isLinksModal: modal === 'links',
-      openLinks: () => this.openLinks(),
       isGraphModal: modal === 'graph',
       openGraph: () => this.openGraph(),
       openGraphFile: (id) => this.openGraphFile(id),
@@ -2638,27 +2647,22 @@ export default class App extends React.Component {
       })),
       closeModal: () => this.closeModal(),
       uploadQueueView: uploadQueue.map((u) => ({ name: u.name, progress: u.progress })),
+      // Settings is a full page with a secondary sidebar (not a modal).
+      isSettingsPage: st.settingsPage && isApp,
+      closeSettings: () => this.closeSettings(),
       settingsTab,
       stIsProfile: settingsTab === 'profile',
       stIsAccount: settingsTab === 'account',
       stIsSecurity: settingsTab === 'security',
       stIsDeveloper: settingsTab === 'developer',
+      stIsStorage: settingsTab === 'storage',
+      stIsLinks: settingsTab === 'links',
       setSettingsProfile: () => this.setSettingsProfile(),
       setSettingsAccount: () => this.setSettingsAccount(),
       setSettingsSecurity: () => this.setSettingsSecurity(),
       setSettingsDeveloper: () => this.setSettingsDeveloper(),
-      stProfileBg: settingsTab === 'profile' ? '#FFFFFF' : 'transparent',
-      stProfileColor: settingsTab === 'profile' ? '#15171C' : '#656B76',
-      stAccountBg: settingsTab === 'account' ? '#FFFFFF' : 'transparent',
-      stAccountColor: settingsTab === 'account' ? '#15171C' : '#656B76',
-      stSecurityBg: settingsTab === 'security' ? '#FFFFFF' : 'transparent',
-      stSecurityColor: settingsTab === 'security' ? '#15171C' : '#656B76',
-      stDeveloperBg: settingsTab === 'developer' ? '#FFFFFF' : 'transparent',
-      stDeveloperColor: settingsTab === 'developer' ? '#15171C' : '#656B76',
-      stIsStorage: settingsTab === 'storage',
       setSettingsStorage: () => this.setSettingsStorage(),
-      stStorageBg: settingsTab === 'storage' ? '#FFFFFF' : 'transparent',
-      stStorageColor: settingsTab === 'storage' ? '#15171C' : '#656B76',
+      setSettingsLinks: () => this.setSettingsLinks(),
       // Storage administration (owner only)
       isOwner: st.isOwner,
       storage: {

@@ -11,6 +11,16 @@ body{margin:0;background:#EEF0F4;}
     @keyframes fdspin{to{transform:rotate(360deg);}}
     :focus-visible{outline:2px solid #5145E5;outline-offset:2px;border-radius:4px;}
     button:focus:not(:focus-visible){outline:none;}
+    /* Controls are square with only a slight round - a single global rule so the
+       whole app stays consistent instead of ~180 inline radii drifting apart.
+       Overrides the inline borderRadius on buttons/inputs (that's why it needs
+       !important). Deliberately-round controls (avatars, the FAB, icon circles,
+       gallery arrows, toggles, big choice cards) opt out with data-round, and
+       the video volume slider (the only range input) keeps its own styling. */
+    button:not([data-round]),
+    input:not([type=range]):not([data-round]),
+    select:not([data-round]),
+    textarea:not([data-round]){ border-radius:6px !important; }
     /* The video volume slider is the only range input; on narrow screens it
        overflows the control bar (clipping HD/fullscreen). Hide it on mobile -
        the adjacent mute button keeps volume control reachable. */

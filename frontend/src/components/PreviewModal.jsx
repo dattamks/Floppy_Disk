@@ -190,6 +190,7 @@ function Body(V) {
       <button
         onClick={onClick}
         aria-label={side === 'left' ? 'Previous image' : 'Next image'}
+        data-round
         style={{
           position: 'absolute',
           top: '50%',
@@ -243,7 +244,7 @@ function Body(V) {
               background: 'rgba(10,12,20,0.66)',
               color: '#fff',
               fontSize: '11px',
-              borderRadius: '999px',
+              borderRadius: theme.radiusBadge,
               padding: '2px 9px',
             }}
           >

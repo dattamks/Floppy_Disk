@@ -85,6 +85,7 @@ export default function SetupModal(V) {
           <button
             onClick={S.chooseLocal}
             style={card(S.setupChoice === 'local')}
+            data-round
             data-testid="setup-local"
           >
             <div style={{ fontSize: '20px', marginBottom: '8px' }}>🖥️</div>
@@ -96,6 +97,7 @@ export default function SetupModal(V) {
           <button
             onClick={S.chooseR2}
             style={card(S.setupChoice === 'r2')}
+            data-round
             data-testid="setup-r2"
           >
             <div style={{ fontSize: '20px', marginBottom: '8px' }}>☁️</div>

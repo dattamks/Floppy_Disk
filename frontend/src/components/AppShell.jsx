@@ -10,6 +10,7 @@ import TopBarMobile from './TopBarMobile';
 import MobileTabBar from './MobileTabBar';
 import TrashScreen from './TrashScreen';
 import EmptyState from './EmptyState';
+import SettingsPage from './SettingsPage';
 
 // Bulk-selection action bar, shown when one or more items are selected.
 function SelectionBar(V) {
@@ -231,6 +232,9 @@ export default function AppShell(V) {
         <div style={{ flex: '1', display: 'flex', overflow: 'hidden', minHeight: '0' }}>
           {' '}
           {Sidebar(V)}{' '}
+          {V.isSettingsPage ? (
+            SettingsPage(V)
+          ) : (
           <div
             style={{
               flex: '1',
@@ -254,7 +258,7 @@ export default function AppShell(V) {
                     gap: '9px',
                     background: theme.white,
                     border: `1px solid ${theme.border}`,
-                    borderRadius: '10px',
+                    borderRadius: theme.radius,
                     padding: '10px 13px',
                   }}
                 >
@@ -355,7 +359,8 @@ export default function AppShell(V) {
               </React.Fragment>
             ) : null}{' '}
             {EmptyState(V)}{' '}
-          </div>{' '}
+          </div>
+          )}{' '}
         </div>{' '}
         {MobileTabBar(V)}{' '}
       </div>{' '}

@@ -26,7 +26,7 @@ export default function StoragePanel(V) {
         fontSize: '11px',
         fontWeight: '600',
         padding: '3px 9px',
-        borderRadius: '999px',
+        borderRadius: theme.radiusBadge,
         background: bg,
         color,
         border: `1px solid ${brd}`,

@@ -5,7 +5,6 @@ import AuthScreen from '../components/AuthScreen';
 import AppShell from '../components/AppShell';
 import UploadModal from '../components/UploadModal';
 import NewFolderModal from '../components/NewFolderModal';
-import SettingsModal from '../components/SettingsModal';
 import NotificationsModal from '../components/NotificationsModal';
 import RelatedModal from '../components/RelatedModal';
 import GraphModal from '../components/GraphModal';
@@ -14,7 +13,6 @@ import ShareModal from '../components/ShareModal';
 import PreviewModal from '../components/PreviewModal';
 import RenameModal from '../components/RenameModal';
 import MoveModal from '../components/MoveModal';
-import LinksModal from '../components/LinksModal';
 import ContextMenu from '../components/ContextMenu';
 import Toast from '../components/Toast';
 import SetupModal from '../components/SetupModal';
@@ -364,10 +362,9 @@ export default function AppView({ V }) {
                   }}
                 >
                   {' '}
-                  {UploadModal(V)} {SettingsModal(V)} {NotificationsModal(V)} {RelatedModal(V)} {GraphModal(V)}{' '}
+                  {UploadModal(V)} {NotificationsModal(V)} {RelatedModal(V)} {GraphModal(V)}{' '}
                   {NewFolderModal(V)}{' '}
                   {PreviewModal(V)} {VideoModal(V)} {ShareModal(V)} {RenameModal(V)} {MoveModal(V)}{' '}
-                  {LinksModal(V)}{' '}
                 </div>{' '}
               </div>{' '}
             </React.Fragment>

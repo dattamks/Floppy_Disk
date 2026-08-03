@@ -124,6 +124,7 @@ export default function TopBarMobile(V) {
         onClick={V.openSettings}
         aria-label="Settings"
         title="Settings"
+        data-round
         style={{
           width: '38px',
           height: '38px',
