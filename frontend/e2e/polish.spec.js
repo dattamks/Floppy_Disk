@@ -57,7 +57,7 @@ test('starring a file persists across a reload', async ({ page }) => {
   await registerNewUser(page);
   await upload(page, 'fav.txt');
 
-  await page.getByRole('button', { name: 'Star' }).first().click();
+  await page.getByRole('button', { name: 'Star', exact: true }).first().click();
   await expect(page.getByRole('button', { name: 'Unstar' })).toBeVisible();
 
   await page.reload();
@@ -111,4 +111,57 @@ test('a file tile opens with the keyboard', async ({ page }) => {
   await page.keyboard.press('Enter');
   // The preview opened (its Download action is present).
   await expect(page.getByRole('button', { name: 'Download' })).toBeVisible();
+});
+
+test('trashing a file offers Undo that restores it', async ({ page }) => {
+  await registerNewUser(page);
+  await upload(page, 'oops.txt');
+
+  // Trash via the context menu (⋯ → Move to trash).
+  await page.getByRole('button', { name: 'More actions' }).first().click();
+  await page.getByRole('button', { name: 'Move to trash' }).click();
+  await expect(page.getByText('oops.txt')).toHaveCount(0);
+
+  // The toast offers Undo, which brings it back.
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByText('oops.txt')).toBeVisible();
+});
+
+test('a Starred view lists starred files and persists', async ({ page }) => {
+  await registerNewUser(page);
+  await upload(page, 'fav.txt');
+
+  await page.getByRole('button', { name: 'Star', exact: true }).first().click();
+  await expect(page.getByRole('button', { name: 'Unstar' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Starred' }).click();
+  await expect(page.getByText('fav.txt')).toBeVisible();
+
+  // A non-starred upload does not appear under Starred.
+  await page.getByRole('button', { name: 'My Files' }).click();
+  await upload(page, 'plain.txt');
+  await page.getByRole('button', { name: 'Starred' }).click();
+  await expect(page.getByText('fav.txt')).toBeVisible();
+  await expect(page.getByText('plain.txt')).toHaveCount(0);
+});
+
+test('dropping OS files on the grid uploads them', async ({ page }) => {
+  await registerNewUser(page);
+
+  // Simulate an OS file drag-drop onto the content area via DataTransfer.
+  await page.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.items.add(new File(['dropped bytes'], 'dropped.txt', { type: 'text/plain' }));
+    const target =
+      document.querySelector('[data-testid="files-loading"]') ||
+      document.querySelector('main, [style*="overflow"]') ||
+      document.body;
+    const area = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2) || target;
+    for (const type of ['dragenter', 'dragover', 'drop']) {
+      const ev = new DragEvent(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(ev, 'dataTransfer', { value: dt });
+      area.dispatchEvent(ev);
+    }
+  });
+  await expect(page.getByText('dropped.txt')).toBeVisible({ timeout: 10000 });
 });

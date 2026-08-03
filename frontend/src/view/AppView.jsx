@@ -251,6 +251,37 @@ export default function AppView({ V }) {
                     Recent
                   </button>{' '}
                   <button
+                    onClick={V.navToStarred}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '11px',
+                      padding: '11px 11px',
+                      borderRadius: '9px',
+                      border: 'none',
+                      background: V.navStarredBg,
+                      color: V.navStarredColor,
+                      fontSize: '14px',
+                      fontWeight: V.navStarredWeight,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontFamily: "'IBM Plex Sans',sans-serif",
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.6-4.1 6.1-.6L12 3Z"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    Starred
+                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: theme.textFaint }}>
+                      {V.starredCount}
+                    </span>
+                  </button>{' '}
+                  <button
                     onClick={V.navToTrash}
                     style={{
                       display: 'flex',

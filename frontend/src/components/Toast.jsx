@@ -21,9 +21,30 @@ export default function Toast(V) {
           boxShadow: '0 10px 24px rgba(0,0,0,0.28)',
           zIndex: '60',
           whiteSpace: 'nowrap',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '14px',
         }}
       >
-        {V.toastMsg}
+        <span>{V.toastMsg}</span>
+        {V.toastActionLabel ? (
+          <button
+            onClick={V.onToastAction}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#B9B2FF',
+              fontSize: '13px',
+              fontWeight: '700',
+              cursor: 'pointer',
+              padding: '0',
+              fontFamily: "'IBM Plex Sans',sans-serif",
+            }}
+            {...hov({ color: theme.white })}
+          >
+            {V.toastActionLabel}
+          </button>
+        ) : null}
       </div>{' '}
     </React.Fragment>
   ) : null;

@@ -73,6 +73,7 @@ export default class App extends React.Component {
     // Bulk selection.
     selectedIds: [],
     moveBulk: false,
+    dragUploadOver: false, // OS file-drag hovering the grid (drop-to-upload)
     // Settings is a full page (not a modal) with its own secondary nav.
     settingsPage: false,
     settingsTab: 'profile',
@@ -144,13 +145,24 @@ export default class App extends React.Component {
     quotaBannerDismissed: false,
     ctxMenu: null,
     toastMsg: '',
+    toastAction: null, // optional { label, fn } for an actionable toast (e.g. Undo)
   };
 
 
-  toast(msg) {
-    this.setState({ toastMsg: msg });
+  toast(msg, action = null) {
+    // An actionable toast (e.g. Undo) lingers longer so it can actually be used.
+    this.setState({ toastMsg: msg, toastAction: action });
     clearTimeout(this._toastT);
-    this._toastT = setTimeout(() => this.setState({ toastMsg: '' }), 2200);
+    this._toastT = setTimeout(
+      () => this.setState({ toastMsg: '', toastAction: null }),
+      action ? 6000 : 2200
+    );
+  }
+  runToastAction() {
+    const a = this.state.toastAction;
+    clearTimeout(this._toastT);
+    this.setState({ toastMsg: '', toastAction: null });
+    if (a && a.fn) a.fn();
   }
 
   // On load: prime CSRF cookie, then restore an existing session if there is one.
@@ -499,6 +511,9 @@ export default class App extends React.Component {
   }
   navToRecent() {
     this.go('recent');
+  }
+  navToStarred() {
+    this.go('starred');
   }
   navToTrash() {
     this.go('trash');
@@ -972,6 +987,7 @@ export default class App extends React.Component {
           size: humanSize(f.size_bytes),
           sizeBytes: f.size_bytes,
           modified: '',
+          createdAt: f.created_at || null,
           shared: false,
           starred: !!f.starred,
           trashed: false,
@@ -1425,11 +1441,12 @@ export default class App extends React.Component {
       this.setState({ modal: null, moveBulk: false, selectedIds: [] });
       return;
     }
-    this.doMove(moveTargetId, moveDestId);
+    this.doMove(moveTargetId, moveDestId, true);
     this.setState({ modal: null });
   }
-  // Shared move for both the Move dialog and drag-and-drop.
-  doMove(id, destId) {
+  // Shared move for both the Move dialog and drag-and-drop. `undoable` offers an
+  // Undo toast (single moves only - a bulk move would spam a toast per item).
+  doMove(id, destId, undoable = false) {
     const item = this.state.files.find((f) => f.id === id);
     if (!item || id === destId) return;
     if (item.parentId === destId) return; // already there
@@ -1441,14 +1458,18 @@ export default class App extends React.Component {
         return;
       }
     }
+    const prevParent = item.parentId;
     const setParent = (parentId, finalName) =>
       this.setState((s) => ({
         files: s.files.map((f) =>
           f.id === id ? { ...f, parentId, name: finalName || f.name } : f
         ),
       }));
+    const moved = () =>
+      undoable
+        ? this.toast('Moved', { label: 'Undo', fn: () => this.doMove(id, prevParent, false) })
+        : this.toast('Moved');
     if (item.real) {
-      const prevParent = item.parentId;
       // Optimistic: move it in the UI now so it doesn't linger in the old folder
       // during the round-trip; reconcile the (possibly de-duped) name on success,
       // and put it back if the server rejects the move.
@@ -1459,7 +1480,7 @@ export default class App extends React.Component {
       call
         .then((r) => {
           if (r && r.name) setParent(destId, r.name);
-          this.toast('Moved');
+          moved();
         })
         .catch((err) => {
           setParent(prevParent);
@@ -1467,7 +1488,7 @@ export default class App extends React.Component {
         });
     } else {
       setParent(destId);
-      this.toast('Moved');
+      moved();
     }
   }
 
@@ -1499,7 +1520,7 @@ export default class App extends React.Component {
     if (e) e.preventDefault();
     const dragging = this.state.draggingId;
     this.setState({ draggingId: null, dragOverId: null });
-    if (dragging) this.doMove(dragging, folder.id);
+    if (dragging) this.doMove(dragging, folder.id, true);
   }
 
   // --- Bulk selection --------------------------------------------------------
@@ -1569,7 +1590,21 @@ export default class App extends React.Component {
       files: s.files.map((x) => (ids.includes(x.id) ? { ...x, trashed: true } : x)),
       selectedIds: [],
     }));
-    this.toast(`Moved ${ids.length} to trash`);
+    this.toast(`Moved ${ids.length} to trash`, { label: 'Undo', fn: () => this.undoTrash(ids) });
+  }
+  // Reverse a just-performed trash (from the Undo toast): un-trash the same ids.
+  undoTrash(ids) {
+    ids.forEach((id) => {
+      const f = this.state.files.find((x) => x.id === id);
+      if (f && f.real)
+        (f.kind === 'folder' ? api.restoreFolder(id) : api.restoreFile(id)).catch(() =>
+          this.toast('Could not undo — reload to refresh')
+        );
+    });
+    this.setState((s) => ({
+      files: s.files.map((x) => (ids.includes(x.id) ? { ...x, trashed: false } : x)),
+    }));
+    this.toast('Restored');
   }
   bulkDownload() {
     const ids = this.state.selectedIds;
@@ -1842,7 +1877,7 @@ export default class App extends React.Component {
         files: s.files.map((x) => (x.id === id ? { ...x, trashed: true } : x)),
         modal: null,
       }));
-      this.toast('Moved to trash');
+      this.toast('Moved to trash', { label: 'Undo', fn: () => this.undoTrash([id]) });
     }
   }
   emptyTrash() {
@@ -1878,6 +1913,30 @@ export default class App extends React.Component {
     if (!list.length) return;
     list.forEach((f) => this.realUpload(f));
     e.target.value = '';
+  }
+  // --- Drag files from the OS onto the grid to upload -----------------------
+  _isFileDrag(e) {
+    // Native file drags carry a "Files" type; internal move-drags carry text.
+    return !!(e && e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files'));
+  }
+  onUploadDragOver(e) {
+    if (!this._isFileDrag(e)) return; // let internal move-drags pass through
+    e.preventDefault();
+    if (!this.state.dragUploadOver) this.setState({ dragUploadOver: true });
+  }
+  onUploadDragLeave(e) {
+    // Ignore leave events fired while moving between the container's own children.
+    if (e && e.currentTarget && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return;
+    if (this.state.dragUploadOver) this.setState({ dragUploadOver: false });
+  }
+  onUploadDrop(e) {
+    if (!this._isFileDrag(e)) return;
+    e.preventDefault();
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    this.setState({ dragUploadOver: false });
+    if (!files.length) return;
+    files.forEach((f) => this.realUpload(f));
+    this.toast(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}…`);
   }
 
   // Real upload: reserve quota -> PUT bytes to the presigned URL -> commit/dedup.
@@ -2246,11 +2305,16 @@ export default class App extends React.Component {
     } else if (filterKey === 'shared') {
       rawList = sortListing(nonTrashed.filter((f) => f.shared));
       sectionTitle = 'Shared with me';
+    } else if (filterKey === 'starred') {
+      rawList = sortListing(nonTrashed.filter((f) => f.starred));
+      sectionTitle = 'Starred';
     } else if (filterKey === 'recent') {
+      // Genuinely most-recent-first by creation time (not an unpopulated rank).
+      const ts = (f) => (f.createdAt ? new Date(f.createdAt).getTime() : 0);
       rawList = nonTrashed
         .filter((f) => f.kind !== 'folder')
-        .sort((a, b) => (a.recentRank || 99) - (b.recentRank || 99))
-        .slice(0, 8);
+        .sort((a, b) => ts(b) - ts(a))
+        .slice(0, 12);
       sectionTitle = 'Recent';
     } else {
       rawList = files.filter((f) => f.trashed);
@@ -2279,9 +2343,11 @@ export default class App extends React.Component {
           ? 'Trash is empty'
           : filterKey === 'shared'
             ? 'Nothing shared yet'
-            : filterKey === 'recent'
-              ? 'No recent files yet'
-              : 'No files yet';
+            : filterKey === 'starred'
+              ? 'No starred files yet'
+              : filterKey === 'recent'
+                ? 'No recent files yet'
+                : 'No files yet';
     const isHome = !searchActive && filterKey === 'all' && !currentFolderId;
     const showCarousel = isHome && !isEmpty;
 
@@ -2306,7 +2372,9 @@ export default class App extends React.Component {
     const _realTotalGB = st.realQuotaBytes != null ? st.realQuotaBytes / 1073741824 : null;
     const _realUsedGB = st.realUsedBytes != null ? st.realUsedBytes / 1073741824 : null;
     const storageTotalGB = _realTotalGB != null ? _realTotalGB : 5;
-    const storageUsedGB = _realUsedGB != null ? _realUsedGB : st.usedGB;
+    // Until real usage loads, show 0 (neutral) rather than a demo value that
+    // would flash a scary near-full red meter on every login.
+    const storageUsedGB = _realUsedGB != null ? _realUsedGB : 0;
     const storagePct =
       storageTotalGB > 0 ? Math.min(100, Math.round((storageUsedGB / storageTotalGB) * 100)) : 0;
     // Shared storage is instance-wide, so warn everyone at >=90% full or when
@@ -2552,7 +2620,9 @@ export default class App extends React.Component {
       navToAll: () => this.navToAll(),
       navToShared: () => this.navToShared(),
       navToRecent: () => this.navToRecent(),
+      navToStarred: () => this.navToStarred(),
       navToTrash: () => this.navToTrash(),
+      starredCount: nonTrashed.filter((f) => f.starred).length,
       mobileCreateOpen: st.mobileCreateOpen,
       onFabTap: () => this.toggleMobileCreate(),
       onMobileCreateNote: () => this.mobileCreateNote(),
@@ -2568,6 +2638,9 @@ export default class App extends React.Component {
       navRecentBg: navBg(af('recent')),
       navRecentColor: navColor(af('recent')),
       navRecentWeight: navW(af('recent')),
+      navStarredBg: navBg(af('starred')),
+      navStarredColor: navColor(af('starred')),
+      navStarredWeight: navW(af('starred')),
       navTrashBg: navBg(af('trash')),
       navTrashColor: navColor(af('trash')),
       navTrashWeight: navW(af('trash')),
@@ -2593,6 +2666,10 @@ export default class App extends React.Component {
       fileInputRef: (el) => this.fileInputRef(el),
       browseFiles: () => this.browseFiles(),
       onFilesPicked: (e) => this.onFilesPicked(e),
+      dragUploadOver: st.dragUploadOver,
+      onUploadDragOver: (e) => this.onUploadDragOver(e),
+      onUploadDragLeave: (e) => this.onUploadDragLeave(e),
+      onUploadDrop: (e) => this.onUploadDrop(e),
       emptyTrash: () => this.emptyTrash(),
       videoVolume: st.videoVolume,
       setVolume: (e) => this.setVolume(e),
@@ -2921,6 +2998,8 @@ export default class App extends React.Component {
       })),
       toastVisible: !!toastMsg,
       toastMsg,
+      toastActionLabel: st.toastAction ? st.toastAction.label : '',
+      onToastAction: () => this.runToastAction(),
       toastBottom: isMobile ? 80 : 26,
     };
   }
