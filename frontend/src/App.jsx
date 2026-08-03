@@ -20,12 +20,18 @@ export default class App extends React.Component {
     verifyBanner: '', // status message after a /verify-email?token=… link
     usedGB: 4.6,
     newFolderName: '',
+    newFolderBusy: false,
     videoVolume: 1,
     videoRate: 1,
     videoLoading: false,
     deviceMode: 'desktop',
     vw: typeof window !== 'undefined' ? window.innerWidth : 1200,
     currentFolderId: null,
+    // File-listing fetch status, so we show a skeleton (not a false "empty")
+    // while loading and a retry affordance (not a false "empty") on failure.
+    filesLoading: false,
+    loadError: false,
+    loadedFolders: {}, // folder ids whose children have been fetched (skip skeleton on re-open)
     filterKey: 'all',
     sortBy: 'name', // 'name' | 'size'
     viewMode: 'grid', // 'grid' | 'list'
@@ -530,7 +536,7 @@ export default class App extends React.Component {
             }));
             this.setState({ discoverResults: mapped });
           })
-          .catch(() => {});
+          .catch(() => this.toast('Search failed — check your connection'));
       }, 250);
     } else {
       this.setState({ discoverResults: [] });
@@ -907,6 +913,8 @@ export default class App extends React.Component {
       this.toast('Enter a folder name');
       return;
     }
+    if (this.state.newFolderBusy) return; // guard against a double submit
+    this.setState({ newFolderBusy: true });
     const cur = this.state.currentFolderId;
     const isUuid = typeof cur === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(cur);
     api
@@ -920,10 +928,18 @@ export default class App extends React.Component {
           trashed: false,
           real: true,
         };
-        this.setState((s) => ({ files: [item, ...s.files], modal: null, newFolderName: '' }));
+        this.setState((s) => ({
+          files: [item, ...s.files],
+          modal: null,
+          newFolderName: '',
+          newFolderBusy: false,
+        }));
         this.toast('Folder created');
       })
-      .catch((err) => this.toast(firstError(err, 'Could not create folder')));
+      .catch((err) => {
+        this.setState({ newFolderBusy: false });
+        this.toast(firstError(err, 'Could not create folder'));
+      });
   }
 
   // Merge fetched folders into state (dedupe by id - never duplicate).
@@ -957,7 +973,7 @@ export default class App extends React.Component {
           sizeBytes: f.size_bytes,
           modified: '',
           shared: false,
-          starred: false,
+          starred: !!f.starred,
           trashed: false,
           status: f.status,
           poster: f.poster_url || undefined,
@@ -971,15 +987,34 @@ export default class App extends React.Component {
   // nested content appears (the API lists one level at a time; we merge as we go).
   loadFolderContents(id) {
     if (!id) return;
-    api.listFolders(id).then((f) => this._mergeFolders(f)).catch(() => {});
-    api.listFiles(id).then((f) => this._mergeFiles(f)).catch(() => {});
+    // Only show a skeleton the first time we open this folder; a re-open already
+    // has its children in state and should render instantly.
+    const firstOpen = !this.state.loadedFolders[id];
+    if (firstOpen) this.setState({ filesLoading: true, loadError: false });
+    const folders = api.listFolders(id).then((f) => this._mergeFolders(f));
+    const files = api.listFiles(id).then((f) => this._mergeFiles(f));
+    Promise.allSettled([folders, files]).then((results) => {
+      const failed = results.some((r) => r.status === 'rejected');
+      this.setState((s) => ({
+        filesLoading: false,
+        loadError: failed,
+        loadedFolders: failed ? s.loadedFolders : { ...s.loadedFolders, [id]: true },
+      }));
+      if (failed) this.toast('Could not load this folder. Check your connection.');
+    });
   }
 
   // Pull the user's real (root-level) folders + files from the backend and merge
   // them in; deeper levels load lazily on navigation via loadFolderContents.
   loadStorage() {
-    api.listFolders().then((f) => this._mergeFolders(f)).catch(() => {});
-    api.listFiles().then((f) => this._mergeFiles(f)).catch(() => {});
+    this.setState({ filesLoading: true, loadError: false });
+    const folders = api.listFolders().then((f) => this._mergeFolders(f));
+    const files = api.listFiles().then((f) => this._mergeFiles(f));
+    Promise.allSettled([folders, files]).then((results) => {
+      const failed = results.some((r) => r.status === 'rejected');
+      this.setState({ filesLoading: false, loadError: failed });
+      if (failed) this.toast('Could not load your files. Check your connection.');
+    });
     api
       .trash()
       .then((t) => {
@@ -1406,23 +1441,33 @@ export default class App extends React.Component {
         return;
       }
     }
-    const apply = (finalName) => {
+    const setParent = (parentId, finalName) =>
       this.setState((s) => ({
         files: s.files.map((f) =>
-          f.id === id ? { ...f, parentId: destId, name: finalName || f.name } : f
+          f.id === id ? { ...f, parentId, name: finalName || f.name } : f
         ),
       }));
-      this.toast('Moved');
-    };
     if (item.real) {
+      const prevParent = item.parentId;
+      // Optimistic: move it in the UI now so it doesn't linger in the old folder
+      // during the round-trip; reconcile the (possibly de-duped) name on success,
+      // and put it back if the server rejects the move.
+      setParent(destId);
       const call = isFolder
         ? api.updateFolder(id, { parent: destId })
         : api.updateFile(id, { folder: destId });
       call
-        .then((r) => apply(r && r.name))
-        .catch((err) => this.toast(firstError(err, 'Could not move')));
+        .then((r) => {
+          if (r && r.name) setParent(destId, r.name);
+          this.toast('Moved');
+        })
+        .catch((err) => {
+          setParent(prevParent);
+          this.toast(firstError(err, 'Could not move'));
+        });
     } else {
-      apply();
+      setParent(destId);
+      this.toast('Moved');
     }
   }
 
@@ -1517,7 +1562,7 @@ export default class App extends React.Component {
       const f = this.state.files.find((x) => x.id === id);
       if (f && f.real) {
         const call = f.kind === 'folder' ? api.deleteFolder(id) : api.deleteFile(id);
-        call.catch(() => {});
+        call.catch(() => this.toast('Some items could not be trashed — reload to refresh'));
       }
     });
     this.setState((s) => ({
@@ -1538,7 +1583,9 @@ export default class App extends React.Component {
     ids.forEach((id) => {
       const f = this.state.files.find((x) => x.id === id);
       if (f && f.real)
-        (f.kind === 'folder' ? api.restoreFolder(id) : api.restoreFile(id)).catch(() => {});
+        (f.kind === 'folder' ? api.restoreFolder(id) : api.restoreFile(id)).catch(() =>
+          this.toast('Some items could not be restored — reload to refresh')
+        );
     });
     this.setState((s) => ({
       files: s.files.map((x) => (ids.includes(x.id) ? { ...x, trashed: false } : x)),
@@ -1553,7 +1600,9 @@ export default class App extends React.Component {
     ids.forEach((id) => {
       const f = this.state.files.find((x) => x.id === id);
       if (f && f.real)
-        (f.kind === 'folder' ? api.purgeFolder(id) : api.purgeFile(id)).catch(() => {});
+        (f.kind === 'folder' ? api.purgeFolder(id) : api.purgeFile(id)).catch(() =>
+          this.toast('Some items could not be deleted — reload to refresh')
+        );
     });
     this.setState((s) => ({
       files: s.files.filter(
@@ -1634,7 +1683,10 @@ export default class App extends React.Component {
     if (file.real) {
       api
         .createShare(file.id)
-        .then((link) => this.setState({ shareLinkUrl: window.location.origin + link.url }))
+        .then((link) => {
+          this.setState({ shareLinkUrl: window.location.origin + link.url });
+          this.toast('Share link created');
+        })
         .catch((err) => this.toast(firstError(err, 'Could not create link')));
     }
   }
@@ -1665,9 +1717,22 @@ export default class App extends React.Component {
   }
   toggleStar(id, e) {
     if (e) e.stopPropagation();
+    const item = this.state.files.find((f) => f.id === id);
+    if (!item) return;
+    const next = !item.starred;
+    // Optimistic; persisted so the star survives a reload (real files only).
     this.setState((s) => ({
-      files: s.files.map((f) => (f.id === id ? { ...f, starred: !f.starred } : f)),
+      files: s.files.map((f) => (f.id === id ? { ...f, starred: next } : f)),
     }));
+    if (item.real) {
+      api.updateFile(id, { starred: next }).catch((err) => {
+        // Roll back so the UI doesn't claim a star the server rejected.
+        this.setState((s) => ({
+          files: s.files.map((f) => (f.id === id ? { ...f, starred: !next } : f)),
+        }));
+        this.toast(firstError(err, 'Could not update star'));
+      });
+    }
   }
   // Per-item context menu (right-click on desktop, ⋯ button anywhere).
   openCtxMenu(file, e) {
@@ -1756,7 +1821,7 @@ export default class App extends React.Component {
       // Permanent purge from trash. Folders purge their whole subtree server-side.
       if (f.real) {
         const call = isFolder ? api.purgeFolder(id) : api.purgeFile(id);
-        call.catch(() => {});
+        call.catch(() => this.toast('Could not delete — reload to refresh'));
       }
       this.setState((s) => ({
         // Drop the item and, for a folder, any of its descendants still in state.
@@ -2198,7 +2263,14 @@ export default class App extends React.Component {
     this._orderedIds = rawList.map((f) => f.id);
     this._selectableIds = this._orderedIds;
     this._inTrashView = !searchActive && filterKey === 'trash';
-    const isEmpty = visibleFiles.length === 0;
+    const dataEmpty = visibleFiles.length === 0;
+    // While a fetch is in flight (or after it failed) an empty list is NOT an
+    // empty account - show a skeleton / retry instead of a misleading empty state.
+    // Loading/error only apply to the server-backed views (all + open folder).
+    const serverView = !searchActive && (filterKey === 'all');
+    const showLoading = dataEmpty && serverView && st.filesLoading;
+    const showLoadError = dataEmpty && serverView && st.loadError && !st.filesLoading;
+    const isEmpty = dataEmpty && !showLoading && !showLoadError;
     const emptyMessage = searchActive
       ? 'No files match your search'
       : filterKey === 'all' && currentFolderId
@@ -2207,7 +2279,9 @@ export default class App extends React.Component {
           ? 'Trash is empty'
           : filterKey === 'shared'
             ? 'Nothing shared yet'
-            : 'No files yet';
+            : filterKey === 'recent'
+              ? 'No recent files yet'
+              : 'No files yet';
     const isHome = !searchActive && filterKey === 'all' && !currentFolderId;
     const showCarousel = isHome && !isEmpty;
 
@@ -2406,9 +2480,13 @@ export default class App extends React.Component {
       markNotificationRead: (id) => this.markNotificationRead(id),
       markAllNotificationsRead: () => this.markAllNotificationsRead(),
       visibleFiles,
-      hasFiles: !isEmpty,
+      hasFiles: !isEmpty && !showLoading && !showLoadError,
       isEmpty,
       emptyMessage,
+      isLoadingFiles: showLoading,
+      loadError: showLoadError,
+      retryLoad: () =>
+        currentFolderId ? this.loadFolderContents(currentFolderId) : this.loadStorage(),
       sectionTitle,
       showBreadcrumb,
       showFolderCrumb: !!currentFolderName,
@@ -2506,6 +2584,7 @@ export default class App extends React.Component {
       creatingNote: st.creatingNote,
       isNewFolderModal: modal === 'newFolder',
       newFolderName: st.newFolderName,
+      newFolderBusy: st.newFolderBusy,
       setNewFolderName: (e) => this.setNewFolderName(e),
       createFolder: () => this.createFolder(),
       gotoForgot: () => this.gotoForgot(),

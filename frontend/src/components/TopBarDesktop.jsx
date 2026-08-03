@@ -48,6 +48,8 @@ export default function TopBarDesktop(V) {
           <React.Fragment>
             <button
               onClick={V.clearSearch}
+              aria-label="Clear search"
+              title="Clear search"
               style={{
                 background: 'none',
                 border: 'none',

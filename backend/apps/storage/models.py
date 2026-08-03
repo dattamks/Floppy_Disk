@@ -106,6 +106,8 @@ class File(TimeStampedModel):
     # mature-tagged content is never surfaced in discovery.
     is_discoverable = models.BooleanField(default=False, db_index=True)
     is_mature_content = models.BooleanField(default=False)
+    # User-toggled favourite. Persisted so a star survives a reload / another device.
+    starred = models.BooleanField(default=False)
     # Extracted, searchable text for document-kind files (capped). Populated from
     # the blob on upload-complete / content-edit; empty for media or when the
     # storage backend can't be read locally. Enables full-text (content) search.

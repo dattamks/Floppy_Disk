@@ -15,6 +15,8 @@ export default function NewFolderModal(V) {
         </span>
         <button
           onClick={V.closeModal}
+          aria-label="Close"
+          title="Close"
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted2 }}
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
@@ -30,7 +32,12 @@ export default function NewFolderModal(V) {
       <input
         value={V.newFolderName}
         onInput={V.setNewFolderName}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !V.newFolderBusy) V.createFolder();
+        }}
         placeholder="Folder name"
+        aria-label="Folder name"
+        autoFocus
         style={{
           background: theme.surface,
           border: `1px solid ${theme.border}`,
@@ -43,6 +50,7 @@ export default function NewFolderModal(V) {
       />{' '}
       <button
         onClick={V.createFolder}
+        disabled={V.newFolderBusy}
         style={{
           background: theme.brand,
           color: theme.white,
@@ -51,10 +59,11 @@ export default function NewFolderModal(V) {
           padding: '12px',
           fontSize: '13.5px',
           fontWeight: '600',
-          cursor: 'pointer',
+          cursor: V.newFolderBusy ? 'default' : 'pointer',
+          opacity: V.newFolderBusy ? 0.65 : 1,
         }}
       >
-        Create folder
+        {V.newFolderBusy ? 'Creating…' : 'Create folder'}
       </button>{' '}
     </React.Fragment>
   ) : null;

@@ -19,6 +19,64 @@ import SetupModal from '../components/SetupModal';
 import StorageBanner from '../components/StorageBanner';
 import QuotaBanner from '../components/QuotaBanner';
 
+const FOCUSABLE =
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+// Accessible modal wrapper: on open it moves focus into the dialog (respecting an
+// autofocus field), keeps Tab cycling inside it, and restores focus to whatever
+// opened it on close. One wrapper on the shared dialog shell covers every modal.
+function FocusTrap({ children, ...rest }) {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    const restoreTo = document.activeElement;
+    const list = () => Array.from(node.querySelectorAll(FOCUSABLE)).filter((el) => el.offsetParent !== null);
+    const t = setTimeout(() => {
+      // If a field already grabbed focus (React autoFocus), leave it; otherwise
+      // move focus to the first focusable so keyboard users start inside the dialog.
+      if (node.contains(document.activeElement) && document.activeElement !== node) return;
+      const target = list()[0] || node;
+      try {
+        target.focus();
+      } catch (e) {}
+    }, 0);
+    const onKey = (e) => {
+      if (e.key !== 'Tab') return;
+      const f = list();
+      if (!f.length) {
+        e.preventDefault();
+        return;
+      }
+      const first = f[0];
+      const last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    node.addEventListener('keydown', onKey);
+    return () => {
+      clearTimeout(t);
+      node.removeEventListener('keydown', onKey);
+      // Return focus to the trigger so keyboard users don't lose their place.
+      if (restoreTo && typeof restoreTo.focus === 'function') {
+        try {
+          restoreTo.focus();
+        } catch (e) {}
+      }
+    };
+  }, []);
+  return (
+    <div ref={ref} {...rest}>
+      {children}
+    </div>
+  );
+}
+
 // Presentational view for the whole app. Receives the computed view-model V
 // (from App.renderVals) and renders it. Being extracted, screen by screen,
 // into dedicated components under ./ - this is the container/view split.
@@ -342,7 +400,7 @@ export default function AppView({ V }) {
                 }}
               >
                 {' '}
-                <div
+                <FocusTrap
                   role="dialog"
                   aria-modal="true"
                   style={{
@@ -365,7 +423,7 @@ export default function AppView({ V }) {
                   {UploadModal(V)} {NotificationsModal(V)} {RelatedModal(V)} {GraphModal(V)}{' '}
                   {NewFolderModal(V)}{' '}
                   {PreviewModal(V)} {VideoModal(V)} {ShareModal(V)} {RenameModal(V)} {MoveModal(V)}{' '}
-                </div>{' '}
+                </FocusTrap>{' '}
               </div>{' '}
             </React.Fragment>
           ) : null}{' '}

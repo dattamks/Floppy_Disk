@@ -566,7 +566,16 @@ class FileDetailView(APIView):
             file.name = name
             fields.append("name")
 
+        if "starred" in request.data:
+            file.starred = bool(request.data["starred"])
+            fields.append("starred")
+
         if not fields:
+            return Response(FileSerializer(file).data)
+
+        # A star-only change must not trip the rename/collision path below.
+        if fields == ["starred"]:
+            file.save(update_fields=["starred", "updated_at"])
             return Response(FileSerializer(file).data)
 
         file.name = unique_name(

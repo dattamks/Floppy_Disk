@@ -9,6 +9,7 @@ body{margin:0;background:#EEF0F4;}
     .fd-carousel{scrollbar-width:thin;}
     .fd-carousel::-webkit-scrollbar{height:6px;}
     @keyframes fdspin{to{transform:rotate(360deg);}}
+    @keyframes fdshimmer{0%{background-position:100% 0;}100%{background-position:0 0;}}
     :focus-visible{outline:2px solid #5145E5;outline-offset:2px;border-radius:4px;}
     button:focus:not(:focus-visible){outline:none;}
     /* Controls are square with only a slight round - a single global rule so the
@@ -25,4 +26,14 @@ body{margin:0;background:#EEF0F4;}
        overflows the control bar (clipping HD/fullscreen). Hide it on mobile -
        the adjacent mute button keeps volume control reachable. */
     @media (max-width:480px){ input[type=range]{ display:none !important; } }
+    /* Honor the OS "reduce motion" setting: drop the shimmer/spin/transitions so
+       animation-sensitive users aren't subjected to them. */
+    @media (prefers-reduced-motion: reduce){
+      *,*::before,*::after{
+        animation-duration:0.001ms !important;
+        animation-iteration-count:1 !important;
+        transition-duration:0.001ms !important;
+        scroll-behavior:auto !important;
+      }
+    }
 html,body,#root{height:100%;}

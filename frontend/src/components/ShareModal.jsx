@@ -29,6 +29,8 @@ export default function ShareModal(V) {
         </span>
         <button
           onClick={V.closeModal}
+          aria-label="Close"
+          title="Close"
           style={{
             background: 'none',
             border: 'none',

@@ -9,6 +9,15 @@ export default function FileRow({ V, file }) {
     <div
       onClick={file.onOpen}
       onContextMenu={file.onCtxMenu}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open ${file.name}`}
+      onKeyDown={(e) => {
+        if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          if (file.onOpen) file.onOpen(e);
+        }
+      }}
       {...lp}
       draggable={file.draggable}
       onDragStart={file.onDragStart}
@@ -112,7 +121,7 @@ export default function FileRow({ V, file }) {
         style={{
           flex: '0 0 auto',
           fontSize: '11.5px',
-          color: theme.textFaint,
+          color: theme.textMuted,
           width: '140px',
           textAlign: 'right',
           overflow: 'hidden',

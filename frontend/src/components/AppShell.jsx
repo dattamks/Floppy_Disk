@@ -207,6 +207,80 @@ function ListToolbar(V) {
   );
 }
 
+// Placeholder grid shown while the file listing is being fetched, so the user
+// never sees a false "No files yet" flash on login / folder open.
+function FilesSkeleton(V) {
+  const cells = Array.from({ length: 8 });
+  return (
+    <div
+      data-testid="files-loading"
+      aria-hidden="true"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(auto-fill, minmax(${V.d.gridMin}px, 1fr))`,
+        gap: `${V.d.cardGap}px`,
+      }}
+    >
+      {cells.map((_, i) => (
+        <div
+          key={i}
+          style={{
+            height: `${V.d.thumbH + 78}px`,
+            borderRadius: '15px',
+            background: `linear-gradient(90deg, ${theme.surface3} 25%, ${theme.surface2} 37%, ${theme.surface3} 63%)`,
+            backgroundSize: '400% 100%',
+            animation: 'fdshimmer 1.3s ease-in-out infinite',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Shown when the listing fetch failed, so a network error isn't mistaken for an
+// empty account. Offers a retry instead of a dead end.
+function LoadErrorCard(V) {
+  return (
+    <div
+      data-testid="files-error"
+      role="alert"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '44px 20px',
+        textAlign: 'center',
+        color: theme.textMuted,
+        border: `1px solid ${theme.border}`,
+        borderRadius: '12px',
+        background: theme.white,
+      }}
+    >
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke={theme.borderStrong2} strokeWidth="1.6" />
+        <path d="M12 8v5M12 16h.01" stroke={theme.textMuted2} strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+      <span style={{ fontSize: '13.5px' }}>Couldn’t load your files. Check your connection.</span>
+      <button
+        onClick={V.retryLoad}
+        style={{
+          background: theme.brand,
+          color: theme.white,
+          border: 'none',
+          borderRadius: '8px',
+          padding: '8px 18px',
+          fontSize: '13px',
+          fontWeight: '600',
+          cursor: 'pointer',
+        }}
+      >
+        Retry
+      </button>
+    </div>
+  );
+}
+
 // Extracted from the design view; renders when V.isApp is set.
 export default function AppShell(V) {
   return V.isApp ? (
@@ -316,6 +390,8 @@ export default function AppShell(V) {
             {Breadcrumb(V)} {TrashScreen(V)} {V.selectionActive ? SelectionBar(V) : null}{' '}
             {V.showSearchFilters ? SearchFilters(V) : null}{' '}
             {V.showListToolbar ? ListToolbar(V) : null}{' '}
+            {V.isLoadingFiles ? FilesSkeleton(V) : null}{' '}
+            {V.loadError ? LoadErrorCard(V) : null}{' '}
             {V.hasFiles ? (
               <React.Fragment>
                 {' '}

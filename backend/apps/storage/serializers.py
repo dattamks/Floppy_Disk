@@ -46,7 +46,7 @@ class FileSerializer(serializers.ModelSerializer):
         model = File
         fields = [
             "id", "name", "folder", "kind", "size_bytes", "status", "created_at",
-            "poster_url", "duration_seconds",
+            "poster_url", "duration_seconds", "starred",
         ]
         read_only_fields = fields
 

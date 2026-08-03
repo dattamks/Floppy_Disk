@@ -24,6 +24,8 @@ export default function RelatedModal(V) {
         </span>
         <button
           onClick={V.closeModal}
+          aria-label="Close"
+          title="Close"
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted2 }}
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none">

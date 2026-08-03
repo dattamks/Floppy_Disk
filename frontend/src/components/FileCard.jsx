@@ -14,6 +14,17 @@ export default function FileCard({ V, file }) {
       <div
         onClick={file.onOpen}
         onContextMenu={file.onCtxMenu}
+        role="button"
+        tabIndex={0}
+        aria-label={`Open ${file.name}`}
+        onKeyDown={(e) => {
+          // Enter/Space opens - but only when the card itself is focused, so it
+          // doesn't hijack the nested select/share/more buttons.
+          if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            if (file.onOpen) file.onOpen(e);
+          }
+        }}
         {...lp}
         draggable={file.draggable}
         onDragStart={file.onDragStart}
@@ -103,6 +114,8 @@ export default function FileCard({ V, file }) {
         </button>{' '}
         <button
           onClick={file.onShare}
+          aria-label={`Share ${file.name}`}
+          title="Share"
           style={{
             position: 'absolute',
             top: '8px',
@@ -319,6 +332,9 @@ export default function FileCard({ V, file }) {
           </span>
           <button
             onClick={file.onToggleStar}
+            aria-label={file.starred ? 'Unstar' : 'Star'}
+            aria-pressed={!!file.starred}
+            title={file.starred ? 'Unstar' : 'Star'}
             style={{
               background: 'none',
               border: 'none',
@@ -340,7 +356,7 @@ export default function FileCard({ V, file }) {
         <div
           style={{
             fontSize: '11px',
-            color: theme.textFaint,
+            color: theme.textMuted,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
