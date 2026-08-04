@@ -8,7 +8,8 @@ that keeps dev + tests DB-agnostic.
 """
 from __future__ import annotations
 
-from django.db.models import Q
+from django.db.models import Q, TextField
+from django.db.models.functions import Cast
 
 from .base import SearchService
 
@@ -37,9 +38,14 @@ class BasicSearchService(SearchService):
                 Q(owner_id=user_id)  # your own files (any discoverability)
                 | Q(is_discoverable=True, is_mature_content=False)  # others' discoverable, non-mature
             )
-        # Match the filename OR the extracted document text (full-text search).
-        visible = base.filter(
-            Q(name__icontains=query) | Q(content_text__icontains=query)
+        # Match the filename, extracted document text (full-text search), or the
+        # user-authored description / tags. Tags are a JSON list, so match against
+        # its text form (portable across SQLite and Postgres).
+        visible = base.annotate(tags_text=Cast("tags", TextField())).filter(
+            Q(name__icontains=query)
+            | Q(content_text__icontains=query)
+            | Q(description__icontains=query)
+            | Q(tags_text__icontains=query)
         ).order_by("-created_at")
 
         results = []

@@ -29,3 +29,12 @@ uvicorn[standard]>=0.30,<0.35
 
 # Error tracking
 sentry-sdk>=2.0,<3.0
+
+# Optional full-text extraction for search (best-effort; the app runs without
+# them - the extraction paths degrade to a no-op when a dependency is missing):
+#   pypdf       - pull embedded text out of PDFs
+#   pytesseract - OCR scanned images / image-only PDFs into searchable text
+#                 (also needs the `tesseract` binary + Pillow installed)
+pypdf>=4.0,<6.0
+pytesseract>=0.3.10,<0.4
+Pillow>=10.0,<12.0

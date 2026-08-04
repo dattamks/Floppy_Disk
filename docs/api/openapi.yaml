@@ -99,7 +99,14 @@ components:
         size_bytes: { type: integer }
         status: { type: string, enum: [pending, processing, ready] }
         starred: { type: boolean, description: "User-set star; toggle via PATCH /storage/files/{id}." }
+        description: { type: string, description: "User-authored description (editable via PATCH /storage/files/{id}); searchable." }
+        tags: { type: array, items: { type: string }, description: "User-authored tags (editable via PATCH /storage/files/{id}); server trims, de-duplicates, and caps them; searchable." }
+        duration_seconds: { type: [number, "null"], description: "Playback length for audio/video (probed on upload)." }
+        width: { type: [integer, "null"], description: "Pixel width for image/video (probed on upload)." }
+        height: { type: [integer, "null"], description: "Pixel height for image/video (probed on upload)." }
+        poster_url: { type: [string, "null"], description: "Poster-frame URL for video thumbnails." }
         created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
         deleted_at: { type: [string, "null"], format: date-time, description: "Set when in the trash; null otherwise." }
     ShareLink:
       type: object
@@ -380,10 +387,10 @@ paths:
   /storage/files/{file_id}:
     patch:
       tags: [Storage]
-      summary: Rename and/or move a file
-      description: "Set `name` to rename, `folder` (uuid or null) to move between folders. Names are auto-suffixed \" (n)\" (extension preserved) to stay unique in the destination."
+      summary: Rename, move, star, or edit a file's description/tags
+      description: "Send any subset: `name` to rename, `folder` (uuid or null) to move, `starred` (bool) to (un)star, `description` (string, capped at 4000 chars) and `tags` (array of strings, or a comma-separated string) to edit the searchable metadata shown in the Details panel. The server trims, de-duplicates (case-insensitively), and caps tags (max 30, 40 chars each). Names are auto-suffixed \" (n)\" (extension preserved) to stay unique in the destination."
       parameters: [{ $ref: "#/components/parameters/FileId" }]
-      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string }, folder: { type: [string, "null"], format: uuid } } } } } }
+      requestBody: { content: { application/json: { schema: { type: object, properties: { name: { type: string }, folder: { type: [string, "null"], format: uuid }, starred: { type: boolean }, description: { type: string }, tags: { type: array, items: { type: string } } } } } } }
       responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/File" } } } }, "400": { $ref: "#/components/responses/ValidationError" }, "404": { $ref: "#/components/responses/NotFound" } }
     delete:
       tags: [Storage]

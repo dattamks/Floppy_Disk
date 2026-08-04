@@ -204,6 +204,28 @@ def move_file(file_id: str, folder_id: Optional[str] = None) -> dict:
 
 
 @mcp.tool
+def set_file_metadata(
+    file_id: str,
+    description: Optional[str] = None,
+    tags: Optional[list] = None,
+) -> dict:
+    """Set a file's description and/or tags (searchable, shown in its Details panel).
+
+    Pass only the fields you want to change. `tags` replaces the whole list; it
+    accepts a list of strings (or a comma-separated string) and the server trims,
+    de-duplicates (case-insensitively), and caps them. Returns the updated file.
+    """
+    payload: dict = {}
+    if description is not None:
+        payload["description"] = description
+    if tags is not None:
+        payload["tags"] = tags
+    if not payload:
+        raise ValueError("Pass description and/or tags to update.")
+    return client().patch(f"storage/files/{_uid(file_id, 'file_id')}", json=payload)
+
+
+@mcp.tool
 def set_file_discoverable(file_id: str, discoverable: bool, mature: bool = False) -> dict:
     """Toggle whether a file is discoverable in search, and its mature flag."""
     return client().post(
@@ -222,9 +244,10 @@ def list_trash() -> dict:
 def search_files(query: str) -> dict:
     """Search your files plus public discoverable (non-mature) files.
 
-    Matches file names *and* document contents (text/Markdown/JSON etc. are
-    indexed on upload/edit). Returns {"results": [...]} where each result has
-    id, name, kind, size_bytes, is_own, and is_discoverable.
+    Matches file names, document contents (text/Markdown/JSON/PDF text and OCR'd
+    image text, indexed on upload/edit), and the user-authored description/tags.
+    Returns {"results": [...]} where each result has id, name, kind, size_bytes,
+    is_own, and is_discoverable.
     """
     return client().get("storage/search", params={"q": query})
 
