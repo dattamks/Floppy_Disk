@@ -872,8 +872,12 @@ export default class App extends React.Component {
     const file = e.target && e.target.files && e.target.files[0];
     if (e.target) e.target.value = '';
     if (!file) return;
-    if (!/^image\//.test(file.type)) {
-      this.toast('Please choose an image');
+    // iPhone HEIC/HEIF photos often arrive with an empty MIME type, so fall
+    // back to the extension before rejecting.
+    const isImage =
+      /^image\//.test(file.type) || /\.(png|jpe?g|gif|webp|heic|heif|bmp)$/i.test(file.name || '');
+    if (!isImage) {
+      this.toast('Please choose an image (PNG, JPEG, GIF, or WebP)');
       return;
     }
     this._resizeToDataUrl(file, 256)
@@ -882,7 +886,14 @@ export default class App extends React.Component {
         return api.setAvatar(dataUrl);
       })
       .then(() => this.toast('Photo updated'))
-      .catch((err) => this.toast(firstError(err, 'Could not update photo')));
+      .catch((err) => {
+        // Browsers can't decode HEIC/HEIF; guide the user to a supported format.
+        if (err && err.message === 'decode failed') {
+          this.toast("That image format isn't supported here — try a JPEG or PNG");
+        } else {
+          this.toast(firstError(err, 'Could not update photo'));
+        }
+      });
   }
   setLanguage(e) {
     const code = e.target.value;
@@ -1679,9 +1690,19 @@ export default class App extends React.Component {
   }
   bulkDownload() {
     const ids = this.state.selectedIds;
-    this.state.files
-      .filter((f) => ids.includes(f.id) && f.kind !== 'folder')
-      .forEach((f) => this.downloadFile(f));
+    const picked = this.state.files.filter((f) => ids.includes(f.id) && f.real);
+    if (!picked.length) {
+      this.setState({ selectedIds: [] });
+      return;
+    }
+    // A single plain file downloads directly (nicer name, no wrapper); anything
+    // else - multiple items, or a folder - comes back as one .zip.
+    if (picked.length === 1 && picked[0].kind !== 'folder') {
+      this.downloadFile(picked[0]);
+    } else {
+      window.open(api.bulkDownloadUrl(picked.map((f) => f.id)), '_blank');
+      this.toast('Preparing your download…');
+    }
     this.setState({ selectedIds: [] });
   }
   bulkRestore() {
@@ -2640,6 +2661,10 @@ export default class App extends React.Component {
       hasFiles: !isEmpty && !showLoading && !showLoadError,
       isEmpty,
       emptyMessage,
+      // On the file views (drive root or an open folder) an empty state should
+      // invite action, not just state a fact. Trash/search/starred/shared/recent
+      // aren't places you'd upload into, so they stay message-only.
+      emptyActionable: !searchActive && filterKey === 'all',
       isLoadingFiles: showLoading,
       loadError: showLoadError,
       retryLoad: () =>

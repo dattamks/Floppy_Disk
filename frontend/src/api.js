@@ -124,6 +124,7 @@ export const api = {
   deleteAccount: () => request('/auth/account/delete', { method: 'POST' }),
   signOutOtherSessions: () => request('/auth/account/sessions/revoke-others', { method: 'POST' }),
   folderDownloadUrl: (id) => `${BASE}/storage/folders/${id}/download`,
+  bulkDownloadUrl: (ids) => `${BASE}/storage/download?ids=${ids.map(encodeURIComponent).join(',')}`,
   setAvatar: (dataUrl) => request('/auth/account/avatar', { method: 'PATCH', body: { avatar: dataUrl } }),
   removeAvatar: () => request('/auth/account/avatar', { method: 'DELETE' }),
   exportData: () => request('/auth/account/export', { method: 'POST' }),

@@ -57,6 +57,42 @@ test('keyboard select-all and Delete trashes the whole listing', async ({ page }
   await expect(page.getByText('kc.txt', { exact: true })).toHaveCount(0);
 });
 
+test('selecting multiple files downloads them as one .zip', async ({ page }) => {
+  await registerNewUser(page);
+  for (const name of ['one.txt', 'two.txt']) {
+    await page.getByRole('button', { name: 'Upload' }).click();
+    await page
+      .locator('input[type="file"]')
+      .setInputFiles({ name, mimeType: 'text/plain', buffer: Buffer.from(name) });
+    await page.keyboard.press('Escape');
+    await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
+  }
+  const checkbox = (name) =>
+    page
+      .getByText(name, { exact: true })
+      .first()
+      .locator('xpath=ancestor::div[.//*[@aria-label="Select"]][1]')
+      .getByLabel('Select');
+  await checkbox('one.txt').click();
+  await checkbox('two.txt').click();
+  await expect(page.getByText('2 selected')).toBeVisible();
+
+  // Clicking the bulk Download takes the "bundle into a zip" path (the download
+  // opens in a new tab, so we assert the confirming toast rather than the popup).
+  const bar = page.getByTestId('selection-bar');
+  await bar.getByRole('button', { name: 'Download' }).click();
+  await expect(page.getByText('Preparing your download…')).toBeVisible();
+
+  // And the bulk endpoint really returns one zip covering both files.
+  const files = await (await page.request.get('/api/v1/storage/files')).json();
+  const ids = files.map((f) => f.id);
+  expect(ids.length).toBeGreaterThanOrEqual(2);
+  const res = await page.request.get(`/api/v1/storage/download?ids=${ids.join(',')}`);
+  expect(res.headers()['content-type']).toContain('application/zip');
+  const body = await res.body();
+  expect(body.slice(0, 2).toString('latin1')).toBe('PK'); // zip magic bytes
+});
+
 test('Trash view supports bulk restore', async ({ page }) => {
   await registerNewUser(page);
   for (const name of ['r1.txt', 'r2.txt']) {

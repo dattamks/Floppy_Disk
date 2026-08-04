@@ -32,6 +32,20 @@ def test_avatar_rejects_non_image_data(client):
     assert resp.status_code == 400
 
 
+def test_avatar_rejects_svg(client):
+    # SVG can carry markup; only raster image types are allowed.
+    svg = "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="
+    resp = client.patch("/api/v1/auth/account/avatar", {"avatar": svg}, format="json")
+    assert resp.status_code == 400
+
+
+@pytest.mark.parametrize("mime", ["png", "jpeg", "gif", "webp"])
+def test_avatar_accepts_common_raster_types(client, mime):
+    data_url = f"data:image/{mime};base64,AAAA"
+    resp = client.patch("/api/v1/auth/account/avatar", {"avatar": data_url}, format="json")
+    assert resp.status_code == 200, resp.content
+
+
 def test_avatar_rejects_oversized(client):
     big = "data:image/png;base64," + ("A" * (400 * 1024))  # ~400KB of base64
     resp = client.patch("/api/v1/auth/account/avatar", {"avatar": big}, format="json")

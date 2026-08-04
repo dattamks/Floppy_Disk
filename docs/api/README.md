@@ -81,7 +81,9 @@ Notes:
 | POST | `/delete` | Soft-delete (hard-deletes after 30d) |
 | POST | `/export` | DPDPA data export (expiring link) |
 | POST | `/consent` | Record ToS/policy acceptance |
-| GET / PATCH | `/settings` | Device-backup settings |
+| GET / PATCH | `/settings` | Profile + device-backup settings (`display_name`, `language`, backup flags) |
+| PATCH / DELETE | `/avatar` | Set / clear the profile picture (image data URL; owner session only) |
+| POST | `/sessions/revoke-others` | Sign out of all other sessions (session auth only, never an API key) |
 | GET / POST | `/api-keys` | List / create Bearer API keys (secret shown once; `read_only` for least-privilege) |
 | DELETE | `/api-keys/{id}` | Revoke a key |
 
@@ -95,10 +97,13 @@ Notes:
 | GET | `/camera-backup` | Get/create the Camera Backup folder |
 | GET | `/files` | List files - the drive root by default; pass `?folder=<id>` for a folder's contents |
 | GET | `/files/{id}/download` | URL to fetch the bytes (presigned R2 / direct local) |
+| PATCH | `/files/{id}` | Update file (e.g. `{"starred": true}`) |
 | DELETE | `/files/{id}` | Soft-delete file |
 | POST | `/files/{id}/restore` | Restore file |
 | POST | `/files/{id}/purge` | Permanently delete |
 | POST | `/files/{id}/discoverable` | Toggle discoverable / mature |
+| GET | `/folders/{id}/download` | Download a folder (recursively) as a `.zip` |
+| GET | `/download?ids=` | Bulk-download a mixed file/folder selection as one `.zip` |
 | GET | `/trash` | List trashed folders + files |
 | GET | `/search?q=` | Full-text search over **file names and document contents** (own + discoverable non-mature) |
 | POST | `/uploads` | Initiate upload (step 1) |

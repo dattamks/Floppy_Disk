@@ -66,7 +66,7 @@ function Profile(V) {
           ref={V.avatarInputRef}
           onChange={V.onAvatarPicked}
           type="file"
-          accept="image/*"
+          accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif,.heic,.heif"
           style={{ display: 'none' }}
           aria-hidden="true"
         />

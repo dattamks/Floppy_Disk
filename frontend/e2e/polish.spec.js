@@ -219,7 +219,7 @@ test('uploading a profile photo shows it in Settings', async ({ page }) => {
   await registerNewUser(page);
   await page.getByRole('button', { name: 'Settings' }).click();
   await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible();
-  await page.locator('input[type="file"][accept="image/*"]').setInputFiles({
+  await page.locator('input[type="file"][accept*="image/png"]').setInputFiles({
     name: 'me.png', mimeType: 'image/png', buffer: PNG,
   });
   await expect(page.getByRole('img', { name: 'Profile photo' })).toBeVisible();
@@ -254,6 +254,17 @@ test('a folder offers a .zip download', async ({ page }) => {
   await expect(page.getByText('Bundle')).toBeVisible();
   await page.getByRole('button', { name: 'More actions' }).first().click();
   await expect(page.getByRole('button', { name: 'Download (.zip)' })).toBeVisible();
+});
+
+test('the empty home view invites an upload with a call-to-action', async ({ page }) => {
+  await registerNewUser(page);
+  // A fresh account has no files, so the empty state offers actions, not just text.
+  await expect(page.getByText('No files yet')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add files' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add folder' })).toBeVisible();
+  // The CTA opens the uploader.
+  await page.getByRole('button', { name: 'Add files' }).click();
+  await expect(page.locator('input[type="file"]')).toBeAttached();
 });
 
 test('the PWA manifest is linked and served', async ({ page }) => {

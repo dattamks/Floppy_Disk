@@ -15,11 +15,16 @@ class AvatarView(APIView):
 
     permission_classes = [IsAuthenticated]
     MAX_LEN = 300 * 1024  # ~300KB data URL; the client resizes before sending
+    # Only raster image types - SVG can carry markup, and other formats won't
+    # render in an <img>. The web client always re-encodes to JPEG, so this
+    # allowlist mainly guards direct API callers.
+    ALLOWED_TYPES = ("image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp")
 
     def patch(self, request):
         data_url = str(request.data.get("avatar") or "")
-        if not data_url.startswith("data:image/"):
-            return Response({"detail": "Avatar must be an image."},
+        mime = data_url[5:].split(";", 1)[0].split(",", 1)[0].lower() if data_url.startswith("data:") else ""
+        if mime not in self.ALLOWED_TYPES:
+            return Response({"detail": "Avatar must be a PNG, JPEG, GIF, or WebP image."},
                             status=status.HTTP_400_BAD_REQUEST)
         if len(data_url) > self.MAX_LEN:
             return Response({"detail": "Image is too large. Please choose a smaller one."},
