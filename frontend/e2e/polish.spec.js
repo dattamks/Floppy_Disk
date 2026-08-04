@@ -215,6 +215,26 @@ const PNG = Buffer.from(
   'base64'
 );
 
+test('image files show a real thumbnail; typed files show a type icon', async ({ page }) => {
+  await registerNewUser(page);
+
+  // An uploaded image renders its own bytes as the card thumbnail (via /raw).
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  await page.locator('input[type="file"]').setInputFiles({ name: 'shot.png', mimeType: 'image/png', buffer: PNG });
+  await expect(page.getByText('shot.png')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('img[src*="/storage/files/"][src*="/raw"]').first()).toBeVisible();
+
+  // A spreadsheet gets the sheet glyph, labelled with its extension.
+  await page.getByRole('button', { name: 'Upload', exact: true }).click();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'budget.csv', mimeType: 'text/csv', buffer: Buffer.from('a,b\n1,2\n'),
+  });
+  await expect(page.getByText('budget.csv')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByText('CSV', { exact: true })).toBeVisible();
+});
+
 test('uploading a profile photo shows it in Settings', async ({ page }) => {
   await registerNewUser(page);
   await page.getByRole('button', { name: 'Settings' }).click();

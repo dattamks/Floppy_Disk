@@ -14,6 +14,7 @@ urlpatterns = [
     path("camera-backup", views.CameraBackupFolderView.as_view(), name="camera_backup"),
     path("files", views.FileListView.as_view(), name="file_list"),
     path("files/<uuid:file_id>/download", views.FileDownloadView.as_view(), name="file_download"),
+    path("files/<uuid:file_id>/raw", views.FileRawView.as_view(), name="file_raw"),
     path("files/<uuid:file_id>/content", views.FileContentView.as_view(), name="file_content"),
     path("files/<uuid:file_id>", views.FileDetailView.as_view(), name="file_detail"),
     path("files/<uuid:file_id>/discoverable", views.FileDiscoverableView.as_view(), name="file_discoverable"),

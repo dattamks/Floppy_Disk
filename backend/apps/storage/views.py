@@ -7,7 +7,7 @@ Upload flow (presigned direct-to-storage):
   3. POST uploads/<id>/complete -> dedup StorageObject, commit reservation, File ready
 """
 from django.db.models import F
-from django.http import HttpResponse, StreamingHttpResponse
+from django.http import HttpResponse, HttpResponseRedirect, StreamingHttpResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -408,6 +408,36 @@ class FileDownloadView(APIView):
             filename=file.name, as_attachment=as_attachment,
         )
         return Response({"download_url": url, "name": file.name, "size_bytes": file.size_bytes})
+
+
+class FileRawView(APIView):
+    """Serve a file's bytes inline at a STABLE, owner-scoped URL.
+
+    `FileDownloadView` returns a short-lived, opaque presigned URL in JSON - fine
+    for a click, but not usable as a stable `<img src>` for grid thumbnails. This
+    redirects to the current inline URL so the browser can load the image (or
+    other inline-viewable file) directly, with the same ownership/scope checks.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, file_id):
+        try:
+            file = scope_files(
+                File.objects.select_related("storage_object").filter(
+                    pk=file_id, owner=request.user, deleted_at__isnull=True,
+                ),
+                request,
+            ).get()
+        except File.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if not file.storage_object_id or file.status != File.Status.READY:
+            return Response({"detail": "File is not ready."}, status=status.HTTP_409_CONFLICT)
+        obj = file.storage_object
+        url = get_storage_service().presign_download(
+            region=obj.region, object_key=obj.object_key, filename=file.name, as_attachment=False,
+        )
+        return HttpResponseRedirect(url)
 
 
 class FileContentView(APIView):
