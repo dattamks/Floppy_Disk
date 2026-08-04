@@ -1,5 +1,6 @@
 """Account management: delete, export, consent (DPDPA, PRD 5.11)."""
 from django.contrib.auth import logout as django_logout
+from django.contrib.sessions.models import Session
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -7,6 +8,32 @@ from rest_framework.views import APIView
 
 from .compliance import build_export
 from .models import ConsentLog
+
+
+class SignOutOtherSessionsView(APIView):
+    """Revoke every OTHER logged-in session for this user, keeping the current one.
+
+    Django's DB session store isn't indexed by user, so we scan sessions and drop
+    the ones whose decoded `_auth_user_id` matches - fine at self-host scale.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        current = request.session.session_key
+        uid = str(request.user.id)
+        revoked = 0
+        for s in Session.objects.all().iterator():
+            if s.session_key == current:
+                continue
+            try:
+                data = s.get_decoded()
+            except Exception:  # noqa: BLE001 - a corrupt/expired session row is not ours to trust
+                continue
+            if str(data.get("_auth_user_id") or "") == uid:
+                s.delete()
+                revoked += 1
+        return Response({"revoked": revoked})
 
 
 class AccountDeleteView(APIView):

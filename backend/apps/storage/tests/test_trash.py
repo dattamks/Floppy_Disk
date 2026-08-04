@@ -47,6 +47,14 @@ def test_soft_delete_moves_file_to_trash(client, user):
     assert f.deleted_at is not None
 
 
+def test_trash_payload_exposes_deleted_at_for_retention_countdown(client, user):
+    """The Trash view shows a "N days left" countdown, so it needs the timestamp."""
+    f = _ready_file(user)
+    client.delete(f"/api/v1/storage/files/{f.id}")
+    row = client.get("/api/v1/storage/trash").json()["files"][0]
+    assert row.get("deleted_at")  # present + non-null so the client can compute days left
+
+
 def test_trash_still_counts_toward_quota_until_purged(client, user):
     user.storage_used_bytes = 1000
     user.save()

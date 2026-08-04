@@ -867,7 +867,15 @@ export default class App extends React.Component {
       .catch((err) => this.toast(firstError(err, 'Could not delete account')));
   }
   toastSessions() {
-    this.toast('Signed out of all other sessions');
+    api
+      .signOutOtherSessions()
+      .then((r) => {
+        const n = (r && r.revoked) || 0;
+        this.toast(
+          n ? `Signed out ${n} other session${n === 1 ? '' : 's'}` : 'No other sessions to sign out'
+        );
+      })
+      .catch((err) => this.toast(firstError(err, 'Could not sign out other sessions')));
   }
   setPwCurrent(e) {
     this.setState({ pwCurrent: e.target.value });
@@ -1029,6 +1037,7 @@ export default class App extends React.Component {
             name: f.name,
             kind: 'folder',
             parentId: null,
+            deletedAt: f.deleted_at || null,
           })),
           ...(t.files || []).map((f) => ({
             id: f.id,
@@ -1036,6 +1045,7 @@ export default class App extends React.Component {
             kind: f.kind,
             parentId: null,
             size: humanSize(f.size_bytes),
+            deletedAt: f.deleted_at || null,
           })),
         ];
         this.setState((s) => {
@@ -2219,7 +2229,12 @@ export default class App extends React.Component {
       const itemCount = isFolder
         ? files.filter((x) => x.parentId === f.id && !x.trashed).length
         : 0;
-      const daysLeft = f.trashed ? Math.max(0, 30 - (f.deletedDaysAgo || 0)) : null;
+      // Real retention countdown: trash is purged 30 days after deletion.
+      const daysLeft = f.trashed
+        ? f.deletedAt
+          ? Math.max(0, 30 - Math.floor((Date.now() - new Date(f.deletedAt).getTime()) / 86400000))
+          : 30
+        : null;
       return {
         ...f,
         shared: sharedIds.has(f.id), // live public link => shows under "Shared"

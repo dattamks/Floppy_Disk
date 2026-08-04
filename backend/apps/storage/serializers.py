@@ -11,8 +11,8 @@ class FolderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Folder
-        fields = ["id", "name", "parent", "item_count", "created_at"]
-        read_only_fields = ["id", "item_count", "created_at"]
+        fields = ["id", "name", "parent", "item_count", "created_at", "deleted_at"]
+        read_only_fields = ["id", "item_count", "created_at", "deleted_at"]
 
     def get_item_count(self, obj):
         return obj.files.filter(deleted_at__isnull=True, status=File.Status.READY).count()
@@ -46,7 +46,7 @@ class FileSerializer(serializers.ModelSerializer):
         model = File
         fields = [
             "id", "name", "folder", "kind", "size_bytes", "status", "created_at",
-            "poster_url", "duration_seconds", "starred",
+            "poster_url", "duration_seconds", "starred", "deleted_at",
         ]
         read_only_fields = fields
 

@@ -122,6 +122,7 @@ export const api = {
   // Account / compliance (DPDPA)
   updateSettings: (patch) => request('/auth/account/settings', { method: 'PATCH', body: patch }),
   deleteAccount: () => request('/auth/account/delete', { method: 'POST' }),
+  signOutOtherSessions: () => request('/auth/account/sessions/revoke-others', { method: 'POST' }),
   exportData: () => request('/auth/account/export', { method: 'POST' }),
   logConsent: (policy, version) =>
     request('/auth/account/consent', { method: 'POST', body: { policy, version } }),
