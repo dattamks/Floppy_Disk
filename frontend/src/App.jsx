@@ -82,7 +82,6 @@ export default class App extends React.Component {
     profileBio: '',
     accountEmail: '',
     emailVerified: false,
-    twofa: false,
     pwCurrent: '',
     pwNew: '',
     pwConfirm: '',
@@ -343,7 +342,6 @@ export default class App extends React.Component {
       accountEmail: user.email,
       emailVerified: !!user.email_verified,
       profileName: user.display_name || this.state.profileName,
-      twofa: !!user.two_factor_enabled,
       isOwner: !!user.is_owner,
     });
     this.loadStorage();
@@ -868,17 +866,6 @@ export default class App extends React.Component {
   }
   toastSessions() {
     this.toast('Signed out of all other sessions');
-  }
-  toggle2fa() {
-    const next = !this.state.twofa;
-    this.setState({ twofa: next }); // optimistic
-    api
-      .updateSettings({ two_factor_enabled: next })
-      .then(() => this.toast(next ? 'Two-factor enabled' : 'Two-factor disabled'))
-      .catch((err) => {
-        this.setState({ twofa: !next }); // revert
-        this.toast(firstError(err, 'Could not update 2FA'));
-      });
   }
   setPwCurrent(e) {
     this.setState({ pwCurrent: e.target.value });
@@ -2175,7 +2162,6 @@ export default class App extends React.Component {
       activeFileId,
       settingsTab,
       emailVerified,
-      twofa,
       uploadQueue,
       shareAccess,
       sharePermission,
@@ -2898,9 +2884,6 @@ export default class App extends React.Component {
       setPwNew: (e) => this.setPwNew(e),
       setPwConfirm: (e) => this.setPwConfirm(e),
       updatePassword: () => this.updatePassword(),
-      twofaBg: twofa ? '#5145E5' : '#CBD0D8',
-      twofaX: twofa ? 20 : 2,
-      toggle2fa: () => this.toggle2fa(),
       toastSessions: () => this.toastSessions(),
       activeFile,
       openShareForActive: () => this.openShareForActive(),

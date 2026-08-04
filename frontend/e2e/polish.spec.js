@@ -165,3 +165,12 @@ test('dropping OS files on the grid uploads them', async ({ page }) => {
   });
   await expect(page.getByText('dropped.txt')).toBeVisible({ timeout: 10000 });
 });
+
+test('the Security settings expose no cosmetic 2FA toggle', async ({ page }) => {
+  await registerNewUser(page);
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Security' }).click();
+  await expect(page.getByText('Change password')).toBeVisible(); // section rendered
+  // The backend has no real second factor, so the misleading toggle is gone.
+  await expect(page.getByText('Two-factor authentication')).toHaveCount(0);
+});

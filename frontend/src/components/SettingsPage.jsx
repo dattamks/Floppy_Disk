@@ -195,47 +195,6 @@ function Security(V) {
       <button onClick={V.updatePassword} style={{ ...primaryBtn, alignSelf: 'flex-start', padding: '11px 18px' }}>
         Update password
       </button>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '11px 0',
-          borderTop: `1px solid ${theme.surface}`,
-        }}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontSize: '13px', fontWeight: '500' }}>Two-factor authentication</span>
-          <span style={{ fontSize: '11.5px', color: theme.textFaint }}>Extra security at sign-in</span>
-        </div>
-        <button
-          onClick={V.toggle2fa}
-          data-round
-          aria-label="Toggle two-factor authentication"
-          style={{
-            width: '42px',
-            height: '24px',
-            borderRadius: '20px',
-            border: 'none',
-            cursor: 'pointer',
-            background: V.twofaBg,
-            position: 'relative',
-          }}
-        >
-          <span
-            style={{
-              position: 'absolute',
-              top: '2px',
-              left: `${V.twofaX}px`,
-              width: '20px',
-              height: '20px',
-              borderRadius: '50%',
-              background: theme.white,
-              transition: 'left .15s',
-            }}
-          />
-        </button>
-      </div>
       <button
         onClick={V.toastSessions}
         style={{
@@ -243,6 +202,7 @@ function Security(V) {
           color: theme.text,
           border: `1px solid ${theme.border}`,
           borderRadius: theme.radius,
+          marginTop: '4px',
           padding: '11px 18px',
           fontSize: '13px',
           fontWeight: '500',
