@@ -1,7 +1,8 @@
 """PostgresSearchService - production SearchService using Postgres full-text search."""
 from __future__ import annotations
 
-from django.db.models import Q
+from django.db.models import Q, TextField
+from django.db.models.functions import Cast
 
 from .base import SearchService
 
@@ -24,9 +25,13 @@ class PostgresSearchService(SearchService):
         if not query:
             return []
 
-        # Weight the filename above the body so name matches rank first, but the
-        # document text is searchable too (full-text / content search).
-        vector = SearchVector("name", weight="A") + SearchVector("content_text", weight="B")
+        # Weight the filename above the body so name matches rank first; the
+        # document text and user-authored description are searchable too.
+        vector = (
+            SearchVector("name", weight="A")
+            + SearchVector("content_text", weight="B")
+            + SearchVector("description", weight="C")
+        )
         sq = SearchQuery(query, search_type="websearch")
         base = File.objects.filter(deleted_at__isnull=True, status=File.Status.READY)
         if folder_ids is not None:
@@ -35,9 +40,11 @@ class PostgresSearchService(SearchService):
             base = base.filter(owner_id=user_id, folder_id__in=folder_ids)
         else:
             base = base.filter(Q(owner_id=user_id) | Q(is_discoverable=True, is_mature_content=False))
+        # Tags are a JSON list; match them by text form so a tag-only hit still
+        # surfaces even though it carries no FTS rank.
         visible = (
-            base.annotate(rank=SearchRank(vector, sq))
-            .filter(rank__gt=0)
+            base.annotate(rank=SearchRank(vector, sq), tags_text=Cast("tags", TextField()))
+            .filter(Q(rank__gt=0) | Q(tags_text__icontains=query))
             .order_by("-rank", "-created_at")
         )
         return [
