@@ -46,6 +46,40 @@ test('create a note in the WYSIWYG editor and save it', async ({ page }) => {
   await expect(page.getByText('Meeting notes.md', { exact: false }).first()).toBeVisible({ timeout: 10000 });
 });
 
+test('code marks a selection inline and never turns the whole note into code', async ({ page }) => {
+  await registerNewUser(page);
+  await page.getByRole('button', { name: 'New note' }).click();
+  const editor = page.locator('.ProseMirror');
+  await editor.waitFor({ timeout: 15000 });
+
+  // 1) Inline code wraps only the selected word - not the whole block.
+  await editor.click();
+  await editor.pressSequentially('run the command', { delay: 10 });
+  for (let i = 0; i < 7; i++) {
+    await page.keyboard.down('Shift');
+    await page.keyboard.press('ArrowLeft'); // select "command"
+    await page.keyboard.up('Shift');
+  }
+  await page.getByTitle('Inline code').click();
+  await expect(editor.locator('p code')).toHaveText('command');
+  await expect(editor.locator('p')).toContainText('run the'); // rest of the line intact
+
+  // 2) Code block on a single soft-break paragraph must NOT swallow the note:
+  // the text stays, and a fresh (empty) code block is added instead.
+  await editor.click();
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter'); // new paragraph, below the inline-code line
+  await editor.pressSequentially('first line', { delay: 10 });
+  await page.keyboard.down('Shift');
+  await page.keyboard.press('Enter'); // soft line break -> still one paragraph
+  await page.keyboard.up('Shift');
+  await editor.pressSequentially('second line', { delay: 10 });
+  await page.getByTitle('Code block').click();
+  await expect(editor.getByText('first line')).toBeVisible(); // original text preserved
+  await expect(editor.locator('pre')).toBeVisible(); // an (empty) code block was added
+  await expect(editor.locator('pre')).toHaveText(''); // it did not absorb the text
+});
+
 test('notes link to each other (backlinks)', async ({ page }) => {
   await registerNewUser(page);
 

@@ -105,6 +105,18 @@ export default function NoteEditor({ value, onChange, placeholder }) {
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
   };
 
+  // Code block is a *block* toggle, so on a paragraph made of soft line breaks
+  // (how single-newline Markdown loads) it would turn the whole note into one
+  // code block. Instead: leave an existing code block via toggle, and for a
+  // plain caret insert a fresh empty code block rather than swallowing the
+  // current text. A real multi-block selection still converts as expected.
+  const codeBlock = () => {
+    const chain = editor.chain().focus();
+    if (editor.isActive('codeBlock')) return chain.toggleCodeBlock().run();
+    if (editor.state.selection.empty) return chain.insertContent({ type: 'codeBlock' }).run();
+    return chain.toggleCodeBlock().run();
+  };
+
   const sep = () => (
     <span style={{ width: '1px', height: '20px', background: theme.border, margin: '0 3px' }} />
   );
@@ -138,6 +150,7 @@ export default function NoteEditor({ value, onChange, placeholder }) {
         <Btn label={<b>B</b>} title="Bold (⌘B)" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} />
         <Btn label={<i>I</i>} title="Italic (⌘I)" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} />
         <Btn label={<span style={{ textDecoration: 'line-through' }}>S</span>} title="Strikethrough" active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()} />
+        <Btn label={<span style={{ fontFamily: "'IBM Plex Mono',monospace" }}>{'<>'}</span>} title="Inline code" active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()} />
         {sep()}
         <Btn label="H1" title="Heading 1" active={editor.isActive('heading', { level: 1 })} onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} />
         <Btn label="H2" title="Heading 2" active={editor.isActive('heading', { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} />
@@ -148,7 +161,7 @@ export default function NoteEditor({ value, onChange, placeholder }) {
         <Btn label="☑" title="Checklist" active={editor.isActive('taskList')} onClick={() => editor.chain().focus().toggleTaskList().run()} />
         {sep()}
         <Btn label="&rdquo;" title="Quote" active={editor.isActive('blockquote')} onClick={() => editor.chain().focus().toggleBlockquote().run()} />
-        <Btn label="</>" title="Code block" active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} />
+        <Btn label={<span style={{ fontFamily: "'IBM Plex Mono',monospace" }}>{'{ }'}</span>} title="Code block" active={editor.isActive('codeBlock')} onClick={codeBlock} />
         <Btn label="🔗" title="Link" active={editor.isActive('link')} onClick={setLink} />
         {sep()}
         <Btn label="↺" title="Undo (⌘Z)" disabled={!can.undo()} onClick={() => editor.chain().focus().undo().run()} />
