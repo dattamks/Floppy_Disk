@@ -3,6 +3,7 @@ import { theme } from './lib/theme';
 import { api, firstError } from './api';
 import { humanSize, fmtStorage, kindOf, previewKindOf, fmtDuration, baseName, extOf } from './lib/ui';
 import { renderMarkdown } from './lib/markdown';
+import { fileType } from './lib/fileType';
 import AppView from './view/AppView';
 
 export default class App extends React.Component {
@@ -2324,6 +2325,8 @@ export default class App extends React.Component {
       const itemCount = isFolder
         ? files.filter((x) => x.parentId === f.id && !x.trashed).length
         : 0;
+      // Documents get a per-extension icon + colour (pdf/sheet/code/archive/...).
+      const dtype = isDoc ? fileType(f.name) : null;
       // Real retention countdown: trash is purged 30 days after deletion.
       const daysLeft = f.trashed
         ? f.deletedAt
@@ -2340,9 +2343,11 @@ export default class App extends React.Component {
         isAudio,
         showThumb: isImage || isVideo,
         isDocOrAudio: isDoc || isAudio,
+        docType: dtype, // { key, color, ext } for the per-type doc glyph
         isTrashed: !!f.trashed,
         isProcessing: f.status === 'processing',
-        tileBg: isDoc ? theme.dangerBgSoft : theme.tealBg,
+        // Soft tint of the doc type's colour behind its glyph.
+        tileBg: isDoc ? (dtype ? dtype.color + '14' : theme.dangerBgSoft) : theme.tealBg,
         starFill: f.starred ? theme.star : 'none',
         starStroke: f.starred ? theme.star : theme.textFaint,
         metaLine: isFolder
@@ -2355,7 +2360,8 @@ export default class App extends React.Component {
         retentionLabel:
           daysLeft !== null ? daysLeft + (daysLeft === 1 ? ' day left' : ' days left') : '',
         channelLine: 'Uploaded by you',
-        imgRef: mkImgRef(f.poster),
+        // Images have no server-side poster; load their own bytes as the thumbnail.
+        imgRef: mkImgRef(isImage ? (f.id ? api.fileRawUrl(f.id) : f.poster) : f.poster),
         onOpen: () => this.openFile(f),
         onShare: (e) => this.openShare(f, e),
         onToggleStar: (e) => this.toggleStar(f.id, e),

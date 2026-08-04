@@ -1,6 +1,7 @@
 import React from 'react';
 import { theme } from '../lib/theme';
 import { hov, longPress } from '../lib/ui';
+import FileGlyph from './FileGlyph';
 
 // Compact list-view row (alternative to FileCard's grid tile).
 export default function FileRow({ V, file }) {
@@ -79,10 +80,11 @@ export default function FileRow({ V, file }) {
           justifyContent: 'center',
           background: file.isFolder
             ? theme.brandBg
-            : file.isDoc
-              ? theme.dangerBgSoft
+            : file.isDoc && file.docType
+              ? file.docType.color + '14'
               : theme.tealBg,
-          color: file.isFolder ? theme.brand : file.isDoc ? theme.danger : theme.teal,
+          color: file.isFolder ? theme.brand : file.isDoc && file.docType ? file.docType.color : theme.teal,
+          overflow: 'hidden',
         }}
       >
         {file.isFolder ? (
@@ -93,6 +95,14 @@ export default function FileRow({ V, file }) {
               strokeWidth="1.7"
             />
           </svg>
+        ) : file.showThumb && file.imgRef ? (
+          <img
+            ref={file.imgRef}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : file.isDoc && file.docType ? (
+          <FileGlyph kind={file.docType.key} color={file.docType.color} ext="" size={18} />
         ) : (
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
             <path

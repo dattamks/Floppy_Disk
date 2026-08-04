@@ -87,6 +87,8 @@ export const api = {
   deleteFile: (id) => request(`/storage/files/${id}`, { method: 'DELETE' }),
   fileDownload: (id, opts) =>
     request(`/storage/files/${id}/download${opts && opts.download ? '?download=1' : ''}`),
+  // Stable inline URL for a file's bytes - used as the <img src> for image thumbnails.
+  fileRawUrl: (id) => `${BASE}/storage/files/${id}/raw`,
   restoreFile: (id) => request(`/storage/files/${id}/restore`, { method: 'POST' }),
   purgeFile: (id) => request(`/storage/files/${id}/purge`, { method: 'POST' }),
 

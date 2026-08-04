@@ -1,6 +1,7 @@
 import React from 'react';
 import { theme } from '../lib/theme';
 import { hov, longPress } from '../lib/ui';
+import FileGlyph from './FileGlyph';
 
 // One card in the grid/carousel. Receives the view-model V and its item.
 export default function FileCard({ V, file }) {
@@ -282,24 +283,13 @@ export default function FileCard({ V, file }) {
                 justifyContent: 'center',
               }}
             >
-              {file.isDoc ? (
-                <React.Fragment>
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"
-                      fill={theme.white}
-                      stroke={theme.danger}
-                      strokeWidth="1.4"
-                    />
-                    <path d="M14 3v4h4" stroke={theme.danger} strokeWidth="1.4" />
-                    <path
-                      d="M9 12.5h6M9 15.5h4"
-                      stroke={theme.danger}
-                      strokeWidth="1.4"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </React.Fragment>
+              {file.isDoc && file.docType ? (
+                <FileGlyph
+                  kind={file.docType.key}
+                  color={file.docType.color}
+                  ext={file.docType.ext}
+                  size={34}
+                />
               ) : null}
               {file.isAudio ? (
                 <React.Fragment>
