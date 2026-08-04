@@ -5,7 +5,6 @@ import AuthScreen from '../components/AuthScreen';
 import AppShell from '../components/AppShell';
 import UploadModal from '../components/UploadModal';
 import NewFolderModal from '../components/NewFolderModal';
-import SettingsModal from '../components/SettingsModal';
 import NotificationsModal from '../components/NotificationsModal';
 import RelatedModal from '../components/RelatedModal';
 import GraphModal from '../components/GraphModal';
@@ -14,12 +13,70 @@ import ShareModal from '../components/ShareModal';
 import PreviewModal from '../components/PreviewModal';
 import RenameModal from '../components/RenameModal';
 import MoveModal from '../components/MoveModal';
-import LinksModal from '../components/LinksModal';
+import DetailsModal from '../components/DetailsModal';
 import ContextMenu from '../components/ContextMenu';
 import Toast from '../components/Toast';
 import SetupModal from '../components/SetupModal';
 import StorageBanner from '../components/StorageBanner';
 import QuotaBanner from '../components/QuotaBanner';
+
+const FOCUSABLE =
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+// Accessible modal wrapper: on open it moves focus into the dialog (respecting an
+// autofocus field), keeps Tab cycling inside it, and restores focus to whatever
+// opened it on close. One wrapper on the shared dialog shell covers every modal.
+function FocusTrap({ children, ...rest }) {
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const node = ref.current;
+    if (!node) return undefined;
+    const restoreTo = document.activeElement;
+    const list = () => Array.from(node.querySelectorAll(FOCUSABLE)).filter((el) => el.offsetParent !== null);
+    const t = setTimeout(() => {
+      // If a field already grabbed focus (React autoFocus), leave it; otherwise
+      // move focus to the first focusable so keyboard users start inside the dialog.
+      if (node.contains(document.activeElement) && document.activeElement !== node) return;
+      const target = list()[0] || node;
+      try {
+        target.focus();
+      } catch (e) {}
+    }, 0);
+    const onKey = (e) => {
+      if (e.key !== 'Tab') return;
+      const f = list();
+      if (!f.length) {
+        e.preventDefault();
+        return;
+      }
+      const first = f[0];
+      const last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    node.addEventListener('keydown', onKey);
+    return () => {
+      clearTimeout(t);
+      node.removeEventListener('keydown', onKey);
+      // Return focus to the trigger so keyboard users don't lose their place.
+      if (restoreTo && typeof restoreTo.focus === 'function') {
+        try {
+          restoreTo.focus();
+        } catch (e) {}
+      }
+    };
+  }, []);
+  return (
+    <div ref={ref} {...rest}>
+      {children}
+    </div>
+  );
+}
 
 // Presentational view for the whole app. Receives the computed view-model V
 // (from App.renderVals) and renders it. Being extracted, screen by screen,
@@ -195,6 +252,37 @@ export default function AppView({ V }) {
                     Recent
                   </button>{' '}
                   <button
+                    onClick={V.navToStarred}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '11px',
+                      padding: '11px 11px',
+                      borderRadius: '9px',
+                      border: 'none',
+                      background: V.navStarredBg,
+                      color: V.navStarredColor,
+                      fontSize: '14px',
+                      fontWeight: V.navStarredWeight,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontFamily: "'IBM Plex Sans',sans-serif",
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.6-4.1 6.1-.6L12 3Z"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    Starred
+                    <span style={{ marginLeft: 'auto', fontSize: '12px', color: theme.textFaint }}>
+                      {V.starredCount}
+                    </span>
+                  </button>{' '}
+                  <button
                     onClick={V.navToTrash}
                     style={{
                       display: 'flex',
@@ -344,7 +432,7 @@ export default function AppView({ V }) {
                 }}
               >
                 {' '}
-                <div
+                <FocusTrap
                   role="dialog"
                   aria-modal="true"
                   style={{
@@ -364,11 +452,11 @@ export default function AppView({ V }) {
                   }}
                 >
                   {' '}
-                  {UploadModal(V)} {SettingsModal(V)} {NotificationsModal(V)} {RelatedModal(V)} {GraphModal(V)}{' '}
+                  {UploadModal(V)} {NotificationsModal(V)} {RelatedModal(V)} {GraphModal(V)}{' '}
                   {NewFolderModal(V)}{' '}
                   {PreviewModal(V)} {VideoModal(V)} {ShareModal(V)} {RenameModal(V)} {MoveModal(V)}{' '}
-                  {LinksModal(V)}{' '}
-                </div>{' '}
+                  {DetailsModal(V)}{' '}
+                </FocusTrap>{' '}
               </div>{' '}
             </React.Fragment>
           ) : null}{' '}

@@ -1,5 +1,6 @@
 """Account management: delete, export, consent (DPDPA, PRD 5.11)."""
 from django.contrib.auth import logout as django_logout
+from django.contrib.sessions.models import Session
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -7,6 +8,61 @@ from rest_framework.views import APIView
 
 from .compliance import build_export
 from .models import ConsentLog
+
+
+class AvatarView(APIView):
+    """Set or clear the profile picture (a small, client-resized image data URL)."""
+
+    permission_classes = [IsAuthenticated]
+    MAX_LEN = 300 * 1024  # ~300KB data URL; the client resizes before sending
+    # Only raster image types - SVG can carry markup, and other formats won't
+    # render in an <img>. The web client always re-encodes to JPEG, so this
+    # allowlist mainly guards direct API callers.
+    ALLOWED_TYPES = ("image/png", "image/jpeg", "image/jpg", "image/gif", "image/webp")
+
+    def patch(self, request):
+        data_url = str(request.data.get("avatar") or "")
+        mime = data_url[5:].split(";", 1)[0].split(",", 1)[0].lower() if data_url.startswith("data:") else ""
+        if mime not in self.ALLOWED_TYPES:
+            return Response({"detail": "Avatar must be a PNG, JPEG, GIF, or WebP image."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if len(data_url) > self.MAX_LEN:
+            return Response({"detail": "Image is too large. Please choose a smaller one."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        request.user.avatar_url = data_url
+        request.user.save(update_fields=["avatar_url", "updated_at"])
+        return Response({"avatar_url": data_url})
+
+    def delete(self, request):
+        request.user.avatar_url = ""
+        request.user.save(update_fields=["avatar_url", "updated_at"])
+        return Response({"avatar_url": ""})
+
+
+class SignOutOtherSessionsView(APIView):
+    """Revoke every OTHER logged-in session for this user, keeping the current one.
+
+    Django's DB session store isn't indexed by user, so we scan sessions and drop
+    the ones whose decoded `_auth_user_id` matches - fine at self-host scale.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        current = request.session.session_key
+        uid = str(request.user.id)
+        revoked = 0
+        for s in Session.objects.all().iterator():
+            if s.session_key == current:
+                continue
+            try:
+                data = s.get_decoded()
+            except Exception:  # noqa: BLE001 - a corrupt/expired session row is not ours to trust
+                continue
+            if str(data.get("_auth_user_id") or "") == uid:
+                s.delete()
+                revoked += 1
+        return Response({"revoked": revoked})
 
 
 class AccountDeleteView(APIView):
@@ -67,7 +123,7 @@ class AccountSettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
     BOOL_FIELDS = ("auto_backup_enabled", "backup_wifi_only", "two_factor_enabled")
-    STRING_FIELDS = ("display_name",)
+    STRING_FIELDS = ("display_name", "language")
     FIELDS = STRING_FIELDS + BOOL_FIELDS
 
     def get(self, request):

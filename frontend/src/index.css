@@ -9,10 +9,31 @@ body{margin:0;background:#EEF0F4;}
     .fd-carousel{scrollbar-width:thin;}
     .fd-carousel::-webkit-scrollbar{height:6px;}
     @keyframes fdspin{to{transform:rotate(360deg);}}
+    @keyframes fdshimmer{0%{background-position:100% 0;}100%{background-position:0 0;}}
     :focus-visible{outline:2px solid #5145E5;outline-offset:2px;border-radius:4px;}
     button:focus:not(:focus-visible){outline:none;}
+    /* Controls are square with only a slight round - a single global rule so the
+       whole app stays consistent instead of ~180 inline radii drifting apart.
+       Overrides the inline borderRadius on buttons/inputs (that's why it needs
+       !important). Deliberately-round controls (avatars, the FAB, icon circles,
+       gallery arrows, toggles, big choice cards) opt out with data-round, and
+       the video volume slider (the only range input) keeps its own styling. */
+    button:not([data-round]),
+    input:not([type=range]):not([data-round]),
+    select:not([data-round]),
+    textarea:not([data-round]){ border-radius:6px !important; }
     /* The video volume slider is the only range input; on narrow screens it
        overflows the control bar (clipping HD/fullscreen). Hide it on mobile -
        the adjacent mute button keeps volume control reachable. */
     @media (max-width:480px){ input[type=range]{ display:none !important; } }
+    /* Honor the OS "reduce motion" setting: drop the shimmer/spin/transitions so
+       animation-sensitive users aren't subjected to them. */
+    @media (prefers-reduced-motion: reduce){
+      *,*::before,*::after{
+        animation-duration:0.001ms !important;
+        animation-iteration-count:1 !important;
+        transition-duration:0.001ms !important;
+        scroll-behavior:auto !important;
+      }
+    }
 html,body,#root{height:100%;}

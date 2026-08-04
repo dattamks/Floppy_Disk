@@ -119,6 +119,7 @@ export default function MobileTabBar(V) {
             onClick={V.onFabTap}
             aria-label="Create"
             aria-expanded={!!V.mobileCreateOpen}
+            data-round
             style={{
               background: theme.brand,
               border: 'none',

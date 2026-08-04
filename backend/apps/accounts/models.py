@@ -60,6 +60,12 @@ class User(AbstractBaseUser, PermissionsMixin, TimeStampedModel):
     date_of_birth = models.DateField(null=True, blank=True)  # self-attested, age >= 18
 
     display_name = models.CharField(max_length=120, blank=True, default="")
+    # Profile picture as a small, client-resized image data URL (kept small so it
+    # lives happily in the row; empty means "show the initial").
+    avatar_url = models.TextField(blank=True, default="")
+    # Preferred UI language (BCP-47-ish code). Persisted + reflected on <html lang>;
+    # translation catalogs for the UI are a separate effort.
+    language = models.CharField(max_length=8, blank=True, default="en")
 
     status = models.CharField(
         max_length=16, choices=Status.choices, default=Status.ACTIVE, db_index=True

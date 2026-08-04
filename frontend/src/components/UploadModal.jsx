@@ -15,6 +15,8 @@ export default function UploadModal(V) {
         </span>
         <button
           onClick={V.closeModal}
+          aria-label="Close"
+          title="Close"
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted2 }}
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
@@ -29,6 +31,15 @@ export default function UploadModal(V) {
       </div>{' '}
       <div
         onClick={V.browseFiles}
+        role="button"
+        tabIndex={0}
+        aria-label="Choose files to upload"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            V.browseFiles();
+          }
+        }}
         style={{
           border: `1.5px dashed ${theme.brandBorder}`,
           borderRadius: '13px',

@@ -2,7 +2,7 @@ import React from 'react';
 import { theme } from '../lib/theme';
 
 // Developer tab: manage programmatic / MCP API keys, including folder-scoped
-// keys. Rendered by SettingsModal when the Developer tab is active.
+// keys. Rendered by the Settings page when the Developer section is active.
 export default function ApiKeysPanel(V) {
   const folders = V.keyFolders || [];
   const folderName = (id) => {

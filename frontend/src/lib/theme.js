@@ -46,4 +46,10 @@ export const theme = {
   violet: '#8B5CF6',
   star: '#F5A623',
   tealBg: '#ECFDF9',
+  // Corner radii - single source of truth. Controls (buttons, inputs) are kept
+  // deliberately square with only a slight round; cards/panels a touch softer;
+  // badges/tags nearly square. Circles (avatars, meters) stay '50%'/'999px'.
+  radius: '6px', // buttons, inputs, selects, textareas
+  radiusBadge: '5px', // status tags / chips (rectangular, not pill)
+  radiusCard: '10px', // cards, panels, dialogs
 };

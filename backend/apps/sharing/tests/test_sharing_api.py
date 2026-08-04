@@ -124,3 +124,15 @@ def test_share_list_is_owner_scoped(client, user, paid_user):
 
     listing = client.get("/api/v1/storage/shares").json()
     assert len(listing) == 1
+
+
+def test_share_link_exposes_target_id_for_shared_view(client, user):
+    """The Shared view marks files that have a live link, so the API must say
+    which file each link targets (not just its name)."""
+    f = _file(user, name="report.pdf")
+    client.post(f"/api/v1/storage/files/{f.id}/share", {}, format="json")
+
+    rows = client.get("/api/v1/storage/shares").json()
+    assert len(rows) == 1
+    assert rows[0]["target_id"] == str(f.id)
+    assert rows[0]["target_name"] == "report.pdf"

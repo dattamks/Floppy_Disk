@@ -1,0 +1,13 @@
+{
+  "name": "Floppy Disk",
+  "short_name": "Floppy Disk",
+  "description": "Your self-hosted files, notes, and knowledge graph.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#EEF0F4",
+  "theme_color": "#5145E5",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

@@ -73,6 +73,10 @@ components:
         email: { type: string, format: email }
         email_verified: { type: boolean }
         display_name: { type: string }
+        avatar_url: { type: string, description: "Data-URL of the profile picture, or empty string." }
+        language: { type: string, example: en, description: "Preferred UI language code." }
+        is_owner: { type: boolean, description: "True for the single instance owner (first registered user)." }
+        two_factor_enabled: { type: boolean }
         storage_region: { type: string, example: ap-south }
         status: { type: string, enum: [active, dormant, suspended, deleted] }
         quota_bytes: { type: integer }
@@ -84,6 +88,7 @@ components:
         parent: { type: [string, "null"], format: uuid }
         item_count: { type: integer }
         created_at: { type: string, format: date-time }
+        deleted_at: { type: [string, "null"], format: date-time, description: "Set when in the trash; null otherwise." }
     File:
       type: object
       properties:
@@ -93,7 +98,9 @@ components:
         kind: { type: string, enum: [file, image, video, audio, doc] }
         size_bytes: { type: integer }
         status: { type: string, enum: [pending, processing, ready] }
+        starred: { type: boolean, description: "User-set star; toggle via PATCH /storage/files/{id}." }
         created_at: { type: string, format: date-time }
+        deleted_at: { type: [string, "null"], format: date-time, description: "Set when in the trash; null otherwise." }
     ShareLink:
       type: object
       properties:
@@ -117,9 +124,13 @@ components:
         created_at: { type: string, format: date-time }
     BackupSettings:
       type: object
+      description: Account preferences returned/updated via /auth/account/settings.
       properties:
+        display_name: { type: string }
+        language: { type: string, example: en, description: "Preferred UI language code." }
         auto_backup_enabled: { type: boolean }
         backup_wifi_only: { type: boolean }
+        two_factor_enabled: { type: boolean }
     ApiKey:
       type: object
       properties:
@@ -255,6 +266,27 @@ paths:
       summary: Update device-backup settings
       requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/BackupSettings" } } } }
       responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/BackupSettings" } } } } }
+  /auth/account/avatar:
+    patch:
+      tags: [Account]
+      summary: Set the profile picture (owner session only)
+      description: >
+        Accepts a small raster-image data URL (`data:image/png|jpeg|gif|webp`,
+        ~300KB cap). The web client resizes to a 256x256 JPEG before sending.
+      requestBody: { content: { application/json: { schema: { type: object, properties: { avatar: { type: string, description: "Image data URL." } } } } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { avatar_url: { type: string } } } } } }
+        "400": { description: Not an allowed image type or too large., content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+    delete:
+      tags: [Account]
+      summary: Clear the profile picture
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { avatar_url: { type: string } } } } } } }
+  /auth/account/sessions/revoke-others:
+    post:
+      tags: [Account]
+      summary: Sign out of all other sessions (keeps the current one)
+      description: Session-authenticated only; not reachable with an API key.
+      responses: { "200": { description: OK, content: { application/json: { schema: { type: object, properties: { revoked: { type: integer } } } } } } }
   /auth/api-keys:
     get:
       tags: [Account]
@@ -377,6 +409,40 @@ paths:
                   size_bytes: { type: integer }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { description: File is not ready., content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /storage/folders/{folder_id}/download:
+    get:
+      tags: [Storage]
+      summary: Download a folder (recursively) as a .zip
+      description: >
+        Streams a `application/zip` attachment containing the whole folder
+        subtree, preserving structure. Owner-only; a folder-scoped key may only
+        download within its own subtree. Returns 501 if the storage backend has
+        no read capability.
+      parameters: [{ $ref: "#/components/parameters/FolderId" }]
+      responses:
+        "200": { description: A zip stream (application/zip). }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "501": { description: Downloads unavailable for this storage backend., content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /storage/download:
+    get:
+      tags: [Storage]
+      summary: Bulk-download a selection of files and folders as one .zip
+      description: >
+        `ids` is a comma-separated list mixing file and folder ids. Selected
+        files land at the archive root under their own name; selected folders
+        contribute their whole subtree under a `<folder>/…` prefix. Ids that
+        aren't owned, are trashed, or fall outside a scoped key are silently
+        skipped. Returns 400 if no ids are supplied.
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          schema: { type: string }
+          description: Comma-separated file/folder ids, e.g. `id1,id2,id3`.
+      responses:
+        "200": { description: A zip stream (application/zip). }
+        "400": { description: No items selected., content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "501": { description: Downloads unavailable for this storage backend., content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
   /storage/files/{file_id}/restore:
     post:
       tags: [Storage]

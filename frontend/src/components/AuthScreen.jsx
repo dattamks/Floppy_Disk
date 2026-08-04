@@ -4,6 +4,13 @@ import { hov } from '../lib/ui';
 
 // Extracted from the design view; renders when V.isAuth is set.
 export default function AuthScreen(V) {
+  // Enter submits from any field (there's no <form>, so wire it per input).
+  const onEnter = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      V.authPrimary();
+    }
+  };
   return V.isAuth ? (
     <React.Fragment>
       {' '}
@@ -78,7 +85,9 @@ export default function AuthScreen(V) {
               <input
                 value={V.authName}
                 onInput={V.setAuthName}
+                onKeyDown={onEnter}
                 placeholder="Full name"
+                aria-label="Full name"
                 style={{
                   background: theme.white,
                   border: `1px solid ${theme.border}`,
@@ -92,6 +101,7 @@ export default function AuthScreen(V) {
               <input
                 value={V.authDob}
                 onInput={V.setAuthDob}
+                onKeyDown={onEnter}
                 type="date"
                 aria-label="Date of birth"
                 title="Date of birth (must be 18+)"
@@ -114,7 +124,10 @@ export default function AuthScreen(V) {
               <input
                 value={V.authEmail}
                 onInput={V.setAuthEmail}
+                onKeyDown={onEnter}
                 placeholder="Email address"
+                aria-label="Email address"
+                type="email"
                 style={{
                   background: theme.white,
                   border: `1px solid ${theme.border}`,
@@ -133,8 +146,10 @@ export default function AuthScreen(V) {
               <input
                 value={V.authPassword}
                 onInput={V.setAuthPassword}
+                onKeyDown={onEnter}
                 type="password"
                 placeholder="Password"
+                aria-label="Password"
                 style={{
                   background: theme.white,
                   border: `1px solid ${theme.border}`,
@@ -153,8 +168,10 @@ export default function AuthScreen(V) {
               <input
                 value={V.authPassword}
                 onInput={V.setAuthPassword}
+                onKeyDown={onEnter}
                 type="password"
                 placeholder="New password"
+                aria-label="New password"
                 autoFocus
                 style={{
                   background: theme.white,
@@ -169,8 +186,10 @@ export default function AuthScreen(V) {
               <input
                 value={V.authPassword2}
                 onInput={V.setAuthPassword2}
+                onKeyDown={onEnter}
                 type="password"
                 placeholder="Confirm new password"
+                aria-label="Confirm new password"
                 style={{
                   background: theme.white,
                   border: `1px solid ${theme.border}`,

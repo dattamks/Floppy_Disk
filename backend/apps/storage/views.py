@@ -566,7 +566,16 @@ class FileDetailView(APIView):
             file.name = name
             fields.append("name")
 
+        if "starred" in request.data:
+            file.starred = bool(request.data["starred"])
+            fields.append("starred")
+
         if not fields:
+            return Response(FileSerializer(file).data)
+
+        # A star-only change must not trip the rename/collision path below.
+        if fields == ["starred"]:
+            file.save(update_fields=["starred", "updated_at"])
             return Response(FileSerializer(file).data)
 
         file.name = unique_name(
@@ -699,6 +708,170 @@ class TrashView(APIView):
             "folders": FolderSerializer(folders, many=True).data,
             "files": FileSerializer(files, many=True).data,
         })
+
+
+def _collect_folder_entries(user, node, prefix):
+    """Gather (arcname, File) recursively for a folder subtree.
+
+    Names are unique within any one folder, so entries produced here never
+    collide with each other. Empty folders simply produce no entries.
+    """
+    entries = []
+    files = File.objects.filter(
+        owner=user, folder=node, deleted_at__isnull=True,
+        status=File.Status.READY, storage_object__isnull=False,
+    )
+    for f in files:
+        entries.append((prefix + f.name, f))
+    for sub in Folder.objects.filter(owner=user, parent=node, deleted_at__isnull=True):
+        entries.extend(_collect_folder_entries(user, sub, prefix + sub.name + "/"))
+    return entries
+
+
+def _dedupe_arcname(name, seen):
+    """Make `name` unique against `seen`, inserting ' (n)' before the extension.
+
+    A bulk selection can pull top-level files with identical names out of
+    different folders; zip entries must stay distinct so extraction doesn't
+    silently drop one.
+    """
+    if name not in seen:
+        seen.add(name)
+        return name
+    base, dot, ext = name.rpartition(".")
+    stem, suffix = (base, "." + ext) if dot else (name, "")
+    i = 2
+    while f"{stem} ({i}){suffix}" in seen:
+        i += 1
+    unique = f"{stem} ({i}){suffix}"
+    seen.add(unique)
+    return unique
+
+
+def _zip_streaming_response(storage, entries, download_name):
+    """Build a temp .zip from (arcname, File) entries and stream it back.
+
+    The temp file is unlinked once the response has been fully streamed (or
+    immediately if building it raised).
+    """
+    import os
+    import tempfile
+    import zipfile
+
+    seen = set()
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+    try:
+        with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+            for arcname, f in entries:
+                obj = f.storage_object
+                arcname = _dedupe_arcname(arcname, seen)
+                lp = getattr(storage, "local_path", None)
+                if callable(lp):
+                    path = lp(region=obj.region, object_key=obj.object_key)
+                    try:
+                        zf.write(path, arcname=arcname)  # streamed from disk
+                    except FileNotFoundError:
+                        seen.discard(arcname)
+                        continue  # skip a missing blob rather than fail the whole zip
+                else:
+                    try:
+                        zf.writestr(arcname, storage.read_bytes(region=obj.region, object_key=obj.object_key))
+                    except FileNotFoundError:
+                        seen.discard(arcname)
+                        continue
+        tmp.close()
+    except Exception:
+        tmp.close()
+        os.unlink(tmp.name)
+        raise
+
+    def _stream(path):
+        try:
+            with open(path, "rb") as fh:
+                for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                    yield chunk
+        finally:
+            os.unlink(path)  # clean up the temp zip once streamed
+
+    resp = StreamingHttpResponse(_stream(tmp.name), content_type="application/zip")
+    resp["Content-Disposition"] = _content_disposition(download_name)
+    return resp
+
+
+class FolderDownloadView(APIView):
+    """Download a whole folder (recursively) as a .zip, preserving structure."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, folder_id):
+        if not folder_in_scope(request, str(folder_id)):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        try:
+            folder = scope_folders(
+                Folder.objects.filter(pk=folder_id, owner=request.user, deleted_at__isnull=True),
+                request,
+            ).get()
+        except Folder.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        storage = get_storage_service()
+        can_read = hasattr(storage, "local_path") or hasattr(storage, "read_bytes")
+        if not can_read:
+            return Response({"detail": "Downloads aren't available for this storage backend."},
+                            status=status.HTTP_501_NOT_IMPLEMENTED)
+
+        entries = _collect_folder_entries(request.user, folder, "")
+        return _zip_streaming_response(storage, entries, f"{folder.name}.zip")
+
+
+class BulkDownloadView(APIView):
+    """Download an arbitrary selection of files and folders as one .zip.
+
+    `ids` is a comma-separated list mixing file and folder ids. Files land at
+    the archive root under their own name; folders contribute their whole
+    subtree under a `<folder>/…` prefix. Ids that aren't owned, are in the
+    trash, or fall outside a scoped key are silently skipped - the zip contains
+    whatever the caller legitimately owns.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        raw = request.query_params.get("ids", "")
+        ids = [s for s in (x.strip() for x in raw.split(",")) if s]
+        if not ids:
+            return Response({"detail": "No items selected."}, status=status.HTTP_400_BAD_REQUEST)
+
+        storage = get_storage_service()
+        can_read = hasattr(storage, "local_path") or hasattr(storage, "read_bytes")
+        if not can_read:
+            return Response({"detail": "Downloads aren't available for this storage backend."},
+                            status=status.HTTP_501_NOT_IMPLEMENTED)
+
+        id_set = set(ids)
+        entries = []
+        # Top-level files in the selection, keyed by their own name.
+        files = scope_files(
+            File.objects.filter(
+                owner=request.user, pk__in=id_set, deleted_at__isnull=True,
+                status=File.Status.READY, storage_object__isnull=False,
+            ),
+            request,
+        )
+        for f in files:
+            entries.append((f.name, f))
+        # Selected folders contribute their subtree, but only those in scope.
+        folders = scope_folders(
+            Folder.objects.filter(pk__in=id_set, owner=request.user, deleted_at__isnull=True),
+            request,
+        )
+        for folder in folders:
+            if not folder_in_scope(request, str(folder.pk)):
+                continue
+            entries.extend(_collect_folder_entries(request.user, folder, folder.name + "/"))
+
+        download_name = f"{folders[0].name}.zip" if len(folders) == 1 and len(files) == 0 else "Floppy Disk.zip"
+        return _zip_streaming_response(storage, entries, download_name)
 
 
 class UploadInitiateView(APIView):

@@ -15,7 +15,7 @@ export default function TopBarDesktop(V) {
           gap: '9px',
           background: theme.surface,
           border: `1px solid ${theme.border}`,
-          borderRadius: '10px',
+          borderRadius: theme.radius,
           padding: '9px 13px',
           maxWidth: '380px',
         }}
@@ -48,6 +48,8 @@ export default function TopBarDesktop(V) {
           <React.Fragment>
             <button
               onClick={V.clearSearch}
+              aria-label="Clear search"
+              title="Clear search"
               style={{
                 background: 'none',
                 border: 'none',
@@ -167,6 +169,7 @@ export default function TopBarDesktop(V) {
       <button
         onClick={V.openNotifications}
         title="Notifications"
+        data-round
         style={{
           position: 'relative',
           width: '34px',
@@ -218,11 +221,12 @@ export default function TopBarDesktop(V) {
         onClick={V.openSettings}
         aria-label="Settings"
         title="Settings"
+        data-round
         style={{
           width: '34px',
           height: '34px',
           borderRadius: '50%',
-          background: theme.brand,
+          background: V.avatarUrl ? `center/cover no-repeat url(${V.avatarUrl})` : theme.brand,
           border: 'none',
           display: 'flex',
           alignItems: 'center',
@@ -234,7 +238,7 @@ export default function TopBarDesktop(V) {
           cursor: 'pointer',
         }}
       >
-        A
+        {V.avatarUrl ? '' : V.avatarInitial || 'A'}
       </button>{' '}
     </React.Fragment>
   ) : null;

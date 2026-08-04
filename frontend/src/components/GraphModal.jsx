@@ -17,6 +17,31 @@ const KIND_CHIPS = [
 const INFERRED = '#E8912D';
 const EXTRACTED = '#C2C8D2';
 
+// Force-simulation settings persist across reopen and reload. GraphView unmounts
+// when the modal closes, so its local state alone can't retain them - we mirror
+// the three values to localStorage and rehydrate from there on mount.
+const FORCE_DEFAULTS = { charge: 2600, linkDist: 80, center: 0.02 };
+const FORCE_KEY = 'floppydisk-graph-forces';
+
+function loadForces() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FORCE_KEY) || '{}');
+    return {
+      charge: Number.isFinite(saved.charge) ? saved.charge : FORCE_DEFAULTS.charge,
+      linkDist: Number.isFinite(saved.linkDist) ? saved.linkDist : FORCE_DEFAULTS.linkDist,
+      center: Number.isFinite(saved.center) ? saved.center : FORCE_DEFAULTS.center,
+    };
+  } catch (e) {
+    return { ...FORCE_DEFAULTS };
+  }
+}
+
+function saveForces({ charge, linkDist, center }) {
+  try {
+    localStorage.setItem(FORCE_KEY, JSON.stringify({ charge, linkDist, center }));
+  } catch (e) {}
+}
+
 export default function GraphModal(V) {
   if (!V.isGraphModal) return null;
   return <GraphView V={V} />;
@@ -33,10 +58,19 @@ class GraphView extends React.Component {
       focusId: null,
       depth: 1,
       showForces: false,
-      charge: 2600, // repulsion
-      linkDist: 80,
-      center: 0.02, // gravity
+      // Rehydrated from localStorage so tweaks survive close/reopen and reload.
+      ...loadForces(), // charge (repulsion), linkDist, center (gravity)
     };
+  }
+
+  setForce(patch) {
+    this.setState(patch, () =>
+      saveForces({
+        charge: this.state.charge,
+        linkDist: this.state.linkDist,
+        center: this.state.center,
+      })
+    );
   }
 
   toggleKind(k) {
@@ -156,11 +190,17 @@ class GraphView extends React.Component {
             }}
           >
             <Slider label="Repulsion" min={500} max={8000} step={100} value={this.state.charge}
-                    onChange={(v) => this.setState({ charge: v })} />
+                    onChange={(v) => this.setForce({ charge: v })} />
             <Slider label="Link distance" min={30} max={220} step={5} value={this.state.linkDist}
-                    onChange={(v) => this.setState({ linkDist: v })} />
+                    onChange={(v) => this.setForce({ linkDist: v })} />
             <Slider label="Gravity" min={0} max={0.12} step={0.005} value={this.state.center}
-                    onChange={(v) => this.setState({ center: v })} />
+                    onChange={(v) => this.setForce({ center: v })} />
+            <button
+              onClick={() => this.setForce({ ...FORCE_DEFAULTS })}
+              style={{ ...chip(false), alignSelf: 'flex-end' }}
+            >
+              Reset forces
+            </button>
           </div>
         ) : null}
         {/* status line */}

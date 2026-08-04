@@ -10,6 +10,7 @@ import TopBarMobile from './TopBarMobile';
 import MobileTabBar from './MobileTabBar';
 import TrashScreen from './TrashScreen';
 import EmptyState from './EmptyState';
+import SettingsPage from './SettingsPage';
 
 // Bulk-selection action bar, shown when one or more items are selected.
 function SelectionBar(V) {
@@ -206,6 +207,116 @@ function ListToolbar(V) {
   );
 }
 
+// Full-area overlay shown while OS files are dragged over the grid.
+function DropOverlay() {
+  return (
+    <div
+      data-testid="drop-overlay"
+      style={{
+        position: 'absolute',
+        inset: '10px',
+        zIndex: '5',
+        borderRadius: '16px',
+        border: `2px dashed ${theme.brand}`,
+        background: 'rgba(81,69,229,0.06)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '10px',
+        pointerEvents: 'none',
+      }}
+    >
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M12 16V4M7 9l5-5 5 5M4 20h16"
+          stroke={theme.brand}
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span style={{ fontSize: '15px', fontWeight: '600', color: theme.brand }}>
+        Drop files to upload
+      </span>
+    </div>
+  );
+}
+
+// Placeholder grid shown while the file listing is being fetched, so the user
+// never sees a false "No files yet" flash on login / folder open.
+function FilesSkeleton(V) {
+  const cells = Array.from({ length: 8 });
+  return (
+    <div
+      data-testid="files-loading"
+      aria-hidden="true"
+      style={{
+        display: 'grid',
+        gridTemplateColumns: `repeat(auto-fill, minmax(${V.d.gridMin}px, 1fr))`,
+        gap: `${V.d.cardGap}px`,
+      }}
+    >
+      {cells.map((_, i) => (
+        <div
+          key={i}
+          style={{
+            height: `${V.d.thumbH + 78}px`,
+            borderRadius: '15px',
+            background: `linear-gradient(90deg, ${theme.surface3} 25%, ${theme.surface2} 37%, ${theme.surface3} 63%)`,
+            backgroundSize: '400% 100%',
+            animation: 'fdshimmer 1.3s ease-in-out infinite',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Shown when the listing fetch failed, so a network error isn't mistaken for an
+// empty account. Offers a retry instead of a dead end.
+function LoadErrorCard(V) {
+  return (
+    <div
+      data-testid="files-error"
+      role="alert"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '44px 20px',
+        textAlign: 'center',
+        color: theme.textMuted,
+        border: `1px solid ${theme.border}`,
+        borderRadius: '12px',
+        background: theme.white,
+      }}
+    >
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="9" stroke={theme.borderStrong2} strokeWidth="1.6" />
+        <path d="M12 8v5M12 16h.01" stroke={theme.textMuted2} strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+      <span style={{ fontSize: '13.5px' }}>Couldn’t load your files. Check your connection.</span>
+      <button
+        onClick={V.retryLoad}
+        style={{
+          background: theme.brand,
+          color: theme.white,
+          border: 'none',
+          borderRadius: '8px',
+          padding: '8px 18px',
+          fontSize: '13px',
+          fontWeight: '600',
+          cursor: 'pointer',
+        }}
+      >
+        Retry
+      </button>
+    </div>
+  );
+}
+
 // Extracted from the design view; renders when V.isApp is set.
 export default function AppShell(V) {
   return V.isApp ? (
@@ -231,7 +342,14 @@ export default function AppShell(V) {
         <div style={{ flex: '1', display: 'flex', overflow: 'hidden', minHeight: '0' }}>
           {' '}
           {Sidebar(V)}{' '}
+          {V.isSettingsPage ? (
+            SettingsPage(V)
+          ) : (
           <div
+            onDragEnter={V.onUploadDragOver}
+            onDragOver={V.onUploadDragOver}
+            onDragLeave={V.onUploadDragLeave}
+            onDrop={V.onUploadDrop}
             style={{
               flex: '1',
               overflowY: 'auto',
@@ -241,9 +359,11 @@ export default function AppShell(V) {
               flexDirection: 'column',
               gap: '18px',
               minWidth: '0',
+              position: 'relative',
             }}
           >
             {' '}
+            {V.dragUploadOver ? DropOverlay() : null}{' '}
             {V.showMobileSearch ? (
               <React.Fragment>
                 {' '}
@@ -254,7 +374,7 @@ export default function AppShell(V) {
                     gap: '9px',
                     background: theme.white,
                     border: `1px solid ${theme.border}`,
-                    borderRadius: '10px',
+                    borderRadius: theme.radius,
                     padding: '10px 13px',
                   }}
                 >
@@ -312,6 +432,8 @@ export default function AppShell(V) {
             {Breadcrumb(V)} {TrashScreen(V)} {V.selectionActive ? SelectionBar(V) : null}{' '}
             {V.showSearchFilters ? SearchFilters(V) : null}{' '}
             {V.showListToolbar ? ListToolbar(V) : null}{' '}
+            {V.isLoadingFiles ? FilesSkeleton(V) : null}{' '}
+            {V.loadError ? LoadErrorCard(V) : null}{' '}
             {V.hasFiles ? (
               <React.Fragment>
                 {' '}
@@ -355,7 +477,8 @@ export default function AppShell(V) {
               </React.Fragment>
             ) : null}{' '}
             {EmptyState(V)}{' '}
-          </div>{' '}
+          </div>
+          )}{' '}
         </div>{' '}
         {MobileTabBar(V)}{' '}
       </div>{' '}

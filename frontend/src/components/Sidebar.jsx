@@ -106,6 +106,37 @@ export default function Sidebar(V) {
           Recent
         </button>{' '}
         <button
+          onClick={V.navToStarred}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '11px',
+            padding: '10px 11px',
+            borderRadius: '9px',
+            border: 'none',
+            background: V.navStarredBg,
+            color: V.navStarredColor,
+            fontSize: '13.5px',
+            fontWeight: V.navStarredWeight,
+            cursor: 'pointer',
+            textAlign: 'left',
+            fontFamily: "'IBM Plex Sans',sans-serif",
+          }}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.6-4.1 6.1-.6L12 3Z"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Starred
+          <span style={{ marginLeft: 'auto', fontSize: '11.5px', color: theme.textFaint }}>
+            {V.starredCount}
+          </span>
+        </button>{' '}
+        <button
           onClick={V.navToTrash}
           style={{
             display: 'flex',
@@ -135,33 +166,6 @@ export default function Sidebar(V) {
           <span style={{ marginLeft: 'auto', fontSize: '11.5px', color: theme.textFaint }}>
             {V.trashCount}
           </span>
-        </button>{' '}
-        <button
-          onClick={V.openLinks}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '11px',
-            padding: '10px 11px',
-            borderRadius: '9px',
-            border: 'none',
-            background: 'none',
-            color: theme.textMuted,
-            fontSize: '13.5px',
-            cursor: 'pointer',
-            textAlign: 'left',
-            fontFamily: "'IBM Plex Sans',sans-serif",
-          }}
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M9 15l6-6M10.5 6.5l1.2-1.2a3.5 3.5 0 0 1 5 5l-1.2 1.2M13.5 17.5l-1.2 1.2a3.5 3.5 0 0 1-5-5l1.2-1.2"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-            />
-          </svg>
-          Manage links
         </button>{' '}
         <button
           onClick={V.openGraph}

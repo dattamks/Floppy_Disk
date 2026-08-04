@@ -28,7 +28,14 @@ export async function registerNewUser(
   await page.getByPlaceholder('Email address').fill(email);
   await page.getByPlaceholder('Password').fill('s3cretpass99');
   await page.getByRole('button', { name: 'Create account' }).click();
-  await page.getByRole('button', { name: 'Upload' }).waitFor();
+  // App is ready once its primary action is present. That's the top-bar "Upload"
+  // on desktop, but the bottom-bar "Create" FAB on a phone viewport - wait for
+  // whichever this viewport renders.
+  await Promise.race([
+    page.getByRole('button', { name: 'Upload', exact: true }).waitFor(),
+    // exact - so it can't match the auth screen's "Create account" button.
+    page.getByRole('button', { name: 'Create', exact: true }).waitFor(),
+  ]);
   // If this account is the instance Owner (first user ever), the first-run
   // storage setup appears over the app; dismiss it so specs interact freely.
   const setup = page.getByTestId('setup-modal');

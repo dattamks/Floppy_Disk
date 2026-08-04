@@ -1,7 +1,7 @@
 import React from 'react';
 import { theme } from './lib/theme';
 import { api, firstError } from './api';
-import { humanSize, fmtStorage, kindOf, previewKindOf, fmtDuration, baseName } from './lib/ui';
+import { humanSize, fmtStorage, kindOf, previewKindOf, fmtDuration, baseName, extOf } from './lib/ui';
 import { renderMarkdown } from './lib/markdown';
 import AppView from './view/AppView';
 
@@ -20,12 +20,18 @@ export default class App extends React.Component {
     verifyBanner: '', // status message after a /verify-email?token=… link
     usedGB: 4.6,
     newFolderName: '',
+    newFolderBusy: false,
     videoVolume: 1,
     videoRate: 1,
     videoLoading: false,
     deviceMode: 'desktop',
     vw: typeof window !== 'undefined' ? window.innerWidth : 1200,
     currentFolderId: null,
+    // File-listing fetch status, so we show a skeleton (not a false "empty")
+    // while loading and a retry affordance (not a false "empty") on failure.
+    filesLoading: false,
+    loadError: false,
+    loadedFolders: {}, // folder ids whose children have been fetched (skip skeleton on re-open)
     filterKey: 'all',
     sortBy: 'name', // 'name' | 'size'
     viewMode: 'grid', // 'grid' | 'list'
@@ -67,13 +73,18 @@ export default class App extends React.Component {
     // Bulk selection.
     selectedIds: [],
     moveBulk: false,
+    detailsFileId: null, // the file/folder shown in the Details panel
+    dragUploadOver: false, // OS file-drag hovering the grid (drop-to-upload)
+    // Settings is a full page (not a modal) with its own secondary nav.
+    settingsPage: false,
     settingsTab: 'profile',
     profileName: '',
     profileUsername: '',
     profileBio: '',
     accountEmail: '',
     emailVerified: false,
-    twofa: false,
+    avatarUrl: '', // profile picture data URL ('' => show the initial)
+    profileLanguage: 'en',
     pwCurrent: '',
     pwNew: '',
     pwConfirm: '',
@@ -136,13 +147,24 @@ export default class App extends React.Component {
     quotaBannerDismissed: false,
     ctxMenu: null,
     toastMsg: '',
+    toastAction: null, // optional { label, fn } for an actionable toast (e.g. Undo)
   };
 
 
-  toast(msg) {
-    this.setState({ toastMsg: msg });
+  toast(msg, action = null) {
+    // An actionable toast (e.g. Undo) lingers longer so it can actually be used.
+    this.setState({ toastMsg: msg, toastAction: action });
     clearTimeout(this._toastT);
-    this._toastT = setTimeout(() => this.setState({ toastMsg: '' }), 2200);
+    this._toastT = setTimeout(
+      () => this.setState({ toastMsg: '', toastAction: null }),
+      action ? 6000 : 2200
+    );
+  }
+  runToastAction() {
+    const a = this.state.toastAction;
+    clearTimeout(this._toastT);
+    this.setState({ toastMsg: '', toastAction: null });
+    if (a && a.fn) a.fn();
   }
 
   // On load: prime CSRF cookie, then restore an existing session if there is one.
@@ -165,6 +187,7 @@ export default class App extends React.Component {
       if (e.key === 'Escape') {
         if (this.state.ctxMenu) this.closeCtxMenu();
         else if (this.state.modal) this.closeModal();
+        else if (this.state.settingsPage) this.closeSettings();
         else if (this.state.drawerOpen) this.closeDrawer();
         else if (this.state.selectedIds.length) this.clearSelection();
         return;
@@ -322,12 +345,17 @@ export default class App extends React.Component {
       accountEmail: user.email,
       emailVerified: !!user.email_verified,
       profileName: user.display_name || this.state.profileName,
-      twofa: !!user.two_factor_enabled,
+      avatarUrl: user.avatar_url || '',
+      profileLanguage: user.language || 'en',
       isOwner: !!user.is_owner,
     });
+    try {
+      document.documentElement.lang = user.language || 'en';
+    } catch (e) {}
     this.loadStorage();
     this.loadUsage();
     this.loadNotifications();
+    this.loadShares(); // so the Shared view reflects files with live links from the start
     if (user.is_owner) this.loadStorageConfig();
   }
 
@@ -456,6 +484,7 @@ export default class App extends React.Component {
       drawerOpen: false,
       mobileSearchOpen: false,
       selectedIds: [],
+      settingsPage: false, // leaving Settings when a primary nav item is chosen
     });
   }
   navToAll() {
@@ -489,6 +518,9 @@ export default class App extends React.Component {
   }
   navToRecent() {
     this.go('recent');
+  }
+  navToStarred() {
+    this.go('starred');
   }
   navToTrash() {
     this.go('trash');
@@ -526,7 +558,7 @@ export default class App extends React.Component {
             }));
             this.setState({ discoverResults: mapped });
           })
-          .catch(() => {});
+          .catch(() => this.toast('Search failed — check your connection'));
       }, 250);
     } else {
       this.setState({ discoverResults: [] });
@@ -551,11 +583,14 @@ export default class App extends React.Component {
 
   openSettings() {
     this.setState({
-      modal: 'settings',
+      settingsPage: true,
       settingsTab: 'profile',
       drawerOpen: false,
       newKeyToken: '',
     });
+  }
+  closeSettings() {
+    this.setState({ settingsPage: false });
   }
   setSettingsProfile() {
     this.setState({ settingsTab: 'profile' });
@@ -686,7 +721,8 @@ export default class App extends React.Component {
   }
   setupChooseR2() {
     // Jump into the Storage settings tab to enter credentials.
-    this.setState({ setupOpen: false, modal: 'settings', settingsTab: 'storage' });
+    this.setState({ setupOpen: false, settingsPage: true, settingsTab: 'storage' });
+    this.loadStorageConfig();
   }
   skipSetup() {
     api.saveStorageConfig({ setup_completed: true }).then((cfg) =>
@@ -694,7 +730,7 @@ export default class App extends React.Component {
     );
   }
   openStorageSettings() {
-    this.setState({ modal: 'settings', settingsTab: 'storage' });
+    this.setState({ settingsPage: true, settingsTab: 'storage' });
     this.loadStorageConfig();
   }
   dismissStorageBanner() {
@@ -825,8 +861,80 @@ export default class App extends React.Component {
       })
       .catch((err) => this.toast(firstError(err, 'Could not save profile')));
   }
-  toastPhoto() {
-    this.toast('Photo picker opened');
+  // Open the OS file picker for a new profile photo.
+  changePhoto() {
+    if (this._avatarInput) this._avatarInput.click();
+  }
+  avatarInputRef(el) {
+    this._avatarInput = el;
+  }
+  onAvatarPicked(e) {
+    const file = e.target && e.target.files && e.target.files[0];
+    if (e.target) e.target.value = '';
+    if (!file) return;
+    // iPhone HEIC/HEIF photos often arrive with an empty MIME type, so fall
+    // back to the extension before rejecting.
+    const isImage =
+      /^image\//.test(file.type) || /\.(png|jpe?g|gif|webp|heic|heif|bmp)$/i.test(file.name || '');
+    if (!isImage) {
+      this.toast('Please choose an image (PNG, JPEG, GIF, or WebP)');
+      return;
+    }
+    this._resizeToDataUrl(file, 256)
+      .then((dataUrl) => {
+        this.setState({ avatarUrl: dataUrl }); // optimistic
+        return api.setAvatar(dataUrl);
+      })
+      .then(() => this.toast('Photo updated'))
+      .catch((err) => {
+        // Browsers can't decode HEIC/HEIF; guide the user to a supported format.
+        if (err && err.message === 'decode failed') {
+          this.toast("That image format isn't supported here — try a JPEG or PNG");
+        } else {
+          this.toast(firstError(err, 'Could not update photo'));
+        }
+      });
+  }
+  setLanguage(e) {
+    const code = e.target.value;
+    this.setState({ profileLanguage: code });
+    try {
+      document.documentElement.lang = code;
+    } catch (err) {}
+    api
+      .updateSettings({ language: code })
+      .then(() => this.toast('Language preference saved'))
+      .catch((err) => this.toast(firstError(err, 'Could not save language')));
+  }
+  removePhoto() {
+    this.setState({ avatarUrl: '' });
+    api.removeAvatar().catch((err) => this.toast(firstError(err, 'Could not remove photo')));
+    this.toast('Photo removed');
+  }
+  // Downscale + square-crop an image file to a small JPEG data URL (keeps the
+  // avatar tiny so it stores in one DB row and loads instantly).
+  _resizeToDataUrl(file, size) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('read failed'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('decode failed'));
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          const scale = Math.max(size / img.width, size / img.height);
+          const w = img.width * scale;
+          const h = img.height * scale;
+          ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
   }
   toastDelete() {
     api
@@ -838,18 +946,15 @@ export default class App extends React.Component {
       .catch((err) => this.toast(firstError(err, 'Could not delete account')));
   }
   toastSessions() {
-    this.toast('Signed out of all other sessions');
-  }
-  toggle2fa() {
-    const next = !this.state.twofa;
-    this.setState({ twofa: next }); // optimistic
     api
-      .updateSettings({ two_factor_enabled: next })
-      .then(() => this.toast(next ? 'Two-factor enabled' : 'Two-factor disabled'))
-      .catch((err) => {
-        this.setState({ twofa: !next }); // revert
-        this.toast(firstError(err, 'Could not update 2FA'));
-      });
+      .signOutOtherSessions()
+      .then((r) => {
+        const n = (r && r.revoked) || 0;
+        this.toast(
+          n ? `Signed out ${n} other session${n === 1 ? '' : 's'}` : 'No other sessions to sign out'
+        );
+      })
+      .catch((err) => this.toast(firstError(err, 'Could not sign out other sessions')));
   }
   setPwCurrent(e) {
     this.setState({ pwCurrent: e.target.value });
@@ -899,6 +1004,8 @@ export default class App extends React.Component {
       this.toast('Enter a folder name');
       return;
     }
+    if (this.state.newFolderBusy) return; // guard against a double submit
+    this.setState({ newFolderBusy: true });
     const cur = this.state.currentFolderId;
     const isUuid = typeof cur === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(cur);
     api
@@ -912,10 +1019,18 @@ export default class App extends React.Component {
           trashed: false,
           real: true,
         };
-        this.setState((s) => ({ files: [item, ...s.files], modal: null, newFolderName: '' }));
+        this.setState((s) => ({
+          files: [item, ...s.files],
+          modal: null,
+          newFolderName: '',
+          newFolderBusy: false,
+        }));
         this.toast('Folder created');
       })
-      .catch((err) => this.toast(firstError(err, 'Could not create folder')));
+      .catch((err) => {
+        this.setState({ newFolderBusy: false });
+        this.toast(firstError(err, 'Could not create folder'));
+      });
   }
 
   // Merge fetched folders into state (dedupe by id - never duplicate).
@@ -948,8 +1063,9 @@ export default class App extends React.Component {
           size: humanSize(f.size_bytes),
           sizeBytes: f.size_bytes,
           modified: '',
+          createdAt: f.created_at || null,
           shared: false,
-          starred: false,
+          starred: !!f.starred,
           trashed: false,
           status: f.status,
           poster: f.poster_url || undefined,
@@ -963,15 +1079,34 @@ export default class App extends React.Component {
   // nested content appears (the API lists one level at a time; we merge as we go).
   loadFolderContents(id) {
     if (!id) return;
-    api.listFolders(id).then((f) => this._mergeFolders(f)).catch(() => {});
-    api.listFiles(id).then((f) => this._mergeFiles(f)).catch(() => {});
+    // Only show a skeleton the first time we open this folder; a re-open already
+    // has its children in state and should render instantly.
+    const firstOpen = !this.state.loadedFolders[id];
+    if (firstOpen) this.setState({ filesLoading: true, loadError: false });
+    const folders = api.listFolders(id).then((f) => this._mergeFolders(f));
+    const files = api.listFiles(id).then((f) => this._mergeFiles(f));
+    Promise.allSettled([folders, files]).then((results) => {
+      const failed = results.some((r) => r.status === 'rejected');
+      this.setState((s) => ({
+        filesLoading: false,
+        loadError: failed,
+        loadedFolders: failed ? s.loadedFolders : { ...s.loadedFolders, [id]: true },
+      }));
+      if (failed) this.toast('Could not load this folder. Check your connection.');
+    });
   }
 
   // Pull the user's real (root-level) folders + files from the backend and merge
   // them in; deeper levels load lazily on navigation via loadFolderContents.
   loadStorage() {
-    api.listFolders().then((f) => this._mergeFolders(f)).catch(() => {});
-    api.listFiles().then((f) => this._mergeFiles(f)).catch(() => {});
+    this.setState({ filesLoading: true, loadError: false });
+    const folders = api.listFolders().then((f) => this._mergeFolders(f));
+    const files = api.listFiles().then((f) => this._mergeFiles(f));
+    Promise.allSettled([folders, files]).then((results) => {
+      const failed = results.some((r) => r.status === 'rejected');
+      this.setState({ filesLoading: false, loadError: failed });
+      if (failed) this.toast('Could not load your files. Check your connection.');
+    });
     api
       .trash()
       .then((t) => {
@@ -981,6 +1116,7 @@ export default class App extends React.Component {
             name: f.name,
             kind: 'folder',
             parentId: null,
+            deletedAt: f.deleted_at || null,
           })),
           ...(t.files || []).map((f) => ({
             id: f.id,
@@ -988,6 +1124,7 @@ export default class App extends React.Component {
             kind: f.kind,
             parentId: null,
             size: humanSize(f.size_bytes),
+            deletedAt: f.deleted_at || null,
           })),
         ];
         this.setState((s) => {
@@ -1362,6 +1499,10 @@ export default class App extends React.Component {
     }
   }
 
+  openDetails(file) {
+    this.closeCtxMenu();
+    this.setState({ modal: 'details', detailsFileId: file.id });
+  }
   // --- Move (files & folders) -----------------------------------------------
   openMove(file) {
     this.closeCtxMenu();
@@ -1382,11 +1523,12 @@ export default class App extends React.Component {
       this.setState({ modal: null, moveBulk: false, selectedIds: [] });
       return;
     }
-    this.doMove(moveTargetId, moveDestId);
+    this.doMove(moveTargetId, moveDestId, true);
     this.setState({ modal: null });
   }
-  // Shared move for both the Move dialog and drag-and-drop.
-  doMove(id, destId) {
+  // Shared move for both the Move dialog and drag-and-drop. `undoable` offers an
+  // Undo toast (single moves only - a bulk move would spam a toast per item).
+  doMove(id, destId, undoable = false) {
     const item = this.state.files.find((f) => f.id === id);
     if (!item || id === destId) return;
     if (item.parentId === destId) return; // already there
@@ -1398,23 +1540,37 @@ export default class App extends React.Component {
         return;
       }
     }
-    const apply = (finalName) => {
+    const prevParent = item.parentId;
+    const setParent = (parentId, finalName) =>
       this.setState((s) => ({
         files: s.files.map((f) =>
-          f.id === id ? { ...f, parentId: destId, name: finalName || f.name } : f
+          f.id === id ? { ...f, parentId, name: finalName || f.name } : f
         ),
       }));
-      this.toast('Moved');
-    };
+    const moved = () =>
+      undoable
+        ? this.toast('Moved', { label: 'Undo', fn: () => this.doMove(id, prevParent, false) })
+        : this.toast('Moved');
     if (item.real) {
+      // Optimistic: move it in the UI now so it doesn't linger in the old folder
+      // during the round-trip; reconcile the (possibly de-duped) name on success,
+      // and put it back if the server rejects the move.
+      setParent(destId);
       const call = isFolder
         ? api.updateFolder(id, { parent: destId })
         : api.updateFile(id, { folder: destId });
       call
-        .then((r) => apply(r && r.name))
-        .catch((err) => this.toast(firstError(err, 'Could not move')));
+        .then((r) => {
+          if (r && r.name) setParent(destId, r.name);
+          moved();
+        })
+        .catch((err) => {
+          setParent(prevParent);
+          this.toast(firstError(err, 'Could not move'));
+        });
     } else {
-      apply();
+      setParent(destId);
+      moved();
     }
   }
 
@@ -1446,7 +1602,7 @@ export default class App extends React.Component {
     if (e) e.preventDefault();
     const dragging = this.state.draggingId;
     this.setState({ draggingId: null, dragOverId: null });
-    if (dragging) this.doMove(dragging, folder.id);
+    if (dragging) this.doMove(dragging, folder.id, true);
   }
 
   // --- Bulk selection --------------------------------------------------------
@@ -1509,20 +1665,44 @@ export default class App extends React.Component {
       const f = this.state.files.find((x) => x.id === id);
       if (f && f.real) {
         const call = f.kind === 'folder' ? api.deleteFolder(id) : api.deleteFile(id);
-        call.catch(() => {});
+        call.catch(() => this.toast('Some items could not be trashed — reload to refresh'));
       }
     });
     this.setState((s) => ({
       files: s.files.map((x) => (ids.includes(x.id) ? { ...x, trashed: true } : x)),
       selectedIds: [],
     }));
-    this.toast(`Moved ${ids.length} to trash`);
+    this.toast(`Moved ${ids.length} to trash`, { label: 'Undo', fn: () => this.undoTrash(ids) });
+  }
+  // Reverse a just-performed trash (from the Undo toast): un-trash the same ids.
+  undoTrash(ids) {
+    ids.forEach((id) => {
+      const f = this.state.files.find((x) => x.id === id);
+      if (f && f.real)
+        (f.kind === 'folder' ? api.restoreFolder(id) : api.restoreFile(id)).catch(() =>
+          this.toast('Could not undo — reload to refresh')
+        );
+    });
+    this.setState((s) => ({
+      files: s.files.map((x) => (ids.includes(x.id) ? { ...x, trashed: false } : x)),
+    }));
+    this.toast('Restored');
   }
   bulkDownload() {
     const ids = this.state.selectedIds;
-    this.state.files
-      .filter((f) => ids.includes(f.id) && f.kind !== 'folder')
-      .forEach((f) => this.downloadFile(f));
+    const picked = this.state.files.filter((f) => ids.includes(f.id) && f.real);
+    if (!picked.length) {
+      this.setState({ selectedIds: [] });
+      return;
+    }
+    // A single plain file downloads directly (nicer name, no wrapper); anything
+    // else - multiple items, or a folder - comes back as one .zip.
+    if (picked.length === 1 && picked[0].kind !== 'folder') {
+      this.downloadFile(picked[0]);
+    } else {
+      window.open(api.bulkDownloadUrl(picked.map((f) => f.id)), '_blank');
+      this.toast('Preparing your download…');
+    }
     this.setState({ selectedIds: [] });
   }
   bulkRestore() {
@@ -1530,7 +1710,9 @@ export default class App extends React.Component {
     ids.forEach((id) => {
       const f = this.state.files.find((x) => x.id === id);
       if (f && f.real)
-        (f.kind === 'folder' ? api.restoreFolder(id) : api.restoreFile(id)).catch(() => {});
+        (f.kind === 'folder' ? api.restoreFolder(id) : api.restoreFile(id)).catch(() =>
+          this.toast('Some items could not be restored — reload to refresh')
+        );
     });
     this.setState((s) => ({
       files: s.files.map((x) => (ids.includes(x.id) ? { ...x, trashed: false } : x)),
@@ -1545,7 +1727,9 @@ export default class App extends React.Component {
     ids.forEach((id) => {
       const f = this.state.files.find((x) => x.id === id);
       if (f && f.real)
-        (f.kind === 'folder' ? api.purgeFolder(id) : api.purgeFile(id)).catch(() => {});
+        (f.kind === 'folder' ? api.purgeFolder(id) : api.purgeFile(id)).catch(() =>
+          this.toast('Some items could not be deleted — reload to refresh')
+        );
     });
     this.setState((s) => ({
       files: s.files.filter(
@@ -1587,12 +1771,17 @@ export default class App extends React.Component {
     const file = (this.state.files || []).find((f) => f.id === fileId && !f.trashed);
     if (file && file.kind !== 'folder') this.openFile(file);
   }
-  openLinks() {
-    this.setState({ modal: 'links', drawerOpen: false, linksLoading: true, linksList: [] });
+  loadShares() {
+    this.setState({ linksLoading: true, linksList: [] });
     api
       .listShares()
       .then((links) => this.setState({ linksList: links || [], linksLoading: false }))
       .catch(() => this.setState({ linksLoading: false }));
+  }
+  // Share-link management now lives under Settings → Links (not a standalone modal).
+  setSettingsLinks() {
+    this.setState({ settingsTab: 'links' });
+    this.loadShares();
   }
   revokeLink(id) {
     api.revokeShare(id).catch((err) => this.toast(firstError(err, 'Could not revoke')));
@@ -1621,7 +1810,14 @@ export default class App extends React.Component {
     if (file.real) {
       api
         .createShare(file.id)
-        .then((link) => this.setState({ shareLinkUrl: window.location.origin + link.url }))
+        .then((link) => {
+          // Track the new link so the file shows under "Shared" right away.
+          this.setState((s) => ({
+            shareLinkUrl: window.location.origin + link.url,
+            linksList: [link, ...(s.linksList || []).filter((l) => l.id !== link.id)],
+          }));
+          this.toast('Share link created');
+        })
         .catch((err) => this.toast(firstError(err, 'Could not create link')));
     }
   }
@@ -1652,9 +1848,22 @@ export default class App extends React.Component {
   }
   toggleStar(id, e) {
     if (e) e.stopPropagation();
+    const item = this.state.files.find((f) => f.id === id);
+    if (!item) return;
+    const next = !item.starred;
+    // Optimistic; persisted so the star survives a reload (real files only).
     this.setState((s) => ({
-      files: s.files.map((f) => (f.id === id ? { ...f, starred: !f.starred } : f)),
+      files: s.files.map((f) => (f.id === id ? { ...f, starred: next } : f)),
     }));
+    if (item.real) {
+      api.updateFile(id, { starred: next }).catch((err) => {
+        // Roll back so the UI doesn't claim a star the server rejected.
+        this.setState((s) => ({
+          files: s.files.map((f) => (f.id === id ? { ...f, starred: !next } : f)),
+        }));
+        this.toast(firstError(err, 'Could not update star'));
+      });
+    }
   }
   // Per-item context menu (right-click on desktop, ⋯ button anywhere).
   openCtxMenu(file, e) {
@@ -1680,7 +1889,13 @@ export default class App extends React.Component {
     this.closeCtxMenu();
     if (!file) return;
     if (file.kind === 'folder') {
-      this.openFile(file);
+      // Download a folder as a .zip (the browser handles the streamed attachment).
+      if (file.real) {
+        window.open(api.folderDownloadUrl(file.id), '_blank');
+        this.toast('Preparing download…');
+      } else {
+        this.openFile(file);
+      }
       return;
     }
     if (file.real) {
@@ -1743,7 +1958,7 @@ export default class App extends React.Component {
       // Permanent purge from trash. Folders purge their whole subtree server-side.
       if (f.real) {
         const call = isFolder ? api.purgeFolder(id) : api.purgeFile(id);
-        call.catch(() => {});
+        call.catch(() => this.toast('Could not delete — reload to refresh'));
       }
       this.setState((s) => ({
         // Drop the item and, for a folder, any of its descendants still in state.
@@ -1764,7 +1979,7 @@ export default class App extends React.Component {
         files: s.files.map((x) => (x.id === id ? { ...x, trashed: true } : x)),
         modal: null,
       }));
-      this.toast('Moved to trash');
+      this.toast('Moved to trash', { label: 'Undo', fn: () => this.undoTrash([id]) });
     }
   }
   emptyTrash() {
@@ -1800,6 +2015,30 @@ export default class App extends React.Component {
     if (!list.length) return;
     list.forEach((f) => this.realUpload(f));
     e.target.value = '';
+  }
+  // --- Drag files from the OS onto the grid to upload -----------------------
+  _isFileDrag(e) {
+    // Native file drags carry a "Files" type; internal move-drags carry text.
+    return !!(e && e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files'));
+  }
+  onUploadDragOver(e) {
+    if (!this._isFileDrag(e)) return; // let internal move-drags pass through
+    e.preventDefault();
+    if (!this.state.dragUploadOver) this.setState({ dragUploadOver: true });
+  }
+  onUploadDragLeave(e) {
+    // Ignore leave events fired while moving between the container's own children.
+    if (e && e.currentTarget && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return;
+    if (this.state.dragUploadOver) this.setState({ dragUploadOver: false });
+  }
+  onUploadDrop(e) {
+    if (!this._isFileDrag(e)) return;
+    e.preventDefault();
+    const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+    this.setState({ dragUploadOver: false });
+    if (!files.length) return;
+    files.forEach((f) => this.realUpload(f));
+    this.toast(`Uploading ${files.length} file${files.length === 1 ? '' : 's'}…`);
   }
 
   // Real upload: reserve quota -> PUT bytes to the presigned URL -> commit/dedup.
@@ -2038,7 +2277,6 @@ export default class App extends React.Component {
       activeFileId,
       settingsTab,
       emailVerified,
-      twofa,
       uploadQueue,
       shareAccess,
       sharePermission,
@@ -2062,6 +2300,8 @@ export default class App extends React.Component {
     const q = searchQuery.trim().toLowerCase();
     const searchActive = q.length > 0;
     const nonTrashed = files.filter((f) => !f.trashed);
+    // Files/folders that currently have a live public link (drives the Shared view).
+    const sharedIds = new Set((st.linksList || []).map((l) => l.target_id).filter(Boolean));
 
     const mkImgRef = (url) => (el) => {
       if (!el) return;
@@ -2084,9 +2324,15 @@ export default class App extends React.Component {
       const itemCount = isFolder
         ? files.filter((x) => x.parentId === f.id && !x.trashed).length
         : 0;
-      const daysLeft = f.trashed ? Math.max(0, 30 - (f.deletedDaysAgo || 0)) : null;
+      // Real retention countdown: trash is purged 30 days after deletion.
+      const daysLeft = f.trashed
+        ? f.deletedAt
+          ? Math.max(0, 30 - Math.floor((Date.now() - new Date(f.deletedAt).getTime()) / 86400000))
+          : 30
+        : null;
       return {
         ...f,
+        shared: sharedIds.has(f.id), // live public link => shows under "Shared"
         isFolder,
         isImage,
         isVideo,
@@ -2166,13 +2412,18 @@ export default class App extends React.Component {
       showBreadcrumb = true;
       sortListing(rawList);
     } else if (filterKey === 'shared') {
-      rawList = sortListing(nonTrashed.filter((f) => f.shared));
-      sectionTitle = 'Shared with me';
+      rawList = sortListing(nonTrashed.filter((f) => sharedIds.has(f.id)));
+      sectionTitle = 'Shared';
+    } else if (filterKey === 'starred') {
+      rawList = sortListing(nonTrashed.filter((f) => f.starred));
+      sectionTitle = 'Starred';
     } else if (filterKey === 'recent') {
+      // Genuinely most-recent-first by creation time (not an unpopulated rank).
+      const ts = (f) => (f.createdAt ? new Date(f.createdAt).getTime() : 0);
       rawList = nonTrashed
         .filter((f) => f.kind !== 'folder')
-        .sort((a, b) => (a.recentRank || 99) - (b.recentRank || 99))
-        .slice(0, 8);
+        .sort((a, b) => ts(b) - ts(a))
+        .slice(0, 12);
       sectionTitle = 'Recent';
     } else {
       rawList = files.filter((f) => f.trashed);
@@ -2185,7 +2436,14 @@ export default class App extends React.Component {
     this._orderedIds = rawList.map((f) => f.id);
     this._selectableIds = this._orderedIds;
     this._inTrashView = !searchActive && filterKey === 'trash';
-    const isEmpty = visibleFiles.length === 0;
+    const dataEmpty = visibleFiles.length === 0;
+    // While a fetch is in flight (or after it failed) an empty list is NOT an
+    // empty account - show a skeleton / retry instead of a misleading empty state.
+    // Loading/error only apply to the server-backed views (all + open folder).
+    const serverView = !searchActive && (filterKey === 'all');
+    const showLoading = dataEmpty && serverView && st.filesLoading;
+    const showLoadError = dataEmpty && serverView && st.loadError && !st.filesLoading;
+    const isEmpty = dataEmpty && !showLoading && !showLoadError;
     const emptyMessage = searchActive
       ? 'No files match your search'
       : filterKey === 'all' && currentFolderId
@@ -2194,7 +2452,11 @@ export default class App extends React.Component {
           ? 'Trash is empty'
           : filterKey === 'shared'
             ? 'Nothing shared yet'
-            : 'No files yet';
+            : filterKey === 'starred'
+              ? 'No starred files yet'
+              : filterKey === 'recent'
+                ? 'No recent files yet'
+                : 'No files yet';
     const isHome = !searchActive && filterKey === 'all' && !currentFolderId;
     const showCarousel = isHome && !isEmpty;
 
@@ -2219,7 +2481,9 @@ export default class App extends React.Component {
     const _realTotalGB = st.realQuotaBytes != null ? st.realQuotaBytes / 1073741824 : null;
     const _realUsedGB = st.realUsedBytes != null ? st.realUsedBytes / 1073741824 : null;
     const storageTotalGB = _realTotalGB != null ? _realTotalGB : 5;
-    const storageUsedGB = _realUsedGB != null ? _realUsedGB : st.usedGB;
+    // Until real usage loads, show 0 (neutral) rather than a demo value that
+    // would flash a scary near-full red meter on every login.
+    const storageUsedGB = _realUsedGB != null ? _realUsedGB : 0;
     const storagePct =
       storageTotalGB > 0 ? Math.min(100, Math.round((storageUsedGB / storageTotalGB) * 100)) : 0;
     // Shared storage is instance-wide, so warn everyone at >=90% full or when
@@ -2253,7 +2517,7 @@ export default class App extends React.Component {
         });
       } else {
         items.push({ label: 'Open', fn: () => this.openFile(f) });
-        if (f.kind !== 'folder') items.push({ label: 'Download', fn: () => this.downloadFile(f) });
+        items.push({ label: f.kind === 'folder' ? 'Download (.zip)' : 'Download', fn: () => this.downloadFile(f) });
         items.push({ label: 'Rename', fn: () => this.openRename(f) });
         items.push({ label: 'Move to…', fn: () => this.openMove(f) });
         items.push({ label: f.starred ? 'Unstar' : 'Star', fn: () => this.toggleStar(f.id) });
@@ -2261,6 +2525,7 @@ export default class App extends React.Component {
         if (f.kind !== 'folder') {
           items.push({ label: 'Related files', fn: () => this.openRelated(f) });
         }
+        items.push({ label: 'Details', fn: () => this.openDetails(f) });
         items.push({ label: 'Move to trash', danger: true, fn: () => this.deleteForever(f.id) });
       }
       ctxMenuView = { x: st.ctxMenu.x, y: st.ctxMenu.y, name: f.name, items };
@@ -2393,9 +2658,17 @@ export default class App extends React.Component {
       markNotificationRead: (id) => this.markNotificationRead(id),
       markAllNotificationsRead: () => this.markAllNotificationsRead(),
       visibleFiles,
-      hasFiles: !isEmpty,
+      hasFiles: !isEmpty && !showLoading && !showLoadError,
       isEmpty,
       emptyMessage,
+      // On the file views (drive root or an open folder) an empty state should
+      // invite action, not just state a fact. Trash/search/starred/shared/recent
+      // aren't places you'd upload into, so they stay message-only.
+      emptyActionable: !searchActive && filterKey === 'all',
+      isLoadingFiles: showLoading,
+      loadError: showLoadError,
+      retryLoad: () =>
+        currentFolderId ? this.loadFolderContents(currentFolderId) : this.loadStorage(),
       sectionTitle,
       showBreadcrumb,
       showFolderCrumb: !!currentFolderName,
@@ -2456,12 +2729,14 @@ export default class App extends React.Component {
       isListView: st.viewMode === 'list',
       setGridView: () => this.setViewMode('grid'),
       setListView: () => this.setViewMode('list'),
-      sharedCount: nonTrashed.filter((f) => f.shared).length,
+      sharedCount: nonTrashed.filter((f) => sharedIds.has(f.id)).length,
       trashCount: files.filter((f) => f.trashed).length,
       navToAll: () => this.navToAll(),
       navToShared: () => this.navToShared(),
       navToRecent: () => this.navToRecent(),
+      navToStarred: () => this.navToStarred(),
       navToTrash: () => this.navToTrash(),
+      starredCount: nonTrashed.filter((f) => f.starred).length,
       mobileCreateOpen: st.mobileCreateOpen,
       onFabTap: () => this.toggleMobileCreate(),
       onMobileCreateNote: () => this.mobileCreateNote(),
@@ -2477,6 +2752,9 @@ export default class App extends React.Component {
       navRecentBg: navBg(af('recent')),
       navRecentColor: navColor(af('recent')),
       navRecentWeight: navW(af('recent')),
+      navStarredBg: navBg(af('starred')),
+      navStarredColor: navColor(af('starred')),
+      navStarredWeight: navW(af('starred')),
       navTrashBg: navBg(af('trash')),
       navTrashColor: navColor(af('trash')),
       navTrashWeight: navW(af('trash')),
@@ -2485,6 +2763,35 @@ export default class App extends React.Component {
       storagePct,
       storageBarColor: storagePct > 90 ? '#E5484D' : storagePct > 75 ? '#D97706' : '#5145E5',
       quotaWarn,
+      isDetailsModal: modal === 'details',
+      detailsView: (() => {
+        const f = st.detailsFileId ? files.find((x) => x.id === st.detailsFileId) : null;
+        if (!f) return null;
+        const isFolder = f.kind === 'folder';
+        const path = [];
+        let pid = f.parentId;
+        while (pid) {
+          const p = files.find((x) => x.id === pid);
+          if (!p) break;
+          path.unshift(p.name);
+          pid = p.parentId;
+        }
+        const childCount = isFolder
+          ? files.filter((x) => x.parentId === f.id && !x.trashed).length
+          : 0;
+        const ext = extOf(f.name);
+        return {
+          name: f.name,
+          starred: !!f.starred,
+          rows: [
+            ['Type', isFolder ? 'Folder' : ext ? `${ext.toUpperCase()} file` : f.kind || 'File'],
+            ['Size', isFolder ? `${childCount} item${childCount === 1 ? '' : 's'}` : humanSize(f.sizeBytes || 0)],
+            ['Created', f.createdAt ? new Date(f.createdAt).toLocaleString() : '—'],
+            ['Location', path.length ? `My Files / ${path.join(' / ')}` : 'My Files'],
+            ['Shared', sharedIds.has(f.id) ? 'Yes — public link' : 'No'],
+          ],
+        };
+      })(),
       ctxMenuView,
       closeCtxMenu: () => this.closeCtxMenu(),
       openUpload: () => this.openUpload(),
@@ -2493,6 +2800,7 @@ export default class App extends React.Component {
       creatingNote: st.creatingNote,
       isNewFolderModal: modal === 'newFolder',
       newFolderName: st.newFolderName,
+      newFolderBusy: st.newFolderBusy,
       setNewFolderName: (e) => this.setNewFolderName(e),
       createFolder: () => this.createFolder(),
       gotoForgot: () => this.gotoForgot(),
@@ -2501,6 +2809,10 @@ export default class App extends React.Component {
       fileInputRef: (el) => this.fileInputRef(el),
       browseFiles: () => this.browseFiles(),
       onFilesPicked: (e) => this.onFilesPicked(e),
+      dragUploadOver: st.dragUploadOver,
+      onUploadDragOver: (e) => this.onUploadDragOver(e),
+      onUploadDragLeave: (e) => this.onUploadDragLeave(e),
+      onUploadDrop: (e) => this.onUploadDrop(e),
       emptyTrash: () => this.emptyTrash(),
       videoVolume: st.videoVolume,
       setVolume: (e) => this.setVolume(e),
@@ -2510,7 +2822,6 @@ export default class App extends React.Component {
       videoLoading: st.videoLoading,
       modalOpen: !!modal,
       isUploadModal: modal === 'upload',
-      isSettingsModal: modal === 'settings',
       isNotificationsModal: modal === 'notifications',
       isRelatedModal: modal === 'related',
       relatedList: st.relatedList,
@@ -2519,9 +2830,6 @@ export default class App extends React.Component {
       isPreviewModal: modal === 'preview',
       isVideoModal: modal === 'video',
       isShareModal: modal === 'share',
-      // Share-link management.
-      isLinksModal: modal === 'links',
-      openLinks: () => this.openLinks(),
       isGraphModal: modal === 'graph',
       openGraph: () => this.openGraph(),
       openGraphFile: (id) => this.openGraphFile(id),
@@ -2638,27 +2946,22 @@ export default class App extends React.Component {
       })),
       closeModal: () => this.closeModal(),
       uploadQueueView: uploadQueue.map((u) => ({ name: u.name, progress: u.progress })),
+      // Settings is a full page with a secondary sidebar (not a modal).
+      isSettingsPage: st.settingsPage && isApp,
+      closeSettings: () => this.closeSettings(),
       settingsTab,
       stIsProfile: settingsTab === 'profile',
       stIsAccount: settingsTab === 'account',
       stIsSecurity: settingsTab === 'security',
       stIsDeveloper: settingsTab === 'developer',
+      stIsStorage: settingsTab === 'storage',
+      stIsLinks: settingsTab === 'links',
       setSettingsProfile: () => this.setSettingsProfile(),
       setSettingsAccount: () => this.setSettingsAccount(),
       setSettingsSecurity: () => this.setSettingsSecurity(),
       setSettingsDeveloper: () => this.setSettingsDeveloper(),
-      stProfileBg: settingsTab === 'profile' ? '#FFFFFF' : 'transparent',
-      stProfileColor: settingsTab === 'profile' ? '#15171C' : '#656B76',
-      stAccountBg: settingsTab === 'account' ? '#FFFFFF' : 'transparent',
-      stAccountColor: settingsTab === 'account' ? '#15171C' : '#656B76',
-      stSecurityBg: settingsTab === 'security' ? '#FFFFFF' : 'transparent',
-      stSecurityColor: settingsTab === 'security' ? '#15171C' : '#656B76',
-      stDeveloperBg: settingsTab === 'developer' ? '#FFFFFF' : 'transparent',
-      stDeveloperColor: settingsTab === 'developer' ? '#15171C' : '#656B76',
-      stIsStorage: settingsTab === 'storage',
       setSettingsStorage: () => this.setSettingsStorage(),
-      stStorageBg: settingsTab === 'storage' ? '#FFFFFF' : 'transparent',
-      stStorageColor: settingsTab === 'storage' ? '#15171C' : '#656B76',
+      setSettingsLinks: () => this.setSettingsLinks(),
       // Storage administration (owner only)
       isOwner: st.isOwner,
       storage: {
@@ -2725,7 +3028,14 @@ export default class App extends React.Component {
       setProfileUsername: (e) => this.setProfileUsername(e),
       setProfileBio: (e) => this.setProfileBio(e),
       saveProfile: () => this.saveProfile(),
-      toastPhoto: () => this.toastPhoto(),
+      avatarUrl: st.avatarUrl,
+      avatarInitial: ((st.profileName || st.accountEmail || 'A').trim()[0] || 'A').toUpperCase(),
+      changePhoto: () => this.changePhoto(),
+      removePhoto: () => this.removePhoto(),
+      avatarInputRef: (el) => this.avatarInputRef(el),
+      onAvatarPicked: (e) => this.onAvatarPicked(e),
+      profileLanguage: st.profileLanguage,
+      setLanguage: (e) => this.setLanguage(e),
       accountEmail: st.accountEmail,
       emailVerified,
       emailNotVerified: !emailVerified,
@@ -2738,9 +3048,6 @@ export default class App extends React.Component {
       setPwNew: (e) => this.setPwNew(e),
       setPwConfirm: (e) => this.setPwConfirm(e),
       updatePassword: () => this.updatePassword(),
-      twofaBg: twofa ? '#5145E5' : '#CBD0D8',
-      twofaX: twofa ? 20 : 2,
-      toggle2fa: () => this.toggle2fa(),
       toastSessions: () => this.toastSessions(),
       activeFile,
       openShareForActive: () => this.openShareForActive(),
@@ -2838,6 +3145,8 @@ export default class App extends React.Component {
       })),
       toastVisible: !!toastMsg,
       toastMsg,
+      toastActionLabel: st.toastAction ? st.toastAction.label : '',
+      onToastAction: () => this.runToastAction(),
       toastBottom: isMobile ? 80 : 26,
     };
   }

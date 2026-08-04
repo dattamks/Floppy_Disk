@@ -25,10 +25,10 @@ test('sharing a file creates a real backend link', async ({ page }) => {
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
 
-  // The link shows up in "Manage links" and can be revoked.
-  await page.getByRole('button', { name: 'Manage links' }).click();
-  const dialog = page.getByRole('dialog');
-  await expect(dialog.getByText('sharable.txt')).toBeVisible();
-  await dialog.getByRole('button', { name: 'Revoke' }).click();
-  await expect(dialog.getByText('No active share links yet.')).toBeVisible();
+  // The link shows up under Settings → Links and can be revoked.
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Links' }).click();
+  await expect(page.getByText('sharable.txt')).toBeVisible();
+  await page.getByRole('button', { name: 'Revoke' }).click();
+  await expect(page.getByText('No active share links yet.')).toBeVisible();
 });
