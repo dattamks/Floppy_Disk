@@ -129,7 +129,7 @@ export default function TopBarMobile(V) {
           width: '38px',
           height: '38px',
           borderRadius: '50%',
-          background: theme.brand,
+          background: V.avatarUrl ? `center/cover no-repeat url(${V.avatarUrl})` : theme.brand,
           border: 'none',
           display: 'flex',
           alignItems: 'center',
@@ -142,7 +142,7 @@ export default function TopBarMobile(V) {
           cursor: 'pointer',
         }}
       >
-        A
+        {V.avatarUrl ? '' : V.avatarInitial || 'A'}
       </button>{' '}
     </React.Fragment>
   ) : null;

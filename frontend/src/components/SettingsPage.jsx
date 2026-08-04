@@ -37,25 +37,41 @@ function Profile(V) {
   return (
     <React.Fragment>
       <div style={{ display: 'flex', alignItems: 'center', gap: '13px' }}>
-        <div
-          style={{
-            width: '58px',
-            height: '58px',
-            borderRadius: '50%',
-            background: theme.brand,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: theme.white,
-            fontFamily: "'Space Grotesk',sans-serif",
-            fontWeight: '700',
-            fontSize: '22px',
-          }}
-        >
-          {initial}
-        </div>
+        {V.avatarUrl ? (
+          <img
+            src={V.avatarUrl}
+            alt="Profile photo"
+            style={{ width: '58px', height: '58px', borderRadius: '50%', objectFit: 'cover' }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '58px',
+              height: '58px',
+              borderRadius: '50%',
+              background: theme.brand,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: theme.white,
+              fontFamily: "'Space Grotesk',sans-serif",
+              fontWeight: '700',
+              fontSize: '22px',
+            }}
+          >
+            {initial}
+          </div>
+        )}
+        <input
+          ref={V.avatarInputRef}
+          onChange={V.onAvatarPicked}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          aria-hidden="true"
+        />
         <button
-          onClick={V.toastPhoto}
+          onClick={V.changePhoto}
           style={{
             background: theme.surface,
             border: `1px solid ${theme.border}`,
@@ -68,6 +84,21 @@ function Profile(V) {
         >
           Change photo
         </button>
+        {V.avatarUrl ? (
+          <button
+            onClick={V.removePhoto}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: theme.textMuted,
+              fontSize: '12.5px',
+              fontWeight: '500',
+              cursor: 'pointer',
+            }}
+          >
+            Remove
+          </button>
+        ) : null}
       </div>
       <label style={label}>
         Display name
@@ -158,10 +189,14 @@ function Account(V) {
       </div>
       <label style={label}>
         Language
-        <select style={{ ...inputStyle, cursor: 'pointer' }}>
-          <option>English (US)</option>
-          <option>Hindi</option>
-          <option>Español</option>
+        <select
+          value={V.profileLanguage || 'en'}
+          onChange={V.setLanguage}
+          style={{ ...inputStyle, cursor: 'pointer' }}
+        >
+          <option value="en">English (US)</option>
+          <option value="hi">Hindi</option>
+          <option value="es">Español</option>
         </select>
       </label>
       <button

@@ -83,6 +83,8 @@ export default class App extends React.Component {
     profileBio: '',
     accountEmail: '',
     emailVerified: false,
+    avatarUrl: '', // profile picture data URL ('' => show the initial)
+    profileLanguage: 'en',
     pwCurrent: '',
     pwNew: '',
     pwConfirm: '',
@@ -343,8 +345,13 @@ export default class App extends React.Component {
       accountEmail: user.email,
       emailVerified: !!user.email_verified,
       profileName: user.display_name || this.state.profileName,
+      avatarUrl: user.avatar_url || '',
+      profileLanguage: user.language || 'en',
       isOwner: !!user.is_owner,
     });
+    try {
+      document.documentElement.lang = user.language || 'en';
+    } catch (e) {}
     this.loadStorage();
     this.loadUsage();
     this.loadNotifications();
@@ -854,8 +861,69 @@ export default class App extends React.Component {
       })
       .catch((err) => this.toast(firstError(err, 'Could not save profile')));
   }
-  toastPhoto() {
-    this.toast('Photo picker opened');
+  // Open the OS file picker for a new profile photo.
+  changePhoto() {
+    if (this._avatarInput) this._avatarInput.click();
+  }
+  avatarInputRef(el) {
+    this._avatarInput = el;
+  }
+  onAvatarPicked(e) {
+    const file = e.target && e.target.files && e.target.files[0];
+    if (e.target) e.target.value = '';
+    if (!file) return;
+    if (!/^image\//.test(file.type)) {
+      this.toast('Please choose an image');
+      return;
+    }
+    this._resizeToDataUrl(file, 256)
+      .then((dataUrl) => {
+        this.setState({ avatarUrl: dataUrl }); // optimistic
+        return api.setAvatar(dataUrl);
+      })
+      .then(() => this.toast('Photo updated'))
+      .catch((err) => this.toast(firstError(err, 'Could not update photo')));
+  }
+  setLanguage(e) {
+    const code = e.target.value;
+    this.setState({ profileLanguage: code });
+    try {
+      document.documentElement.lang = code;
+    } catch (err) {}
+    api
+      .updateSettings({ language: code })
+      .then(() => this.toast('Language preference saved'))
+      .catch((err) => this.toast(firstError(err, 'Could not save language')));
+  }
+  removePhoto() {
+    this.setState({ avatarUrl: '' });
+    api.removeAvatar().catch((err) => this.toast(firstError(err, 'Could not remove photo')));
+    this.toast('Photo removed');
+  }
+  // Downscale + square-crop an image file to a small JPEG data URL (keeps the
+  // avatar tiny so it stores in one DB row and loads instantly).
+  _resizeToDataUrl(file, size) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('read failed'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('decode failed'));
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          const scale = Math.max(size / img.width, size / img.height);
+          const w = img.width * scale;
+          const h = img.height * scale;
+          ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
   }
   toastDelete() {
     api
@@ -1800,7 +1868,13 @@ export default class App extends React.Component {
     this.closeCtxMenu();
     if (!file) return;
     if (file.kind === 'folder') {
-      this.openFile(file);
+      // Download a folder as a .zip (the browser handles the streamed attachment).
+      if (file.real) {
+        window.open(api.folderDownloadUrl(file.id), '_blank');
+        this.toast('Preparing download…');
+      } else {
+        this.openFile(file);
+      }
       return;
     }
     if (file.real) {
@@ -2422,7 +2496,7 @@ export default class App extends React.Component {
         });
       } else {
         items.push({ label: 'Open', fn: () => this.openFile(f) });
-        if (f.kind !== 'folder') items.push({ label: 'Download', fn: () => this.downloadFile(f) });
+        items.push({ label: f.kind === 'folder' ? 'Download (.zip)' : 'Download', fn: () => this.downloadFile(f) });
         items.push({ label: 'Rename', fn: () => this.openRename(f) });
         items.push({ label: 'Move to…', fn: () => this.openMove(f) });
         items.push({ label: f.starred ? 'Unstar' : 'Star', fn: () => this.toggleStar(f.id) });
@@ -2929,7 +3003,14 @@ export default class App extends React.Component {
       setProfileUsername: (e) => this.setProfileUsername(e),
       setProfileBio: (e) => this.setProfileBio(e),
       saveProfile: () => this.saveProfile(),
-      toastPhoto: () => this.toastPhoto(),
+      avatarUrl: st.avatarUrl,
+      avatarInitial: ((st.profileName || st.accountEmail || 'A').trim()[0] || 'A').toUpperCase(),
+      changePhoto: () => this.changePhoto(),
+      removePhoto: () => this.removePhoto(),
+      avatarInputRef: (el) => this.avatarInputRef(el),
+      onAvatarPicked: (e) => this.onAvatarPicked(e),
+      profileLanguage: st.profileLanguage,
+      setLanguage: (e) => this.setLanguage(e),
       accountEmail: st.accountEmail,
       emailVerified,
       emailNotVerified: !emailVerified,

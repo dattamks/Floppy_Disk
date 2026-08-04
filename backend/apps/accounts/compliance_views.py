@@ -10,6 +10,30 @@ from .compliance import build_export
 from .models import ConsentLog
 
 
+class AvatarView(APIView):
+    """Set or clear the profile picture (a small, client-resized image data URL)."""
+
+    permission_classes = [IsAuthenticated]
+    MAX_LEN = 300 * 1024  # ~300KB data URL; the client resizes before sending
+
+    def patch(self, request):
+        data_url = str(request.data.get("avatar") or "")
+        if not data_url.startswith("data:image/"):
+            return Response({"detail": "Avatar must be an image."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if len(data_url) > self.MAX_LEN:
+            return Response({"detail": "Image is too large. Please choose a smaller one."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        request.user.avatar_url = data_url
+        request.user.save(update_fields=["avatar_url", "updated_at"])
+        return Response({"avatar_url": data_url})
+
+    def delete(self, request):
+        request.user.avatar_url = ""
+        request.user.save(update_fields=["avatar_url", "updated_at"])
+        return Response({"avatar_url": ""})
+
+
 class SignOutOtherSessionsView(APIView):
     """Revoke every OTHER logged-in session for this user, keeping the current one.
 
@@ -94,7 +118,7 @@ class AccountSettingsView(APIView):
     permission_classes = [IsAuthenticated]
 
     BOOL_FIELDS = ("auto_backup_enabled", "backup_wifi_only", "two_factor_enabled")
-    STRING_FIELDS = ("display_name",)
+    STRING_FIELDS = ("display_name", "language")
     FIELDS = STRING_FIELDS + BOOL_FIELDS
 
     def get(self, request):

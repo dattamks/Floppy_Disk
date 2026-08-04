@@ -209,3 +209,57 @@ test('the Details panel shows file metadata', async ({ page }) => {
   await expect(dialog.getByText('Location')).toBeVisible();
   await expect(dialog.getByText('Shared')).toBeVisible();
 });
+
+const PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64'
+);
+
+test('uploading a profile photo shows it in Settings', async ({ page }) => {
+  await registerNewUser(page);
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible();
+  await page.locator('input[type="file"][accept="image/*"]').setInputFiles({
+    name: 'me.png', mimeType: 'image/png', buffer: PNG,
+  });
+  await expect(page.getByRole('img', { name: 'Profile photo' })).toBeVisible();
+});
+
+test('changing language updates <html lang> and persists', async ({ page }) => {
+  await registerNewUser(page);
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Account' }).click();
+  await page.getByRole('combobox').selectOption('es');
+  await expect(page.getByText('Language preference saved')).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+});
+
+test('trash shows a real retention countdown', async ({ page }) => {
+  await registerNewUser(page);
+  await upload(page, 'old.txt');
+  await page.getByRole('button', { name: 'More actions' }).first().click();
+  await page.getByRole('button', { name: 'Move to trash' }).click();
+  await page.getByRole('button', { name: 'Trash' }).click();
+  await expect(page.getByText(/days left/)).toBeVisible();
+});
+
+test('a folder offers a .zip download', async ({ page }) => {
+  await registerNewUser(page);
+  await page.getByRole('button', { name: 'New folder' }).click();
+  const input = page.getByLabel('Folder name');
+  await input.fill('Bundle');
+  await input.press('Enter');
+  await expect(page.getByText('Bundle')).toBeVisible();
+  await page.getByRole('button', { name: 'More actions' }).first().click();
+  await expect(page.getByRole('button', { name: 'Download (.zip)' })).toBeVisible();
+});
+
+test('the PWA manifest is linked and served', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('link[rel="manifest"]')).toHaveAttribute('href', '/manifest.json');
+  const res = await page.request.get('/manifest.json');
+  expect(res.ok()).toBeTruthy();
+  expect((await res.json()).name).toBe('Floppy Disk');
+});

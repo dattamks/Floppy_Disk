@@ -710,6 +710,84 @@ class TrashView(APIView):
         })
 
 
+class FolderDownloadView(APIView):
+    """Download a whole folder (recursively) as a .zip, preserving structure."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, folder_id):
+        if not folder_in_scope(request, str(folder_id)):
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        try:
+            folder = scope_folders(
+                Folder.objects.filter(pk=folder_id, owner=request.user, deleted_at__isnull=True),
+                request,
+            ).get()
+        except Folder.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        storage = get_storage_service()
+        can_read = hasattr(storage, "local_path") or hasattr(storage, "read_bytes")
+        if not can_read:
+            return Response({"detail": "Downloads aren't available for this storage backend."},
+                            status=status.HTTP_501_NOT_IMPLEMENTED)
+
+        # Gather (arcname, File) recursively; names are unique within a folder so
+        # collisions can't happen. Empty folders simply produce no entries.
+        def collect(node, prefix):
+            entries = []
+            files = File.objects.filter(
+                owner=request.user, folder=node, deleted_at__isnull=True,
+                status=File.Status.READY, storage_object__isnull=False,
+            )
+            for f in files:
+                entries.append((prefix + f.name, f))
+            for sub in Folder.objects.filter(owner=request.user, parent=node, deleted_at__isnull=True):
+                entries.extend(collect(sub, prefix + sub.name + "/"))
+            return entries
+
+        entries = collect(folder, "")
+
+        import os
+        import tempfile
+        import zipfile
+
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+        try:
+            with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+                for arcname, f in entries:
+                    obj = f.storage_object
+                    lp = getattr(storage, "local_path", None)
+                    if callable(lp):
+                        path = lp(region=obj.region, object_key=obj.object_key)
+                        try:
+                            zf.write(path, arcname=arcname)  # streamed from disk
+                        except FileNotFoundError:
+                            continue  # skip a missing blob rather than fail the whole zip
+                    else:
+                        try:
+                            zf.writestr(arcname, storage.read_bytes(region=obj.region, object_key=obj.object_key))
+                        except FileNotFoundError:
+                            continue
+            tmp.close()
+        except Exception:
+            tmp.close()
+            os.unlink(tmp.name)
+            raise
+
+        def _stream(path):
+            try:
+                with open(path, "rb") as fh:
+                    for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                        yield chunk
+            finally:
+                os.unlink(path)  # clean up the temp zip once streamed
+
+        resp = StreamingHttpResponse(_stream(tmp.name), content_type="application/zip")
+        resp["Content-Disposition"] = _content_disposition(f"{folder.name}.zip")
+        return resp
+
+
 class UploadInitiateView(APIView):
     permission_classes = [IsAuthenticated]
 

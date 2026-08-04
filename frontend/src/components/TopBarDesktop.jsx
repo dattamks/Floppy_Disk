@@ -226,7 +226,7 @@ export default function TopBarDesktop(V) {
           width: '34px',
           height: '34px',
           borderRadius: '50%',
-          background: theme.brand,
+          background: V.avatarUrl ? `center/cover no-repeat url(${V.avatarUrl})` : theme.brand,
           border: 'none',
           display: 'flex',
           alignItems: 'center',
@@ -238,7 +238,7 @@ export default function TopBarDesktop(V) {
           cursor: 'pointer',
         }}
       >
-        A
+        {V.avatarUrl ? '' : V.avatarInitial || 'A'}
       </button>{' '}
     </React.Fragment>
   ) : null;

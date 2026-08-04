@@ -8,3 +8,11 @@ createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>
 );
+
+// Register the service worker so the app is installable + works offline. Guarded
+// so it's a no-op where unsupported (and never blocks first paint).
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
