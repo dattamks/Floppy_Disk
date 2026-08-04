@@ -1065,12 +1065,18 @@ export default class App extends React.Component {
           sizeBytes: f.size_bytes,
           modified: '',
           createdAt: f.created_at || null,
+          updatedAt: f.updated_at || null,
           shared: false,
           starred: !!f.starred,
           trashed: false,
           status: f.status,
           poster: f.poster_url || undefined,
           duration: fmtDuration(f.duration_seconds) || undefined,
+          durationSeconds: f.duration_seconds || null,
+          width: f.width || null,
+          height: f.height || null,
+          description: f.description || '',
+          tags: Array.isArray(f.tags) ? f.tags : [],
           real: true,
         }));
       return mapped.length ? { files: [...mapped, ...s.files] } : null;
@@ -1503,6 +1509,35 @@ export default class App extends React.Component {
   openDetails(file) {
     this.closeCtxMenu();
     this.setState({ modal: 'details', detailsFileId: file.id });
+  }
+  // Persist the user-authored description/tags from the Details panel. Optimistic
+  // update, rolled back on failure; the server normalizes tags (trim/dedup/cap)
+  // so we adopt whatever it returns as the source of truth.
+  saveFileMeta(id, patch) {
+    const item = this.state.files.find((f) => f.id === id);
+    if (!item || !item.real) return Promise.resolve();
+    const prev = { description: item.description, tags: item.tags };
+    this.setState((s) => ({
+      files: s.files.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+    }));
+    return api
+      .updateFile(id, patch)
+      .then((f) => {
+        this.setState((s) => ({
+          files: s.files.map((x) =>
+            x.id === id
+              ? { ...x, description: f.description ?? '', tags: Array.isArray(f.tags) ? f.tags : [] }
+              : x
+          ),
+        }));
+        this.toast('Details saved');
+      })
+      .catch((err) => {
+        this.setState((s) => ({
+          files: s.files.map((f) => (f.id === id ? { ...f, ...prev } : f)),
+        }));
+        this.toast(firstError(err, 'Could not save details'));
+      });
   }
   // --- Move (files & folders) -----------------------------------------------
   openMove(file) {
@@ -2786,18 +2821,29 @@ export default class App extends React.Component {
           ? files.filter((x) => x.parentId === f.id && !x.trashed).length
           : 0;
         const ext = extOf(f.name);
+        const rows = [
+          ['Type', isFolder ? 'Folder' : ext ? `${ext.toUpperCase()} file` : f.kind || 'File'],
+          ['Size', isFolder ? `${childCount} item${childCount === 1 ? '' : 's'}` : humanSize(f.sizeBytes || 0)],
+        ];
+        // Extracted media metadata, shown only when we have it.
+        if (!isFolder && f.width && f.height) rows.push(['Resolution', `${f.width} × ${f.height}`]);
+        if (!isFolder && f.durationSeconds) rows.push(['Duration', fmtDuration(f.durationSeconds)]);
+        rows.push(['Created', f.createdAt ? new Date(f.createdAt).toLocaleString() : '—']);
+        if (f.updatedAt) rows.push(['Modified', new Date(f.updatedAt).toLocaleString()]);
+        rows.push(['Location', path.length ? `My Files / ${path.join(' / ')}` : 'My Files']);
+        rows.push(['Shared', sharedIds.has(f.id) ? 'Yes — public link' : 'No']);
         return {
+          id: f.id,
           name: f.name,
           starred: !!f.starred,
-          rows: [
-            ['Type', isFolder ? 'Folder' : ext ? `${ext.toUpperCase()} file` : f.kind || 'File'],
-            ['Size', isFolder ? `${childCount} item${childCount === 1 ? '' : 's'}` : humanSize(f.sizeBytes || 0)],
-            ['Created', f.createdAt ? new Date(f.createdAt).toLocaleString() : '—'],
-            ['Location', path.length ? `My Files / ${path.join(' / ')}` : 'My Files'],
-            ['Shared', sharedIds.has(f.id) ? 'Yes — public link' : 'No'],
-          ],
+          // Editable, user-authored metadata (folders don't carry these).
+          editable: !isFolder,
+          description: f.description || '',
+          tags: Array.isArray(f.tags) ? f.tags : [],
+          rows,
         };
       })(),
+      saveFileMeta: (id, patch) => this.saveFileMeta(id, patch),
       ctxMenuView,
       closeCtxMenu: () => this.closeCtxMenu(),
       openUpload: () => this.openUpload(),

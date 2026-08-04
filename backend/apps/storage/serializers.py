@@ -46,8 +46,10 @@ class FileSerializer(serializers.ModelSerializer):
         model = File
         fields = [
             "id", "name", "folder", "kind", "size_bytes", "status", "created_at",
-            "poster_url", "duration_seconds", "starred", "deleted_at",
+            "updated_at", "poster_url", "duration_seconds", "width", "height",
+            "starred", "description", "tags", "deleted_at",
         ]
+        # description/tags are edited via PATCH /files/{id}; the serializer is read-only.
         read_only_fields = fields
 
     def get_poster_url(self, obj):

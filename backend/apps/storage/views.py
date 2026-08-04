@@ -117,6 +117,34 @@ def _kick_off_transcode(file_id: str) -> None:
         transcode_video_task.delay(file_id)
 
 
+def _clean_tags(value) -> list:
+    """Normalize user-supplied tags to a bounded, de-duplicated list of strings.
+
+    Accepts a JSON array or a comma-separated string; trims whitespace, drops
+    empties, caps each tag's length and the total count, and preserves order
+    while removing case-insensitive duplicates.
+    """
+    if isinstance(value, str):
+        parts = value.split(",")
+    elif isinstance(value, (list, tuple)):
+        parts = value
+    else:
+        return []
+    out, seen = [], set()
+    for raw in parts:
+        tag = str(raw).strip()[:40]
+        if not tag:
+            continue
+        key = tag.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(tag)
+        if len(out) >= 30:
+            break
+    return out
+
+
 def _content_disposition(name: str) -> str:
     """An attachment Content-Disposition that carries the display name.
 
@@ -506,7 +534,7 @@ class FileContentView(APIView):
                 storage_used_bytes=F("storage_used_bytes") + delta
             )
         # Content changed - refresh the full-text index and warm the graph.
-        if file.kind == File.Kind.DOC:
+        if file.kind in (File.Kind.DOC, File.Kind.IMAGE):
             from .indexing import reindex_file
             reindex_file(file)
         from apps.graph.tasks import schedule_rebuild
@@ -600,12 +628,21 @@ class FileDetailView(APIView):
             file.starred = bool(request.data["starred"])
             fields.append("starred")
 
+        if "description" in request.data:
+            file.description = str(request.data.get("description") or "")[:4000]
+            fields.append("description")
+
+        if "tags" in request.data:
+            file.tags = _clean_tags(request.data.get("tags"))
+            fields.append("tags")
+
         if not fields:
             return Response(FileSerializer(file).data)
 
-        # A star-only change must not trip the rename/collision path below.
-        if fields == ["starred"]:
-            file.save(update_fields=["starred", "updated_at"])
+        # Only a rename or move needs the collision/unique-name resolution below;
+        # metadata edits (star, description, tags) save straight through.
+        if not ({"name", "folder"} & set(fields)):
+            file.save(update_fields=[*fields, "updated_at"])
             return Response(FileSerializer(file).data)
 
         file.name = unique_name(
@@ -1027,8 +1064,9 @@ class UploadCompleteView(APIView):
             _kick_off_transcode(str(file.id))
             file.refresh_from_db()  # background/eager run may already have finished
 
-        # Extract document text for full-text (content) search (best-effort).
-        if file.kind == File.Kind.DOC:
+        # Extract document/image text (OCR) + image dimensions for search + the
+        # Details panel (best-effort; images get width/height, scanned docs OCR).
+        if file.kind in (File.Kind.DOC, File.Kind.IMAGE):
             from .indexing import reindex_file
             reindex_file(file)
 

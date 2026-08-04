@@ -210,6 +210,44 @@ test('the Details panel shows file metadata', async ({ page }) => {
   await expect(dialog.getByText('Shared')).toBeVisible();
 });
 
+test('Details panel: add a description + tags and they persist', async ({ page }) => {
+  await registerNewUser(page);
+  await upload(page, 'summary.txt', 'hello details');
+
+  await page.getByRole('button', { name: 'More actions' }).first().click();
+  await page.getByRole('button', { name: 'Details' }).click();
+  const dialog = page.getByRole('dialog');
+
+  // Add a description and two tags (Enter commits each tag into a chip).
+  await dialog.getByPlaceholder('Add a description…').fill('Q3 revenue overview');
+  const tagInput = dialog.getByLabel('Add a tag');
+  await tagInput.fill('finance');
+  await tagInput.press('Enter');
+  await tagInput.fill('budget');
+  await tagInput.press('Enter');
+  await expect(dialog.getByText('finance', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('budget', { exact: true })).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByText('Details saved')).toBeVisible({ timeout: 10000 });
+  await page.keyboard.press('Escape');
+
+  // Reload and reopen: the metadata survived the round-trip to the server.
+  await page.reload();
+  await expect(page.getByText('summary.txt')).toBeVisible({ timeout: 10000 });
+  await page.getByRole('button', { name: 'More actions' }).first().click();
+  await page.getByRole('button', { name: 'Details' }).click();
+  const dialog2 = page.getByRole('dialog');
+  await expect(dialog2.getByPlaceholder('Add a description…')).toHaveValue('Q3 revenue overview');
+  await expect(dialog2.getByText('finance', { exact: true })).toBeVisible();
+  await expect(dialog2.getByText('budget', { exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  // Full-text search finds it by a tag word only present in metadata.
+  await page.getByPlaceholder('Search files and folders').fill('budget');
+  await expect(page.getByText('summary.txt').first()).toBeVisible({ timeout: 10000 });
+});
+
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
   'base64'
