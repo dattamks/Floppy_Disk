@@ -174,3 +174,38 @@ test('the Security settings expose no cosmetic 2FA toggle', async ({ page }) => 
   // The backend has no real second factor, so the misleading toggle is gone.
   await expect(page.getByText('Two-factor authentication')).toHaveCount(0);
 });
+
+test('a shared file appears under Shared and leaves on revoke', async ({ page }) => {
+  await registerNewUser(page);
+  await upload(page, 'shareme.txt');
+
+  await page.getByText('shareme.txt').click();
+  await page.getByRole('button', { name: 'Share', exact: true }).first().click();
+  await expect(page.getByText('Share link created')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: 'Shared' }).click();
+  await expect(page.getByText('shareme.txt')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Links' }).click();
+  await page.getByRole('button', { name: 'Revoke' }).click();
+  await page.getByRole('button', { name: 'Back to files' }).click();
+  await page.getByRole('button', { name: 'Shared' }).click();
+  await expect(page.getByText('shareme.txt')).toHaveCount(0);
+});
+
+test('the Details panel shows file metadata', async ({ page }) => {
+  await registerNewUser(page);
+  await upload(page, 'info.txt', 'hello details');
+
+  await page.getByRole('button', { name: 'More actions' }).first().click();
+  await page.getByRole('button', { name: 'Details' }).click();
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText('Type')).toBeVisible();
+  await expect(dialog.getByText('TXT file')).toBeVisible();
+  await expect(dialog.getByText('Location')).toBeVisible();
+  await expect(dialog.getByText('Shared')).toBeVisible();
+});

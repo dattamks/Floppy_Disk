@@ -1,7 +1,7 @@
 import React from 'react';
 import { theme } from './lib/theme';
 import { api, firstError } from './api';
-import { humanSize, fmtStorage, kindOf, previewKindOf, fmtDuration, baseName } from './lib/ui';
+import { humanSize, fmtStorage, kindOf, previewKindOf, fmtDuration, baseName, extOf } from './lib/ui';
 import { renderMarkdown } from './lib/markdown';
 import AppView from './view/AppView';
 
@@ -73,6 +73,7 @@ export default class App extends React.Component {
     // Bulk selection.
     selectedIds: [],
     moveBulk: false,
+    detailsFileId: null, // the file/folder shown in the Details panel
     dragUploadOver: false, // OS file-drag hovering the grid (drop-to-upload)
     // Settings is a full page (not a modal) with its own secondary nav.
     settingsPage: false,
@@ -347,6 +348,7 @@ export default class App extends React.Component {
     this.loadStorage();
     this.loadUsage();
     this.loadNotifications();
+    this.loadShares(); // so the Shared view reflects files with live links from the start
     if (user.is_owner) this.loadStorageConfig();
   }
 
@@ -1408,6 +1410,10 @@ export default class App extends React.Component {
     }
   }
 
+  openDetails(file) {
+    this.closeCtxMenu();
+    this.setState({ modal: 'details', detailsFileId: file.id });
+  }
   // --- Move (files & folders) -----------------------------------------------
   openMove(file) {
     this.closeCtxMenu();
@@ -1706,7 +1712,11 @@ export default class App extends React.Component {
       api
         .createShare(file.id)
         .then((link) => {
-          this.setState({ shareLinkUrl: window.location.origin + link.url });
+          // Track the new link so the file shows under "Shared" right away.
+          this.setState((s) => ({
+            shareLinkUrl: window.location.origin + link.url,
+            linksList: [link, ...(s.linksList || []).filter((l) => l.id !== link.id)],
+          }));
           this.toast('Share link created');
         })
         .catch((err) => this.toast(firstError(err, 'Could not create link')));
@@ -2185,6 +2195,8 @@ export default class App extends React.Component {
     const q = searchQuery.trim().toLowerCase();
     const searchActive = q.length > 0;
     const nonTrashed = files.filter((f) => !f.trashed);
+    // Files/folders that currently have a live public link (drives the Shared view).
+    const sharedIds = new Set((st.linksList || []).map((l) => l.target_id).filter(Boolean));
 
     const mkImgRef = (url) => (el) => {
       if (!el) return;
@@ -2210,6 +2222,7 @@ export default class App extends React.Component {
       const daysLeft = f.trashed ? Math.max(0, 30 - (f.deletedDaysAgo || 0)) : null;
       return {
         ...f,
+        shared: sharedIds.has(f.id), // live public link => shows under "Shared"
         isFolder,
         isImage,
         isVideo,
@@ -2289,8 +2302,8 @@ export default class App extends React.Component {
       showBreadcrumb = true;
       sortListing(rawList);
     } else if (filterKey === 'shared') {
-      rawList = sortListing(nonTrashed.filter((f) => f.shared));
-      sectionTitle = 'Shared with me';
+      rawList = sortListing(nonTrashed.filter((f) => sharedIds.has(f.id)));
+      sectionTitle = 'Shared';
     } else if (filterKey === 'starred') {
       rawList = sortListing(nonTrashed.filter((f) => f.starred));
       sectionTitle = 'Starred';
@@ -2402,6 +2415,7 @@ export default class App extends React.Component {
         if (f.kind !== 'folder') {
           items.push({ label: 'Related files', fn: () => this.openRelated(f) });
         }
+        items.push({ label: 'Details', fn: () => this.openDetails(f) });
         items.push({ label: 'Move to trash', danger: true, fn: () => this.deleteForever(f.id) });
       }
       ctxMenuView = { x: st.ctxMenu.x, y: st.ctxMenu.y, name: f.name, items };
@@ -2601,7 +2615,7 @@ export default class App extends React.Component {
       isListView: st.viewMode === 'list',
       setGridView: () => this.setViewMode('grid'),
       setListView: () => this.setViewMode('list'),
-      sharedCount: nonTrashed.filter((f) => f.shared).length,
+      sharedCount: nonTrashed.filter((f) => sharedIds.has(f.id)).length,
       trashCount: files.filter((f) => f.trashed).length,
       navToAll: () => this.navToAll(),
       navToShared: () => this.navToShared(),
@@ -2635,6 +2649,35 @@ export default class App extends React.Component {
       storagePct,
       storageBarColor: storagePct > 90 ? '#E5484D' : storagePct > 75 ? '#D97706' : '#5145E5',
       quotaWarn,
+      isDetailsModal: modal === 'details',
+      detailsView: (() => {
+        const f = st.detailsFileId ? files.find((x) => x.id === st.detailsFileId) : null;
+        if (!f) return null;
+        const isFolder = f.kind === 'folder';
+        const path = [];
+        let pid = f.parentId;
+        while (pid) {
+          const p = files.find((x) => x.id === pid);
+          if (!p) break;
+          path.unshift(p.name);
+          pid = p.parentId;
+        }
+        const childCount = isFolder
+          ? files.filter((x) => x.parentId === f.id && !x.trashed).length
+          : 0;
+        const ext = extOf(f.name);
+        return {
+          name: f.name,
+          starred: !!f.starred,
+          rows: [
+            ['Type', isFolder ? 'Folder' : ext ? `${ext.toUpperCase()} file` : f.kind || 'File'],
+            ['Size', isFolder ? `${childCount} item${childCount === 1 ? '' : 's'}` : humanSize(f.sizeBytes || 0)],
+            ['Created', f.createdAt ? new Date(f.createdAt).toLocaleString() : '—'],
+            ['Location', path.length ? `My Files / ${path.join(' / ')}` : 'My Files'],
+            ['Shared', sharedIds.has(f.id) ? 'Yes — public link' : 'No'],
+          ],
+        };
+      })(),
       ctxMenuView,
       closeCtxMenu: () => this.closeCtxMenu(),
       openUpload: () => this.openUpload(),
