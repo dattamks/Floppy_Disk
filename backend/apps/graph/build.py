@@ -5,7 +5,14 @@ Turns a user's live folders and files into nodes, and derives edges from
 signals that are fully explainable:
 
   * CONTAINS      folder -> child folder/file          (EXTRACTED)
-  * SHARED_TOKEN  sibling files sharing a name token   (INFERRED)
+  * REFERENCES    a file that names another file        (EXTRACTED)
+  * SHARED_TOKEN  sibling files sharing a name token    (INFERRED)
+  * SHARED_TAG    files sharing a user-applied tag      (INFERRED)
+
+Each file node also carries the user-authored description + tags and any
+extracted media metadata in its ``meta``, and a file's description is scanned
+for REFERENCES too - so metadata added from the UI, API, or MCP shows up in the
+graph on the next read.
 
 The semantic/"INFERRED-by-a-model" enrichment Graphify does for prose/PDFs is
 intentionally left to the *connecting client's* LLM: the server ships this
@@ -34,6 +41,11 @@ _STOPWORDS = {
 }
 # A token shared by more than this many files is noise, not a relationship.
 _MAX_TOKEN_GROUP = 8
+# Tags are intentional user labels, so a shared tag is a stronger signal than a
+# shared name token - allow a larger group before treating it as noise.
+_MAX_TAG_GROUP = 50
+# Cap the description snippet carried in a node's meta (keeps graph.json compact).
+_META_DESC_CHARS = 280
 # REFERENCES scanning: only read small text/doc blobs, and cap fan-out per file.
 _MAX_SCAN_BYTES = 64 * 1024
 _MAX_REFS_PER_FILE = 25
@@ -56,6 +68,31 @@ def _tokens(name: str) -> set[str]:
         if len(tok) >= 3 and not tok.isdigit() and tok not in _STOPWORDS:
             out.add(tok)
     return out
+
+
+def _file_meta(fi) -> dict:
+    """Node metadata for a file, carried verbatim into graph.json / the API / MCP.
+
+    Includes the user-authored description + tags and any extracted media
+    metadata, but only keys that actually have a value - so the graph stays
+    compact and an AI reading it sees real context, not empty fields.
+    """
+    meta = {
+        "file_id": str(fi.id),
+        "kind": fi.kind,
+        "size_bytes": fi.size_bytes,
+        "folder_id": str(fi.folder_id) if fi.folder_id else None,
+    }
+    if fi.description:
+        meta["description"] = fi.description[:_META_DESC_CHARS]
+    if fi.tags:
+        meta["tags"] = list(fi.tags)
+    if fi.width and fi.height:
+        meta["width"] = fi.width
+        meta["height"] = fi.height
+    if fi.duration_seconds:
+        meta["duration_seconds"] = fi.duration_seconds
+    return meta
 
 
 @transaction.atomic
@@ -85,8 +122,7 @@ def rebuild_user_graph(user) -> dict:
         n = GraphNode(
             owner=user, kind=NodeKind.FILE, file=fi, label=fi.name,
             node_type=fi.kind, scope_folder_id=fi.folder_id,
-            meta={"file_id": str(fi.id), "kind": fi.kind, "size_bytes": fi.size_bytes,
-                  "folder_id": str(fi.folder_id) if fi.folder_id else None},
+            meta=_file_meta(fi),
         )
         file_node[fi.id] = n
         nodes.append(n)
@@ -131,6 +167,23 @@ def rebuild_user_graph(user) -> dict:
             _add(hub, file_node[other.id], GraphEdge.Rel.SHARED_TOKEN,
                  Provenance.INFERRED, f'both named "{tok}"')
 
+    # SHARED_TAG: files that share a user-applied tag. Unlike name tokens these
+    # link across the whole tree (a tag is a deliberate cross-folder label), and
+    # connect as a star from the group's first file to keep edge count linear.
+    tag_groups: dict[str, list] = {}
+    for fi in files:
+        for tag in (fi.tags or []):
+            key = str(tag).strip().lower()
+            if key:
+                tag_groups.setdefault(key, []).append(fi)
+    for tag, members in tag_groups.items():
+        if not (2 <= len(members) <= _MAX_TAG_GROUP):
+            continue
+        hub = file_node[members[0].id]
+        for other in members[1:]:
+            _add(hub, file_node[other.id], GraphEdge.Rel.SHARED_TAG,
+                 Provenance.INFERRED, f'both tagged "{tag}"')
+
     # REFERENCES: a small text/doc file that literally names another file.
     # Deterministic (plain substring match), best-effort (skips on any read
     # error), and bounded (doc-kind + size cap + per-file fan-out cap) so a
@@ -169,16 +222,20 @@ def _add_reference_edges(files, file_node, add) -> None:
     storage = _read_storage()
 
     for src in files:
-        if src.kind != File.Kind.DOC:
-            continue
-        text = src.content_text or ""
-        if not text and src.storage_object_id and storage is not None:
-            obj = src.storage_object
-            if obj and (obj.size_bytes or 0) <= _MAX_SCAN_BYTES:
-                try:
-                    text = storage.read_bytes(region=obj.region, object_key=obj.object_key).decode("utf-8", "ignore")
-                except Exception:  # noqa: BLE001 - a missing/unreadable blob is fine
-                    text = ""
+        # A document is scanned in full (indexed text, or a bounded blob read);
+        # any file's user-authored description is scanned too, so a description
+        # that names another file links them - regardless of kind.
+        body = ""
+        if src.kind == File.Kind.DOC:
+            body = src.content_text or ""
+            if not body and src.storage_object_id and storage is not None:
+                obj = src.storage_object
+                if obj and (obj.size_bytes or 0) <= _MAX_SCAN_BYTES:
+                    try:
+                        body = storage.read_bytes(region=obj.region, object_key=obj.object_key).decode("utf-8", "ignore")
+                    except Exception:  # noqa: BLE001 - a missing/unreadable blob is fine
+                        body = ""
+        text = "\n".join(p for p in (src.description or "", body) if p)
         if not text:
             continue
         low = text.lower()
