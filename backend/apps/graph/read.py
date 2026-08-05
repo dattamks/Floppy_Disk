@@ -77,7 +77,13 @@ def graph_search(user, request, query, limit=20):
     query = (query or "").strip()
     if not query:
         return {"query": "", "results": []}
-    matches = list(scoped_nodes(user, request).filter(label__icontains=query)[:limit])
+    # Match the node's name or the file's user-authored description, so the
+    # graph considers description too (folder nodes have no file, so the
+    # description clause simply never matches them).
+    matches = list(
+        scoped_nodes(user, request)
+        .filter(Q(label__icontains=query) | Q(file__description__icontains=query))[:limit]
+    )
     match_ids = [n.id for n in matches]
     # Pull every in-scope edge touching a matched node in one query.
     edges = scoped_edges(user, request).filter(Q(source_id__in=match_ids) | Q(target_id__in=match_ids))

@@ -178,11 +178,18 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 > [`../docs/deactivated-features.md`](../docs/deactivated-features.md).
 
 **Knowledge graph** (deterministic, LLM-free context for AIs)
-- `get_graph()` - the whole store as GraphRAG-ready graph.json (nodes + typed,
-  provenance-tagged edges, each with a plain-language reason)
-- `graph_search(query)` - name matches, each with its graph neighbors
+- `get_graph()` - the whole store as GraphRAG-ready graph.json. Each file node's
+  `meta` carries its user-authored `description` + `tags` and any extracted media
+  metadata (`width`/`height`, `duration_seconds`), so an AI reads real context,
+  not just names. Edges are typed and provenance-tagged with a plain-language
+  reason: `contains`, `references`, `shared_token`, and `shared_tag` (files that
+  share a user-applied tag). A file's `description` is scanned too, so a
+  description that names another file becomes a `references` edge.
+- `graph_search(query)` - matches a node's name *or* its description, each with
+  its graph neighbors
 - `get_related_files(file_id)` - what relates to a file, every edge explained
-- `rebuild_graph()` - force a rebuild (normally automatic)
+- `rebuild_graph()` - force a rebuild (normally automatic; editing a file's
+  description or tags via `set_file_metadata` refreshes the graph on the next read)
 
 > The graph is built globally over your files but read through the same folder
 > scope as everything else: a folder-scoped key sees only its subtree's nodes,
