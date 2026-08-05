@@ -72,6 +72,7 @@ class GraphEdge(TimeStampedModel):
         CONTAINS = "contains", "Contains"          # folder -> child (EXTRACTED)
         REFERENCES = "references", "References"     # file -> file it names (EXTRACTED)
         SHARED_TOKEN = "shared_token", "Shared token"  # sibling files sharing a name token (INFERRED)
+        SHARED_TAG = "shared_tag", "Shared tag"    # files sharing a user-applied tag (INFERRED)
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="graph_edges")

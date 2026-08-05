@@ -643,6 +643,12 @@ class FileDetailView(APIView):
         # metadata edits (star, description, tags) save straight through.
         if not ({"name", "folder"} & set(fields)):
             file.save(update_fields=[*fields, "updated_at"])
+            # Description/tags feed the knowledge graph (node meta + tag edges);
+            # warm it after an edit. The bumped updated_at also marks the graph
+            # stale, so a read rebuilds even where warming is a no-op (eager).
+            if {"description", "tags"} & set(fields):
+                from apps.graph.tasks import schedule_rebuild
+                schedule_rebuild(request.user)
             return Response(FileSerializer(file).data)
 
         file.name = unique_name(
