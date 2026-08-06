@@ -194,6 +194,23 @@ class RowListCreateView(APIView):
         return Response(RowSerializer(row).data, status=status.HTTP_201_CREATED)
 
 
+class RowBulkDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, table_id):
+        """Delete many rows at once (bulk row-selection -> delete)."""
+        table = _get_table(request, table_id)
+        if table is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        ids = request.data.get("ids") or []
+        if not isinstance(ids, list):
+            return Response({"detail": "ids must be a list."}, status=status.HTTP_400_BAD_REQUEST)
+        deleted, _ = Row.objects.filter(table=table, pk__in=ids).delete()
+        if deleted:
+            table.save(update_fields=["updated_at"])
+        return Response({"deleted": deleted})
+
+
 class RowDetailView(APIView):
     permission_classes = [IsAuthenticated]
 

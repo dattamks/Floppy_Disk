@@ -174,6 +174,7 @@ export const api = {
   deleteTable: (id) => request(`/tables/${id}`, { method: 'DELETE' }),
   tableRows: (id) => request(`/tables/${id}/rows`),
   createRow: (id, data) => request(`/tables/${id}/rows`, { method: 'POST', body: { data } }),
+  bulkDeleteRows: (id, ids) => request(`/tables/${id}/rows/bulk_delete`, { method: 'POST', body: { ids } }),
   updateRow: (rowId, data) => request(`/tables/rows/${rowId}`, { method: 'PATCH', body: { data } }),
   deleteRow: (rowId) => request(`/tables/rows/${rowId}`, { method: 'DELETE' }),
   createField: (id, body) => request(`/tables/${id}/fields`, { method: 'POST', body }),
