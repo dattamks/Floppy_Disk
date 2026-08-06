@@ -557,7 +557,9 @@ def add_field(table_id: str, name: str, type: str = "text", options: Optional[di
     attachment. For single_select/multi_select pass options={"choices":
     [{"id","name","color"}]}; rating takes options={"max": 5}; currency
     options={"symbol": "$"}. An attachment cell's value is a list of file ids
-    (from list_files) - the row then links to those files in the graph.
+    (from list_files) - the row then links to those files in the graph. A
+    relation links to rows in another table: pass options={"table_id": "..."}
+    and set the cell to a list of row ids from that table.
     """
     body: dict = {"name": name, "type": type}
     if options:
