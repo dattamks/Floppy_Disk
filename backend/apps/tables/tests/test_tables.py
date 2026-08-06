@@ -137,6 +137,23 @@ def test_new_field_types_coerce_values(user):
     assert d[ms["id"]] == ["a", "c"]                             # valid, de-duped, ordered
 
 
+def test_attachment_only_accepts_owner_files(user):
+    from apps.storage.models import File
+    mine = File.objects.create(owner=user, name="spec.pdf", status=File.Status.READY, size_bytes=1)
+    other = User.objects.create_user(email="att-other@floppy.disk", password="hunter2pass")
+    theirs = File.objects.create(owner=other, name="theirs.pdf", status=File.Status.READY, size_bytes=1)
+
+    c = _session(user)
+    t = _new_table(c)
+    att = c.post(f"/api/v1/tables/{t['id']}/fields", {"name": "Files", "type": "attachment"}, format="json").json()
+    row = c.post(f"/api/v1/tables/{t['id']}/rows", {"data": {}}, format="json").json()
+    resp = c.patch(f"/api/v1/tables/rows/{row['id']}", {"data": {
+        att["id"]: [str(mine.id), str(theirs.id), "not-a-uuid"],
+    }}, format="json")
+    # Only the caller's own file survives; a foreign id and junk are dropped.
+    assert resp.json()["data"][att["id"]] == [str(mine.id)]
+
+
 def test_single_select_only_accepts_valid_choice(user):
     c = _session(user)
     t = _new_table(c)

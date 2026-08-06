@@ -188,7 +188,7 @@ class RowListCreateView(APIView):
         table = _get_table(request, table_id)
         if table is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        data = coerce_row_data(list(table.fields.all()), request.data.get("data") or {})
+        data = coerce_row_data(list(table.fields.all()), request.data.get("data") or {}, owner=request.user)
         row = Row.objects.create(table=table, data=data, position=next_position(table.rows.all()))
         table.save(update_fields=["updated_at"])  # touch so the table sorts as recent
         return Response(RowSerializer(row).data, status=status.HTTP_201_CREATED)
@@ -232,7 +232,7 @@ class RowDetailView(APIView):
                 f = fields.get(str(fid))
                 if f is None:
                     continue
-                cv = coerce_value(f, val)
+                cv = coerce_value(f, val, owner=request.user)
                 if cv is None:
                     merged.pop(str(fid), None)
                 else:

@@ -74,6 +74,9 @@ def _row_cells(fields, data: dict) -> dict:
             val = f"{val}%"
         elif f.type == "currency":
             val = f"{f.options.get('symbol', '$')}{val}"
+        elif f.type == "attachment":
+            n = len(val) if isinstance(val, list) else 1
+            val = f"{n} file{'s' if n != 1 else ''}"
         out[f.name] = str(val)[:80]
     return out
 # REFERENCES scanning: only read small text/doc blobs, and cap fan-out per file.
@@ -168,6 +171,7 @@ def rebuild_user_graph(user) -> dict:
         fields_by_table.setdefault(tf.table_id, []).append(tf)
     table_node = {}          # table_id -> GraphNode
     row_node: dict = {}      # row_id -> (GraphNode, table_id)
+    row_attach: list = []    # (row GraphNode, attached file id str)
     for tb in tables:
         tfields = sorted(fields_by_table.get(tb.id, []), key=lambda f: f.position)
         primary = next((f for f in tfields if f.is_primary), None)
@@ -197,6 +201,10 @@ def rebuild_user_graph(user) -> dict:
             )
             row_node[row.id] = (rnode, tb.id)
             nodes.append(rnode)
+            for af in tfields:
+                if af.type == "attachment":
+                    for fid in (row.data.get(str(af.id)) or []):
+                        row_attach.append((rnode, str(fid)))
 
     GraphNode.objects.bulk_create(nodes)
 
@@ -230,6 +238,12 @@ def rebuild_user_graph(user) -> dict:
                  GraphEdge.Rel.CONTAINS, Provenance.EXTRACTED, "folder contains table")
     for _rid, (rnode, tbid) in row_node.items():
         _add(table_node[tbid], rnode, GraphEdge.Rel.CONTAINS, Provenance.EXTRACTED, "table contains row")
+    # ATTACHES: a table row -> a file it links via an attachment cell.
+    file_by_strid = {str(k): v for k, v in file_node.items()}
+    for rnode, fid in row_attach:
+        tgt = file_by_strid.get(fid)
+        if tgt is not None:
+            _add(rnode, tgt, GraphEdge.Rel.ATTACHES, Provenance.EXTRACTED, "row attaches file")
 
     # SHARED_TOKEN: files in the same folder sharing a name token. Group by
     # (folder_id, token); connect each group as a star from its first file so

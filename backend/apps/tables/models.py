@@ -51,6 +51,7 @@ class Field(BaseModel):
         RATING = "rating", "Rating"
         CURRENCY = "currency", "Currency"
         PERCENT = "percent", "Percent"
+        ATTACHMENT = "attachment", "Attachment"   # links to stored files (file ids)
 
     table = models.ForeignKey(Table, on_delete=models.CASCADE, related_name="fields")
     name = models.CharField(max_length=255)

@@ -553,9 +553,11 @@ def delete_rows(table_id: str, row_ids: list) -> dict:
 @mcp.tool
 def add_field(table_id: str, name: str, type: str = "text", options: Optional[dict] = None) -> dict:
     """Add a column. `type` is one of: text, long_text, number, checkbox,
-    single_select, multi_select, date, url, email, rating, currency, percent.
-    For single_select/multi_select pass options={"choices": [{"id","name","color"}]};
-    rating takes options={"max": 5}; currency options={"symbol": "$"}.
+    single_select, multi_select, date, url, email, rating, currency, percent,
+    attachment. For single_select/multi_select pass options={"choices":
+    [{"id","name","color"}]}; rating takes options={"max": 5}; currency
+    options={"symbol": "$"}. An attachment cell's value is a list of file ids
+    (from list_files) - the row then links to those files in the graph.
     """
     body: dict = {"name": name, "type": type}
     if options:
