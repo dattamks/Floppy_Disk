@@ -87,9 +87,10 @@ test('Tables walkthrough', async ({ page }) => {
   await pickSelect(page, grid, 3, 2, 'Todo');
   await beat(page);
 
-  // Delete the last row (hover the row-number gutter to reveal the trash).
-  await grid.locator('[data-gutter-r="3"]').hover();
-  await grid.getByRole('button', { name: 'Delete row 4' }).click();
+  // Select the last row and delete it via the selection bar.
+  await grid.locator('[data-gutter-r="3"]').click();
+  await expect(page.getByTestId('row-selection-bar')).toContainText('1 selected');
+  await page.getByTestId('bulk-delete').click();
   await expect(grid.locator('[data-r][data-c="0"]')).toHaveCount(3);
   await beat(page);
 
