@@ -36,6 +36,9 @@ def coerce_value(field: Field, value, owner=None):
     `owner` (when given) scopes reference types - an attachment may only point at
     files the table's owner actually has.
     """
+    # Computed columns derive their value at read time; nothing is ever stored.
+    if field.type in (Field.Type.FORMULA, Field.Type.LOOKUP, Field.Type.ROLLUP):
+        return None
     if value is None or value == "" or value == []:
         return None
     t = field.type

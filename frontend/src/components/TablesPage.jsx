@@ -2,6 +2,7 @@ import React from 'react';
 import { theme } from '../lib/theme';
 import { api, firstError } from '../api';
 import TableGrid, { plainValue } from './TableGrid';
+import { computeCell } from '../lib/tableCompute';
 
 // Tables: a first-class full-page surface. Shows the list of tables, and opens
 // one into the hand-built grid. Owns optimistic row/field state, sorting,
@@ -12,7 +13,7 @@ const TYPES = [
   ['checkbox', 'Checkbox'], ['single_select', 'Select'], ['multi_select', 'Multi-select'],
   ['date', 'Date'], ['url', 'URL'], ['email', 'Email'], ['rating', 'Rating'],
   ['currency', 'Currency'], ['percent', 'Percent'], ['attachment', 'Attachment'],
-  ['relation', 'Relation'],
+  ['relation', 'Relation'], ['formula', 'Formula'], ['lookup', 'Lookup'], ['rollup', 'Rollup'],
 ];
 const NUMERIC = new Set(['number', 'currency', 'percent', 'rating']);
 
@@ -42,6 +43,8 @@ export default function TablesPage({ V }) {
   const [selected, setSelected] = React.useState(new Set());
   const [files, setFiles] = React.useState([]);           // owner's files, for attachment cells
   const [relLabels, setRelLabels] = React.useState({});   // {targetTableId: {rowId: label}} for relation cells
+  const [relRows, setRelRows] = React.useState({});       // {targetTableId: {rowId: data}} for lookups/rollups
+  const [relFields, setRelFields] = React.useState({});   // {targetTableId: [fields]}
   const undoRef = React.useRef([]);
 
   const loadFiles = () => api.listFiles().then((fs) => setFiles(fs || [])).catch(() => {});
@@ -52,9 +55,14 @@ export default function TablesPage({ V }) {
     ids.forEach((tid) => {
       Promise.all([api.getTable(tid), api.tableRows(tid)]).then(([t, rws]) => {
         const primary = t.fields.find((f) => f.is_primary);
-        const map = {};
-        rws.forEach((r, i) => { map[r.id] = (primary && String(r.data?.[primary.id] || '').trim()) || `Row ${i + 1}`; });
-        setRelLabels((prev) => ({ ...prev, [tid]: map }));
+        const labels = {}; const data = {};
+        rws.forEach((r, i) => {
+          labels[r.id] = (primary && String(r.data?.[primary.id] || '').trim()) || `Row ${i + 1}`;
+          data[r.id] = r.data || {};
+        });
+        setRelLabels((prev) => ({ ...prev, [tid]: labels }));
+        setRelRows((prev) => ({ ...prev, [tid]: data }));
+        setRelFields((prev) => ({ ...prev, [tid]: t.fields }));
       }).catch(() => {});
     });
   };
@@ -177,6 +185,12 @@ export default function TablesPage({ V }) {
     } else if (body.type === 'relation') {
       const target = addField.tableId || (tables && tables[0] && tables[0].id) || open.id;
       body.options = { table_id: target };
+    } else if (body.type === 'formula') {
+      body.options = { expr: addField.expr || '' };
+    } else if (body.type === 'lookup' || body.type === 'rollup') {
+      const rel = addField.relation || (open.fields.find((f) => f.type === 'relation') || {}).id;
+      body.options = { relation: rel, field: addField.targetField };
+      if (body.type === 'rollup') body.options.agg = addField.agg || 'sum';
     }
     api.createField(open.id, body).then((f) => { setOpen((o) => ({ ...o, fields: [...o.fields, f] })); loadRelTargets([f]); setAddField(null); })
       .catch((e) => toast(firstError(e, 'Could not add column')));
@@ -212,6 +226,24 @@ export default function TablesPage({ V }) {
     const sorted = rows.slice().sort((a, b) => compareRows(field, a, b));
     return sort.dir === 'desc' ? sorted.reverse() : sorted;
   }, [rows, sort, open]);
+
+  // Compute display values for formula/lookup/rollup cells on the client.
+  const computed = React.useMemo(() => {
+    if (!open) return () => '';
+    const fieldById = {}; const fieldByName = {};
+    open.fields.forEach((f) => { fieldById[f.id] = f; fieldByName[f.name] = f; });
+    const ctx = {
+      fieldById, fieldByName,
+      linkedRows: (relId, row) => {
+        const rel = fieldById[relId];
+        if (!rel || rel.type !== 'relation') return [];
+        const map = relRows[rel.options?.table_id] || {};
+        return ((row.data || {})[relId] || []).map((id) => map[id]).filter(Boolean);
+      },
+      relFieldsFor: (relId) => { const rel = fieldById[relId]; return rel ? (relFields[rel.options?.table_id] || []) : []; },
+    };
+    return (field, row) => computeCell(field, row, ctx);
+  }, [open, relRows, relFields]);
 
   // ---- resize persistence ----
   const resize = (fieldId, w) => setWidths((x) => ({ ...x, [fieldId]: w }));
@@ -267,6 +299,7 @@ export default function TablesPage({ V }) {
           onSelectionChange={setSelected}
           files={files}
           relLabels={relLabels}
+          computed={computed}
           onEditCell={editCell}
           onAddRow={() => addRow()}
           onDeleteRows={(ids) => deleteRows(ids)}
@@ -290,6 +323,32 @@ export default function TablesPage({ V }) {
                   {!(tables || []).some((t) => t.id === open.id) ? <option value={open.id}>{open.name} (this table)</option> : null}
                 </select>
               ) : null}
+              {addField.type === 'formula' ? (
+                <input placeholder="Expression, e.g. {Price} * {Qty}" value={addField.expr || ''}
+                  onChange={(e) => setAddField((a) => ({ ...a, expr: e.target.value }))} style={{ ...input, fontFamily: 'monospace' }} aria-label="Formula expression" />
+              ) : null}
+              {(addField.type === 'lookup' || addField.type === 'rollup') ? (() => {
+                const relFieldsList = open.fields.filter((f) => f.type === 'relation');
+                const relId = addField.relation || (relFieldsList[0] || {}).id;
+                const relField = open.fields.find((f) => f.id === relId);
+                const targetFields = relField ? (relFields[relField.options?.table_id] || []) : [];
+                return (
+                  <React.Fragment>
+                    <select value={relId || ''} onChange={(e) => setAddField((a) => ({ ...a, relation: e.target.value }))} style={input} aria-label="Via relation">
+                      {relFieldsList.length === 0 ? <option value="">Add a relation column first</option>
+                        : relFieldsList.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    </select>
+                    <select value={addField.targetField || (targetFields[0] || {}).id || ''} onChange={(e) => setAddField((a) => ({ ...a, targetField: e.target.value }))} style={input} aria-label="Target field">
+                      {targetFields.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    </select>
+                    {addField.type === 'rollup' ? (
+                      <select value={addField.agg || 'sum'} onChange={(e) => setAddField((a) => ({ ...a, agg: e.target.value }))} style={input} aria-label="Aggregate">
+                        {['sum', 'avg', 'min', 'max', 'count'].map((a) => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    ) : null}
+                  </React.Fragment>
+                );
+              })() : null}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 <button onClick={() => setAddField(null)} style={btnGhost}>Cancel</button>
                 <button onClick={submitAddField} style={btnPrimary}>Add column</button>

@@ -1,5 +1,6 @@
 import React from 'react';
 import { theme } from '../lib/theme';
+import { COMPUTED_TYPES } from '../lib/tableCompute';
 
 // A hand-built spreadsheet grid tuned to the app's design system: windowed rows
 // (smooth at thousands), full keyboard nav, per-type inline editors, column
@@ -18,6 +19,7 @@ const TYPE_LABEL = {
   single_select: 'Select', multi_select: 'Multi-select', date: 'Date',
   url: 'URL', email: 'Email', rating: 'Rating', currency: 'Currency', percent: 'Percent',
   attachment: 'Attachment', relation: 'Relation',
+  formula: 'Formula', lookup: 'Lookup', rollup: 'Rollup',
 };
 
 function choiceOf(field, id) {
@@ -87,7 +89,7 @@ function Stars({ value, max, onSet }) {
 
 export default function TableGrid({
   fields, rows, widths, onResize, sort, onSortToggle,
-  selectedIds, onSelectionChange, files = [], relLabels = {},
+  selectedIds, onSelectionChange, files = [], relLabels = {}, computed = () => '',
   onEditCell, onAddRow, onAddField, onDeleteRows, onRenameField, onDeleteField, onUndo,
 }) {
   const fileName = (id) => (files.find((f) => f.id === id) || {}).name || 'file';
@@ -171,7 +173,7 @@ export default function TableGrid({
   // ---- editing ----
   const startEdit = (r, c, seed) => {
     const field = fields[c];
-    if (!field || field.type === 'checkbox' || field.type === 'rating') return;
+    if (!field || field.type === 'checkbox' || field.type === 'rating' || COMPUTED_TYPES.has(field.type)) return;
     if (['single_select', 'multi_select', 'attachment', 'relation'].includes(field.type)) { setSel({ r, c }); setSelectOpen(true); return; }
     setEditing({ r, c });
     setDraft(seed !== undefined ? seed : (rows[r]?.data?.[field.id] ?? ''));
@@ -307,6 +309,8 @@ export default function TableGrid({
               </span>
             ))}
           </span>
+        ) : COMPUTED_TYPES.has(field.type) ? (
+          <span style={{ color: theme.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{computed(field, row)}</span>
         ) : (<CellValue field={field} value={cellVal(row, field)} />)}
         {isSel && selectOpen && field.type === 'single_select' ? (
           <div style={{ position: 'absolute', top: ROW_H - 2, left: 0, zIndex: 30, background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '9px', boxShadow: '0 10px 30px rgba(16,24,40,0.18)', padding: '5px', minWidth: w }}>
