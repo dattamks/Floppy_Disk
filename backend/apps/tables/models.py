@@ -53,6 +53,10 @@ class Field(BaseModel):
         PERCENT = "percent", "Percent"
         ATTACHMENT = "attachment", "Attachment"   # links to stored files (file ids)
         RELATION = "relation", "Relation"         # links to rows in a table (options.table_id)
+        # Computed (not stored) - derived at read time from other cells / links:
+        FORMULA = "formula", "Formula"            # options.expr over this row's fields
+        LOOKUP = "lookup", "Lookup"               # options.relation + options.field (from linked rows)
+        ROLLUP = "rollup", "Rollup"               # options.relation + options.field + options.agg
 
     table = models.ForeignKey(Table, on_delete=models.CASCADE, related_name="fields")
     name = models.CharField(max_length=255)
