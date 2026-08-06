@@ -12,7 +12,9 @@ signals that are fully explainable:
 Each file node also carries the user-authored description + tags and any
 extracted media metadata in its ``meta``, and a file's description is scanned
 for REFERENCES too - so metadata added from the UI, API, or MCP shows up in the
-graph on the next read.
+graph on the next read. Tables and their rows are nodes as well (folder CONTAINS
+table, table CONTAINS row), with each row carrying a name-keyed preview of its
+cells - so structured data is queryable context, not just files.
 
 The semantic/"INFERRED-by-a-model" enrichment Graphify does for prose/PDFs is
 intentionally left to the *connecting client's* LLM: the server ships this
@@ -46,6 +48,25 @@ _MAX_TOKEN_GROUP = 8
 _MAX_TAG_GROUP = 50
 # Cap the description snippet carried in a node's meta (keeps graph.json compact).
 _META_DESC_CHARS = 280
+# Cap how many of a table's rows become graph nodes (keeps a huge table from
+# exploding the graph); truncation is logged, never silent.
+_MAX_ROWS_PER_TABLE = 500
+
+log = logging.getLogger("graph.build")
+
+
+def _row_cells(fields, data: dict) -> dict:
+    """A compact, name-keyed preview of a row's non-empty cells for node meta -
+    so the graph reads as records (field name -> value), not opaque field ids."""
+    out = {}
+    for f in fields[:8]:
+        val = (data or {}).get(str(f.id))
+        if val in (None, "", []):
+            continue
+        if f.type == "single_select":
+            val = next((c.get("name") for c in f.options.get("choices", []) if c.get("id") == val), val)
+        out[f.name] = str(val)[:80]
+    return out
 # REFERENCES scanning: only read small text/doc blobs, and cap fan-out per file.
 _MAX_SCAN_BYTES = 64 * 1024
 _MAX_REFS_PER_FILE = 25
@@ -126,6 +147,48 @@ def rebuild_user_graph(user) -> dict:
         )
         file_node[fi.id] = n
         nodes.append(n)
+
+    # Tables + their rows become nodes too, so structured data shows up in the
+    # graph alongside files. Rows carry a readable, name-keyed preview of their
+    # cells so an AI reading the graph sees the record, not opaque ids.
+    from apps.tables.models import Field as TField, Row as TRow, Table as TTable
+
+    tables = list(TTable.objects.filter(owner=user, deleted_at__isnull=True))
+    fields_by_table: dict = {}
+    for tf in TField.objects.filter(table__in=tables):
+        fields_by_table.setdefault(tf.table_id, []).append(tf)
+    table_node = {}          # table_id -> GraphNode
+    row_node: dict = {}      # row_id -> (GraphNode, table_id)
+    for tb in tables:
+        tfields = sorted(fields_by_table.get(tb.id, []), key=lambda f: f.position)
+        primary = next((f for f in tfields if f.is_primary), None)
+        tnode = GraphNode(
+            owner=user, kind=NodeKind.TABLE, label=tb.name, node_type="table",
+            scope_folder_id=tb.folder_id,
+            meta={"table_id": str(tb.id), "folder_id": str(tb.folder_id) if tb.folder_id else None,
+                  "fields": [f.name for f in tfields]},
+        )
+        table_node[tb.id] = tnode
+        nodes.append(tnode)
+        rows = list(TRow.objects.filter(table=tb).order_by("position", "created_at"))
+        if len(rows) > _MAX_ROWS_PER_TABLE:
+            log.warning("graph: table %s has %d rows; only %d added as nodes",
+                        tb.id, len(rows), _MAX_ROWS_PER_TABLE)
+            rows = rows[:_MAX_ROWS_PER_TABLE]
+        for i, row in enumerate(rows):
+            label = ""
+            if primary:
+                label = str(row.data.get(str(primary.id)) or "").strip()[:120]
+            label = label or f"Row {i + 1}"
+            rnode = GraphNode(
+                owner=user, kind=NodeKind.ROW, label=label, node_type="row",
+                scope_folder_id=tb.folder_id,
+                meta={"row_id": str(row.id), "table_id": str(tb.id),
+                      "cells": _row_cells(tfields, row.data)},
+            )
+            row_node[row.id] = (rnode, tb.id)
+            nodes.append(rnode)
+
     GraphNode.objects.bulk_create(nodes)
 
     # --- edges ---
@@ -151,6 +214,13 @@ def rebuild_user_graph(user) -> dict:
         if fi.folder_id in folder_node:
             _add(folder_node[fi.folder_id], file_node[fi.id],
                  GraphEdge.Rel.CONTAINS, Provenance.EXTRACTED, "folder contains file")
+    # CONTAINS: folder -> table, and table -> its rows.
+    for tb in tables:
+        if tb.folder_id in folder_node:
+            _add(folder_node[tb.folder_id], table_node[tb.id],
+                 GraphEdge.Rel.CONTAINS, Provenance.EXTRACTED, "folder contains table")
+    for _rid, (rnode, tbid) in row_node.items():
+        _add(table_node[tbid], rnode, GraphEdge.Rel.CONTAINS, Provenance.EXTRACTED, "table contains row")
 
     # SHARED_TOKEN: files in the same folder sharing a name token. Group by
     # (folder_id, token); connect each group as a star from its first file so
@@ -352,9 +422,16 @@ def ensure_fresh(user) -> None:
                 return
         rebuild_user_graph(user)
         return
+    from apps.tables.models import Field as TField, Row as TRow, Table as TTable
+
     f_latest = File.objects.filter(owner=user).aggregate(m=Max("updated_at"))["m"]
     d_latest = Folder.objects.filter(owner=user).aggregate(m=Max("updated_at"))["m"]
-    latest = max([t for t in (f_latest, d_latest) if t is not None], default=None)
+    # Table/row/field edits must invalidate the graph too, so a metadata change
+    # from the UI, API, or MCP shows up on the next graph read.
+    t_latest = TTable.objects.filter(owner=user).aggregate(m=Max("updated_at"))["m"]
+    r_latest = TRow.objects.filter(table__owner=user).aggregate(m=Max("updated_at"))["m"]
+    fl_latest = TField.objects.filter(table__owner=user).aggregate(m=Max("updated_at"))["m"]
+    latest = max([t for t in (f_latest, d_latest, t_latest, r_latest, fl_latest) if t is not None], default=None)
     if latest is not None and latest > build.built_at:
         if background:
             _rebuild_in_background(user)  # serve the current graph; refresh behind the scenes
