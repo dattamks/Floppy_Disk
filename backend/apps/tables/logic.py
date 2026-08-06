@@ -22,14 +22,22 @@ def coerce_value(field: Field, value):
     if value is None or value == "":
         return None
     t = field.type
-    if t in (Field.Type.TEXT, Field.Type.LONG_TEXT):
-        return str(value)
-    if t == Field.Type.NUMBER:
+    if t in (Field.Type.TEXT, Field.Type.LONG_TEXT, Field.Type.URL, Field.Type.EMAIL):
+        return str(value)[:2000]
+    if t in (Field.Type.NUMBER, Field.Type.CURRENCY, Field.Type.PERCENT):
         try:
             num = float(value)
         except (TypeError, ValueError):
             return None
         return int(num) if num.is_integer() else num
+    if t == Field.Type.RATING:
+        try:
+            n = int(round(float(value)))
+        except (TypeError, ValueError):
+            return None
+        hi = int(field.options.get("max", 5) or 5)
+        n = max(0, min(hi, n))
+        return n or None
     if t == Field.Type.CHECKBOX:
         return bool(value) and value not in ("false", "0", 0)
     if t == Field.Type.DATE:
@@ -38,6 +46,15 @@ def coerce_value(field: Field, value):
     if t == Field.Type.SINGLE_SELECT:
         valid = {c.get("id") for c in field.options.get("choices", [])}
         return str(value) if str(value) in valid else None
+    if t == Field.Type.MULTI_SELECT:
+        valid = {c.get("id") for c in field.options.get("choices", [])}
+        seq = value if isinstance(value, (list, tuple)) else [value]
+        out = []
+        for v in seq:
+            s = str(v)
+            if s in valid and s not in out:
+                out.append(s)
+        return out or None
     return str(value)
 
 

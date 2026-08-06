@@ -65,6 +65,15 @@ def _row_cells(fields, data: dict) -> dict:
             continue
         if f.type == "single_select":
             val = next((c.get("name") for c in f.options.get("choices", []) if c.get("id") == val), val)
+        elif f.type == "multi_select":
+            names = {c.get("id"): c.get("name") for c in f.options.get("choices", [])}
+            val = ", ".join(names.get(v, v) for v in val) if isinstance(val, list) else val
+        elif f.type == "rating":
+            val = f"{val}/{int(f.options.get('max', 5) or 5)}"
+        elif f.type == "percent":
+            val = f"{val}%"
+        elif f.type == "currency":
+            val = f"{f.options.get('symbol', '$')}{val}"
         out[f.name] = str(val)[:80]
     return out
 # REFERENCES scanning: only read small text/doc blobs, and cap fan-out per file.

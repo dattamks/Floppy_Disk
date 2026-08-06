@@ -102,6 +102,41 @@ def test_row_cell_edit_coerces_by_type(user):
     assert num_r["id"] not in d2
 
 
+def test_new_field_types_coerce_values(user):
+    c = _session(user)
+    t = _new_table(c)
+    tid = t["id"]
+
+    def add(name, ftype, options=None):
+        body = {"name": name, "type": ftype}
+        if options:
+            body["options"] = options
+        return c.post(f"/api/v1/tables/{tid}/fields", body, format="json").json()
+
+    num = add("Price", "currency", {"symbol": "$"})
+    pct = add("Progress", "percent")
+    rate = add("Stars", "rating", {"max": 5})
+    url = add("Site", "url")
+    email = add("Contact", "email")
+    ms = add("Tags", "multi_select", {"choices": [
+        {"id": "a", "name": "A"}, {"id": "b", "name": "B"}, {"id": "c", "name": "C"},
+    ]})
+
+    row = c.post(f"/api/v1/tables/{tid}/rows", {"data": {}}, format="json").json()
+    resp = c.patch(f"/api/v1/tables/rows/{row['id']}", {"data": {
+        num["id"]: "1200.50", pct["id"]: "80", rate["id"]: "9",  # rating over max -> clamped
+        url["id"]: "https://x.io", email["id"]: "a@b.com",
+        ms["id"]: ["a", "c", "zzz", "a"],                        # invalid + dup dropped
+    }}, format="json")
+    d = resp.json()["data"]
+    assert d[num["id"]] == 1200.5
+    assert d[pct["id"]] == 80
+    assert d[rate["id"]] == 5                                    # clamped to max
+    assert d[url["id"]] == "https://x.io"
+    assert d[email["id"]] == "a@b.com"
+    assert d[ms["id"]] == ["a", "c"]                             # valid, de-duped, ordered
+
+
 def test_single_select_only_accepts_valid_choice(user):
     c = _session(user)
     t = _new_table(c)
