@@ -259,7 +259,7 @@ export default function TableGrid({
             const r = start + i;
             return (
               <div key={row.id} style={{ position: 'absolute', top: r * ROW_H, left: 0, display: 'flex', height: ROW_H }}>
-                <div style={{ width: GUTTER_W, flex: `0 0 ${GUTTER_W}px`, height: ROW_H, borderRight: `1px solid ${theme.border}`, borderBottom: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, color: theme.textFaint, fontSize: '11px', background: theme.white }}
+                <div data-gutter-r={r} style={{ width: GUTTER_W, flex: `0 0 ${GUTTER_W}px`, height: ROW_H, borderRight: `1px solid ${theme.border}`, borderBottom: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, color: theme.textFaint, fontSize: '11px', background: theme.white }}
                   className="fd-row-gutter">
                   <span className="fd-row-num">{r + 1}</span>
                   <button onClick={() => onDeleteRow(row.id)} aria-label={`Delete row ${r + 1}`} className="fd-row-del"
