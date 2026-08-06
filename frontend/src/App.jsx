@@ -78,6 +78,8 @@ export default class App extends React.Component {
     dragUploadOver: false, // OS file-drag hovering the grid (drop-to-upload)
     // Settings is a full page (not a modal) with its own secondary nav.
     settingsPage: false,
+    // Tables is a first-class full-page surface (its own list + grid).
+    tablesPage: false,
     settingsTab: 'profile',
     profileName: '',
     profileUsername: '',
@@ -486,6 +488,7 @@ export default class App extends React.Component {
       mobileSearchOpen: false,
       selectedIds: [],
       settingsPage: false, // leaving Settings when a primary nav item is chosen
+      tablesPage: false, // and leaving Tables
     });
   }
   navToAll() {
@@ -585,10 +588,14 @@ export default class App extends React.Component {
   openSettings() {
     this.setState({
       settingsPage: true,
+      tablesPage: false,
       settingsTab: 'profile',
       drawerOpen: false,
       newKeyToken: '',
     });
+  }
+  navToTables() {
+    this.setState({ tablesPage: true, settingsPage: false, drawerOpen: false, selectedIds: [] });
   }
   closeSettings() {
     this.setState({ settingsPage: false });
@@ -2799,6 +2806,10 @@ export default class App extends React.Component {
       navTrashBg: navBg(af('trash')),
       navTrashColor: navColor(af('trash')),
       navTrashWeight: navW(af('trash')),
+      navToTables: () => this.navToTables(),
+      navTablesBg: navBg(st.tablesPage),
+      navTablesColor: navColor(st.tablesPage),
+      navTablesWeight: navW(st.tablesPage),
       storageUsedLabel: fmtStorage(storageUsedGB),
       storageTotalLabel: fmtStorage(storageTotalGB),
       storagePct,
@@ -3000,6 +3011,9 @@ export default class App extends React.Component {
       uploadQueueView: uploadQueue.map((u) => ({ name: u.name, progress: u.progress })),
       // Settings is a full page with a secondary sidebar (not a modal).
       isSettingsPage: st.settingsPage && isApp,
+      // Tables: a first-class full-page surface (its own list + grid).
+      isTablesPage: st.tablesPage && isApp,
+      showToast: (m) => this.toast(m),
       closeSettings: () => this.closeSettings(),
       settingsTab,
       stIsProfile: settingsTab === 'profile',

@@ -11,6 +11,7 @@ import MobileTabBar from './MobileTabBar';
 import TrashScreen from './TrashScreen';
 import EmptyState from './EmptyState';
 import SettingsPage from './SettingsPage';
+import TablesPage from './TablesPage';
 
 // Bulk-selection action bar, shown when one or more items are selected.
 function SelectionBar(V) {
@@ -342,7 +343,9 @@ export default function AppShell(V) {
         <div style={{ flex: '1', display: 'flex', overflow: 'hidden', minHeight: '0' }}>
           {' '}
           {Sidebar(V)}{' '}
-          {V.isSettingsPage ? (
+          {V.isTablesPage ? (
+            <TablesPage V={V} />
+          ) : V.isSettingsPage ? (
             SettingsPage(V)
           ) : (
           <div
