@@ -11,7 +11,7 @@ const TYPES = [
   ['text', 'Text'], ['long_text', 'Long text'], ['number', 'Number'],
   ['checkbox', 'Checkbox'], ['single_select', 'Select'], ['multi_select', 'Multi-select'],
   ['date', 'Date'], ['url', 'URL'], ['email', 'Email'], ['rating', 'Rating'],
-  ['currency', 'Currency'], ['percent', 'Percent'],
+  ['currency', 'Currency'], ['percent', 'Percent'], ['attachment', 'Attachment'],
 ];
 const NUMERIC = new Set(['number', 'currency', 'percent', 'rating']);
 
@@ -39,7 +39,10 @@ export default function TablesPage({ V }) {
   const [addField, setAddField] = React.useState(null);
   const [sort, setSort] = React.useState(null);           // { field, dir }
   const [selected, setSelected] = React.useState(new Set());
+  const [files, setFiles] = React.useState([]);           // owner's files, for attachment cells
   const undoRef = React.useRef([]);
+
+  const loadFiles = () => api.listFiles().then((fs) => setFiles(fs || [])).catch(() => {});
 
   const loadList = React.useCallback(() => {
     setListError(false);
@@ -51,6 +54,7 @@ export default function TablesPage({ V }) {
 
   const openTable = (id) => {
     setLoadingTable(true);
+    loadFiles();
     Promise.all([api.getTable(id), api.tableRows(id)])
       .then(([t, rws]) => {
         setOpen(t); setRows(rws); resetOpenState();
@@ -62,6 +66,7 @@ export default function TablesPage({ V }) {
   };
 
   const newTable = () => {
+    loadFiles();
     api.createTable({ name: 'Untitled table' })
       .then((t) => { setOpen(t); setWidths({}); setSort(null); resetOpenState(); return api.tableRows(t.id).then(setRows); })
       .catch((e) => toast(firstError(e, 'Could not create table')));
@@ -241,6 +246,7 @@ export default function TablesPage({ V }) {
           onSortToggle={onSortToggle}
           selectedIds={selected}
           onSelectionChange={setSelected}
+          files={files}
           onEditCell={editCell}
           onAddRow={() => addRow()}
           onDeleteRows={(ids) => deleteRows(ids)}

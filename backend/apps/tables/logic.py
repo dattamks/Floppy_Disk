@@ -17,9 +17,26 @@ def next_position(qs) -> float:
     return (qs.aggregate(m=Max("position"))["m"] or 0.0) + 1.0
 
 
-def coerce_value(field: Field, value):
-    """Normalize a single cell value for a field's type, or None if empty/invalid."""
-    if value is None or value == "":
+def _uuid_ids(seq):
+    """Keep only the UUID-shaped ids from a sequence (as canonical strings)."""
+    out = []
+    for v in seq if isinstance(seq, (list, tuple)) else [seq]:
+        try:
+            s = str(uuid.UUID(str(v)))
+        except (ValueError, AttributeError, TypeError):
+            continue
+        if s not in out:
+            out.append(s)
+    return out
+
+
+def coerce_value(field: Field, value, owner=None):
+    """Normalize a single cell value for a field's type, or None if empty/invalid.
+
+    `owner` (when given) scopes reference types - an attachment may only point at
+    files the table's owner actually has.
+    """
+    if value is None or value == "" or value == []:
         return None
     t = field.type
     if t in (Field.Type.TEXT, Field.Type.LONG_TEXT, Field.Type.URL, Field.Type.EMAIL):
@@ -55,10 +72,19 @@ def coerce_value(field: Field, value):
             if s in valid and s not in out:
                 out.append(s)
         return out or None
+    if t == Field.Type.ATTACHMENT:
+        ids = _uuid_ids(value)
+        if owner is not None and ids:
+            from apps.storage.models import File
+            owned = set(str(x) for x in File.objects.filter(
+                owner=owner, pk__in=ids, deleted_at__isnull=True,
+            ).values_list("pk", flat=True))
+            ids = [i for i in ids if i in owned]
+        return ids or None
     return str(value)
 
 
-def coerce_row_data(fields, data: dict) -> dict:
+def coerce_row_data(fields, data: dict, owner=None) -> dict:
     """Coerce a {field_id: value} dict against the table's fields, dropping
     unknown field ids and null results."""
     by_id = {str(f.id): f for f in fields}
@@ -67,7 +93,7 @@ def coerce_row_data(fields, data: dict) -> dict:
         f = by_id.get(str(fid))
         if f is None:
             continue
-        cv = coerce_value(f, val)
+        cv = coerce_value(f, val, owner=owner)
         if cv is not None:
             out[str(fid)] = cv
     return out
