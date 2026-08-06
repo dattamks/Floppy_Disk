@@ -12,6 +12,7 @@ const TYPES = [
   ['checkbox', 'Checkbox'], ['single_select', 'Select'], ['multi_select', 'Multi-select'],
   ['date', 'Date'], ['url', 'URL'], ['email', 'Email'], ['rating', 'Rating'],
   ['currency', 'Currency'], ['percent', 'Percent'], ['attachment', 'Attachment'],
+  ['relation', 'Relation'],
 ];
 const NUMERIC = new Set(['number', 'currency', 'percent', 'rating']);
 
@@ -40,9 +41,23 @@ export default function TablesPage({ V }) {
   const [sort, setSort] = React.useState(null);           // { field, dir }
   const [selected, setSelected] = React.useState(new Set());
   const [files, setFiles] = React.useState([]);           // owner's files, for attachment cells
+  const [relLabels, setRelLabels] = React.useState({});   // {targetTableId: {rowId: label}} for relation cells
   const undoRef = React.useRef([]);
 
   const loadFiles = () => api.listFiles().then((fs) => setFiles(fs || [])).catch(() => {});
+  // For each relation field, load the target table's rows so we can show/pick
+  // them by their primary label.
+  const loadRelTargets = (fields) => {
+    const ids = [...new Set((fields || []).filter((f) => f.type === 'relation').map((f) => f.options?.table_id).filter(Boolean))];
+    ids.forEach((tid) => {
+      Promise.all([api.getTable(tid), api.tableRows(tid)]).then(([t, rws]) => {
+        const primary = t.fields.find((f) => f.is_primary);
+        const map = {};
+        rws.forEach((r, i) => { map[r.id] = (primary && String(r.data?.[primary.id] || '').trim()) || `Row ${i + 1}`; });
+        setRelLabels((prev) => ({ ...prev, [tid]: map }));
+      }).catch(() => {});
+    });
+  };
 
   const loadList = React.useCallback(() => {
     setListError(false);
@@ -54,19 +69,20 @@ export default function TablesPage({ V }) {
 
   const openTable = (id) => {
     setLoadingTable(true);
-    loadFiles();
+    loadFiles(); loadList();  // loadList: keep the tables list fresh for the relation-target picker
     Promise.all([api.getTable(id), api.tableRows(id)])
       .then(([t, rws]) => {
         setOpen(t); setRows(rws); resetOpenState();
         setWidths(t.views?.[0]?.config?.widths || {});
         setSort(t.views?.[0]?.config?.sort || null);
+        loadRelTargets(t.fields);
       })
       .catch((e) => toast(firstError(e, 'Could not open table')))
       .finally(() => setLoadingTable(false));
   };
 
   const newTable = () => {
-    loadFiles();
+    loadFiles(); loadList();
     api.createTable({ name: 'Untitled table' })
       .then((t) => { setOpen(t); setWidths({}); setSort(null); resetOpenState(); return api.tableRows(t.id).then(setRows); })
       .catch((e) => toast(firstError(e, 'Could not create table')));
@@ -158,8 +174,11 @@ export default function TablesPage({ V }) {
       body.options = { max: 5 };
     } else if (body.type === 'currency') {
       body.options = { symbol: '$' };
+    } else if (body.type === 'relation') {
+      const target = addField.tableId || (tables && tables[0] && tables[0].id) || open.id;
+      body.options = { table_id: target };
     }
-    api.createField(open.id, body).then((f) => { setOpen((o) => ({ ...o, fields: [...o.fields, f] })); setAddField(null); })
+    api.createField(open.id, body).then((f) => { setOpen((o) => ({ ...o, fields: [...o.fields, f] })); loadRelTargets([f]); setAddField(null); })
       .catch((e) => toast(firstError(e, 'Could not add column')));
   };
   const renameField = (fieldId, name) => {
@@ -247,6 +266,7 @@ export default function TablesPage({ V }) {
           selectedIds={selected}
           onSelectionChange={setSelected}
           files={files}
+          relLabels={relLabels}
           onEditCell={editCell}
           onAddRow={() => addRow()}
           onDeleteRows={(ids) => deleteRows(ids)}
@@ -264,6 +284,12 @@ export default function TablesPage({ V }) {
               <select value={addField.type} onChange={(e) => setAddField((a) => ({ ...a, type: e.target.value }))} style={input} aria-label="Column type">
                 {TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
+              {addField.type === 'relation' ? (
+                <select value={addField.tableId || (tables && tables[0] && tables[0].id) || open.id} onChange={(e) => setAddField((a) => ({ ...a, tableId: e.target.value }))} style={input} aria-label="Linked table">
+                  {(tables || []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {!(tables || []).some((t) => t.id === open.id) ? <option value={open.id}>{open.name} (this table)</option> : null}
+                </select>
+              ) : null}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                 <button onClick={() => setAddField(null)} style={btnGhost}>Cancel</button>
                 <button onClick={submitAddField} style={btnPrimary}>Add column</button>

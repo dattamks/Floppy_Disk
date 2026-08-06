@@ -154,6 +154,21 @@ def test_attachment_only_accepts_owner_files(user):
     assert resp.json()["data"][att["id"]] == [str(mine.id)]
 
 
+def test_relation_only_accepts_target_table_rows(user):
+    c = _session(user)
+    ta = _new_table(c, "A")
+    tb = _new_table(c, "B")
+    b0 = c.get(f"/api/v1/tables/{tb['id']}/rows").json()[0]["id"]
+    a0 = c.get(f"/api/v1/tables/{ta['id']}/rows").json()[0]["id"]
+    rel = c.post(f"/api/v1/tables/{ta['id']}/fields",
+                 {"name": "Links", "type": "relation", "options": {"table_id": tb["id"]}},
+                 format="json").json()
+    resp = c.patch(f"/api/v1/tables/rows/{a0}", {"data": {
+        rel["id"]: [b0, a0, "junk"],   # a0 is in table A (wrong target); junk is not a uuid
+    }}, format="json")
+    assert resp.json()["data"][rel["id"]] == [b0]
+
+
 def test_single_select_only_accepts_valid_choice(user):
     c = _session(user)
     t = _new_table(c)
