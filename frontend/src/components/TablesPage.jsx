@@ -9,7 +9,9 @@ import TableGrid, { plainValue } from './TableGrid';
 
 const TYPES = [
   ['text', 'Text'], ['long_text', 'Long text'], ['number', 'Number'],
-  ['checkbox', 'Checkbox'], ['single_select', 'Select'], ['date', 'Date'],
+  ['checkbox', 'Checkbox'], ['single_select', 'Select'], ['multi_select', 'Multi-select'],
+  ['date', 'Date'], ['url', 'URL'], ['email', 'Email'], ['rating', 'Rating'],
+  ['currency', 'Currency'], ['percent', 'Percent'],
 ];
 const NUMERIC = new Set(['number', 'currency', 'percent', 'rating']);
 
@@ -141,11 +143,16 @@ export default function TablesPage({ V }) {
   // ---- fields ----
   const submitAddField = () => {
     const body = { name: (addField.name || 'Field').trim() || 'Field', type: addField.type };
-    if (body.type === 'single_select') {
+    if (body.type === 'single_select' || body.type === 'multi_select') {
       body.options = { choices: [
         { id: 'o1', name: 'Option 1', color: '#DBEAFE' },
         { id: 'o2', name: 'Option 2', color: '#DCFCE7' },
+        { id: 'o3', name: 'Option 3', color: '#FEF3C7' },
       ] };
+    } else if (body.type === 'rating') {
+      body.options = { max: 5 };
+    } else if (body.type === 'currency') {
+      body.options = { symbol: '$' };
     }
     api.createField(open.id, body).then((f) => { setOpen((o) => ({ ...o, fields: [...o.fields, f] })); setAddField(null); })
       .catch((e) => toast(firstError(e, 'Could not add column')));

@@ -14,25 +14,38 @@ const DEFAULT_W = 180;
 const OVERSCAN = 6;
 
 const TYPE_LABEL = {
-  text: 'Text', long_text: 'Long text', number: 'Number',
-  checkbox: 'Checkbox', single_select: 'Select', date: 'Date',
+  text: 'Text', long_text: 'Long text', number: 'Number', checkbox: 'Checkbox',
+  single_select: 'Select', multi_select: 'Multi-select', date: 'Date',
+  url: 'URL', email: 'Email', rating: 'Rating', currency: 'Currency', percent: 'Percent',
 };
 
 function choiceOf(field, id) {
   return (field.options?.choices || []).find((c) => c.id === id) || null;
 }
-
-// Plain-text rendering of a cell value (for copy/TSV).
-export function plainValue(field, value) {
-  if (value === undefined || value === null || value === '') return '';
-  if (field.type === 'checkbox') return value ? 'true' : 'false';
-  if (field.type === 'single_select') { const c = choiceOf(field, value); return c ? c.name : ''; }
+function fmtNum(field, value) {
+  if (field.type === 'currency') return `${field.options?.symbol || '$'}${value}`;
+  if (field.type === 'percent') return `${value}%`;
   return String(value);
 }
 
+// Plain-text rendering of a cell value (for copy/TSV).
+export function plainValue(field, value) {
+  if (value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)) return '';
+  if (field.type === 'checkbox') return value ? 'true' : 'false';
+  if (field.type === 'single_select') { const c = choiceOf(field, value); return c ? c.name : ''; }
+  if (field.type === 'multi_select') return (value || []).map((id) => choiceOf(field, id)?.name || '').filter(Boolean).join(', ');
+  if (field.type === 'currency' || field.type === 'percent') return fmtNum(field, value);
+  return String(value);
+}
+
+function Pill({ c }) {
+  return <span style={{ fontSize: '12px', fontWeight: 600, color: theme.text, background: c.color || theme.surface2, borderRadius: '999px', padding: '2px 10px', whiteSpace: 'nowrap' }}>{c.name}</span>;
+}
+
 function CellValue({ field, value }) {
-  if (value === undefined || value === null || value === '') return null;
-  if (field.type === 'checkbox') {
+  if (value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)) return null;
+  const t = field.type;
+  if (t === 'checkbox') {
     return (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect x="3" y="3" width="18" height="18" rx="4" fill={theme.brand} />
@@ -40,14 +53,33 @@ function CellValue({ field, value }) {
       </svg>
     );
   }
-  if (field.type === 'single_select') {
-    const c = choiceOf(field, value);
-    if (!c) return null;
+  if (t === 'single_select') { const c = choiceOf(field, value); return c ? <Pill c={c} /> : null; }
+  if (t === 'multi_select') {
     return (
-      <span style={{ fontSize: '12px', fontWeight: 600, color: theme.text, background: c.color || theme.surface2, borderRadius: '999px', padding: '2px 10px', whiteSpace: 'nowrap' }}>{c.name}</span>
+      <span style={{ display: 'flex', gap: 4, overflow: 'hidden' }}>
+        {(value || []).map((id) => { const c = choiceOf(field, id); return c ? <Pill key={id} c={c} /> : null; })}
+      </span>
     );
   }
+  if (t === 'url' || t === 'email') {
+    const href = t === 'email' ? `mailto:${value}` : (/^https?:\/\//.test(value) ? value : `https://${value}`);
+    return <a href={href} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: theme.brand, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(value)}</a>;
+  }
+  if (t === 'currency' || t === 'percent') return <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fmtNum(field, value)}</span>;
   return <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(value)}</span>;
+}
+
+function Stars({ value, max, onSet }) {
+  const v = Number(value) || 0;
+  return (
+    <span style={{ display: 'flex', gap: 1 }} onMouseDown={(e) => e.stopPropagation()}>
+      {Array.from({ length: max }).map((_, i) => (
+        <button key={i} aria-label={`Rate ${i + 1}`} data-filled={i < v ? '1' : undefined} onClick={(e) => { e.stopPropagation(); onSet(i + 1 === v ? 0 : i + 1); }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', color: i < v ? theme.star : (theme.borderStrong2 || theme.border) }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill={i < v ? theme.star : 'none'}><path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.6-4.1 6.1-.6L12 3Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /></svg>
+        </button>
+      ))}
+    </span>
+  );
 }
 
 export default function TableGrid({
@@ -134,8 +166,8 @@ export default function TableGrid({
   // ---- editing ----
   const startEdit = (r, c, seed) => {
     const field = fields[c];
-    if (!field || field.type === 'checkbox') return;
-    if (field.type === 'single_select') { setSel({ r, c }); setSelectOpen(true); return; }
+    if (!field || field.type === 'checkbox' || field.type === 'rating') return;
+    if (field.type === 'single_select' || field.type === 'multi_select') { setSel({ r, c }); setSelectOpen(true); return; }
     setEditing({ r, c });
     setDraft(seed !== undefined ? seed : (rows[r]?.data?.[field.id] ?? ''));
   };
@@ -170,6 +202,7 @@ export default function TableGrid({
     else if (e.key === 'ArrowLeft') { e.preventDefault(); moveSel(0, -1); }
     else if (e.key === 'Enter') { e.preventDefault(); const f = fields[c]; if (f?.type === 'checkbox') toggleCheckbox(r, c); else startEdit(r, c); }
     else if (e.key === ' ' && fields[c]?.type === 'checkbox') { e.preventDefault(); toggleCheckbox(r, c); }
+    else if (fields[c]?.type === 'rating' && /^[0-9]$/.test(e.key)) { e.preventDefault(); const row = rows[r]; if (row) onEditCell(row.id, fields[c].id, Number(e.key) || ''); }
     else if (e.key === 'Backspace' || e.key === 'Delete') { const f = fields[c]; const row = rows[r]; if (f && row && f.type !== 'checkbox') onEditCell(row.id, f.id, ''); }
     else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) startEdit(r, c, e.key);
   };
@@ -240,7 +273,7 @@ export default function TableGrid({
           {field.type === 'long_text' ? (
             <textarea autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => commit()} onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) commit({ dr: 1, dc: 0 }); }} style={{ ...inputStyle, resize: 'none', padding: '8px 10px', position: 'absolute', inset: 0, minHeight: '84px', zIndex: 20, borderRadius: '4px', boxShadow: '0 6px 20px rgba(16,24,40,0.18)' }} />
           ) : (
-            <input autoFocus type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => commit()} onKeyDown={commonKey} style={inputStyle} />
+            <input autoFocus type={['number', 'currency', 'percent'].includes(field.type) ? 'number' : field.type === 'date' ? 'date' : 'text'} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={() => commit()} onKeyDown={commonKey} style={inputStyle} />
           )}
         </div>
       );
@@ -251,15 +284,29 @@ export default function TableGrid({
           <button onClick={() => toggleCheckbox(r, c)} aria-label="Toggle" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}>
             {cellVal(row, field) ? <CellValue field={field} value /> : <span style={{ width: 16, height: 16, borderRadius: 4, border: `1.6px solid ${theme.borderStrong2 || theme.border}`, display: 'block' }} />}
           </button>
+        ) : field.type === 'rating' ? (
+          <Stars value={cellVal(row, field)} max={field.options?.max || 5} onSet={(v) => onEditCell(row.id, field.id, v || '')} />
         ) : (<CellValue field={field} value={cellVal(row, field)} />)}
         {isSel && selectOpen && field.type === 'single_select' ? (
           <div style={{ position: 'absolute', top: ROW_H - 2, left: 0, zIndex: 30, background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '9px', boxShadow: '0 10px 30px rgba(16,24,40,0.18)', padding: '5px', minWidth: w }}>
             {(field.options?.choices || []).map((ch) => (
-              <button key={ch.id} onClick={() => { onEditCell(row.id, field.id, ch.id); setSelectOpen(false); }} style={menuItem}>
-                <span style={{ fontSize: '12px', fontWeight: 600, background: ch.color || theme.surface2, borderRadius: '999px', padding: '2px 10px' }}>{ch.name}</span>
-              </button>
+              <button key={ch.id} onClick={() => { onEditCell(row.id, field.id, ch.id); setSelectOpen(false); }} style={menuItem}><Pill c={ch} /></button>
             ))}
             <button onClick={() => { onEditCell(row.id, field.id, ''); setSelectOpen(false); }} style={{ ...menuItem, color: theme.textMuted }}>Clear</button>
+          </div>
+        ) : null}
+        {isSel && selectOpen && field.type === 'multi_select' ? (
+          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} style={{ position: 'absolute', top: ROW_H - 2, left: 0, zIndex: 30, background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '9px', boxShadow: '0 10px 30px rgba(16,24,40,0.18)', padding: '5px', minWidth: w }}>
+            {(field.options?.choices || []).map((ch) => {
+              const arr = Array.isArray(cellVal(row, field)) ? cellVal(row, field) : [];
+              const on = arr.includes(ch.id);
+              return (
+                <button key={ch.id} onClick={() => { const next = on ? arr.filter((x) => x !== ch.id) : [...arr, ch.id]; onEditCell(row.id, field.id, next.length ? next : ''); }} style={menuItem}>
+                  <span style={{ width: 14, display: 'inline-flex', color: theme.brand }}>{on ? '✓' : ''}</span><Pill c={ch} />
+                </button>
+              );
+            })}
+            <button onClick={() => setSelectOpen(false)} style={{ ...menuItem, color: theme.textMuted, justifyContent: 'center' }}>Done</button>
           </div>
         ) : null}
       </div>
