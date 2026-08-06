@@ -195,6 +195,20 @@ env = { FLOPPY_API_KEY = "fd_xxx", FLOPPY_API_BASE_URL = "https://your-host/api/
 > scope as everything else: a folder-scoped key sees only its subtree's nodes,
 > and cross-scope edges are clipped.
 
+**Tables** (structured data - a first-class entity, like files and notes)
+- `list_tables()` - your tables (id, name, folder, row_count)
+- `get_table(table_id)` - the schema (fields + views). Call this first: row cells
+  are keyed by field id, and this maps each field id to its name and type
+- `get_table_rows(table_id)` - the rows (`data` maps field id -> cell value)
+- `create_table(name, folder_id?)` - a new table with a starter schema
+- `add_field(table_id, name, type, options?)` - add a column (text, long_text,
+  number, checkbox, single_select, date)
+- `create_row(table_id, data?)` / `update_row(row_id, data)` / `delete_row(row_id)`
+  - `data` maps field id -> value; values are coerced to each field's type
+
+> Tables are owner-scoped and folder-scoped just like files: a folder-scoped key
+> only sees tables inside its subtree.
+
 **Notifications**
 - `list_notifications()`, `mark_notification_read(id)`, `mark_all_notifications_read()`
 

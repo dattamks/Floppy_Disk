@@ -82,7 +82,8 @@ def test_expected_tools_registered():
     assert len(names) >= 20, f"expected >=20 tools, got {len(names)}"
     for expected in ("whoami", "list_files", "upload_file", "create_share_link", "search_files",
                      "create_note", "edit_file_content", "get_graph", "get_related_files",
-                     "set_file_metadata"):
+                     "set_file_metadata", "list_tables", "get_table", "create_row", "update_row",
+                     "add_field"):
         assert expected in names, f"missing tool: {expected}"
 
 

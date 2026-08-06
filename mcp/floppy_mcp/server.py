@@ -487,6 +487,73 @@ def mark_all_notifications_read() -> dict:
     return client().post("notifications/read-all")
 
 
+# ---------------------------------------------------------------------------
+# Tables (structured data - a first-class entity, like files and notes)
+# ---------------------------------------------------------------------------
+@mcp.tool
+def list_tables() -> list:
+    """List your tables (id, name, folder, row_count). Folder-scoped keys see
+    only tables inside their subtree."""
+    return client().get("tables/")
+
+
+@mcp.tool
+def get_table(table_id: str) -> dict:
+    """Get a table's schema: its fields (columns) and views. Call this first -
+    row cells are keyed by field id, and this maps each field id to its name and
+    type (and a select field's choice ids)."""
+    return client().get(f"tables/{_uid(table_id, 'table_id')}")
+
+
+@mcp.tool
+def get_table_rows(table_id: str) -> list:
+    """Get a table's rows. Each row is {id, data, ...} where `data` maps field id
+    -> cell value; pair it with get_table to resolve field ids to names."""
+    return client().get(f"tables/{_uid(table_id, 'table_id')}/rows")
+
+
+@mcp.tool
+def create_table(name: str, folder_id: Optional[str] = None) -> dict:
+    """Create a table (with a starter schema). Returns its full schema. A
+    folder-scoped key must pass a folder_id inside its subtree."""
+    body: dict = {"name": name}
+    if folder_id:
+        body["folder"] = _uid(folder_id, "folder_id")
+    return client().post("tables/", json=body)
+
+
+@mcp.tool
+def create_row(table_id: str, data: Optional[dict] = None) -> dict:
+    """Append a row. `data` maps field id -> value (get the field ids from
+    get_table); omit it for a blank row. Values are coerced to each field's type,
+    and anything invalid is dropped."""
+    return client().post(f"tables/{_uid(table_id, 'table_id')}/rows", json={"data": data or {}})
+
+
+@mcp.tool
+def update_row(row_id: str, data: dict) -> dict:
+    """Set one or more cells on a row. `data` maps field id -> value; an empty
+    value clears that cell. Only the fields you pass are changed."""
+    return client().patch(f"tables/rows/{_uid(row_id, 'row_id')}", json={"data": data})
+
+
+@mcp.tool
+def delete_row(row_id: str) -> dict:
+    """Delete a row from its table."""
+    return client().delete(f"tables/rows/{_uid(row_id, 'row_id')}")
+
+
+@mcp.tool
+def add_field(table_id: str, name: str, type: str = "text", options: Optional[dict] = None) -> dict:
+    """Add a column. `type` is one of: text, long_text, number, checkbox,
+    single_select, date. For single_select pass options={"choices": [{"id","name","color"}]}.
+    """
+    body: dict = {"name": name, "type": type}
+    if options:
+        body["options"] = options
+    return client().post(f"tables/{_uid(table_id, 'table_id')}/fields", json=body)
+
+
 def main() -> None:
     """Entry point.
 
