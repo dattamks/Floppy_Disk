@@ -76,6 +76,7 @@ class GraphEdge(TimeStampedModel):
         SHARED_TOKEN = "shared_token", "Shared token"  # sibling files sharing a name token (INFERRED)
         SHARED_TAG = "shared_tag", "Shared tag"    # files sharing a user-applied tag (INFERRED)
         ATTACHES = "attaches", "Attaches"          # table row -> a file it attaches (EXTRACTED)
+        RELATES = "relates", "Relates"             # table row -> a row it links (EXTRACTED)
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="graph_edges")

@@ -77,6 +77,9 @@ def _row_cells(fields, data: dict) -> dict:
         elif f.type == "attachment":
             n = len(val) if isinstance(val, list) else 1
             val = f"{n} file{'s' if n != 1 else ''}"
+        elif f.type == "relation":
+            n = len(val) if isinstance(val, list) else 1
+            val = f"{n} linked"
         out[f.name] = str(val)[:80]
     return out
 # REFERENCES scanning: only read small text/doc blobs, and cap fan-out per file.
@@ -172,6 +175,7 @@ def rebuild_user_graph(user) -> dict:
     table_node = {}          # table_id -> GraphNode
     row_node: dict = {}      # row_id -> (GraphNode, table_id)
     row_attach: list = []    # (row GraphNode, attached file id str)
+    row_relate: list = []    # (row GraphNode, linked row id str)
     for tb in tables:
         tfields = sorted(fields_by_table.get(tb.id, []), key=lambda f: f.position)
         primary = next((f for f in tfields if f.is_primary), None)
@@ -205,6 +209,9 @@ def rebuild_user_graph(user) -> dict:
                 if af.type == "attachment":
                     for fid in (row.data.get(str(af.id)) or []):
                         row_attach.append((rnode, str(fid)))
+                elif af.type == "relation":
+                    for lid in (row.data.get(str(af.id)) or []):
+                        row_relate.append((rnode, str(lid)))
 
     GraphNode.objects.bulk_create(nodes)
 
@@ -244,6 +251,12 @@ def rebuild_user_graph(user) -> dict:
         tgt = file_by_strid.get(fid)
         if tgt is not None:
             _add(rnode, tgt, GraphEdge.Rel.ATTACHES, Provenance.EXTRACTED, "row attaches file")
+    # RELATES: a table row -> a row it links via a relation cell.
+    row_by_strid = {str(rid): rn for rid, (rn, _tb) in row_node.items()}
+    for rnode, lid in row_relate:
+        tgt = row_by_strid.get(lid)
+        if tgt is not None:
+            _add(rnode, tgt, GraphEdge.Rel.RELATES, Provenance.EXTRACTED, "row links row")
 
     # SHARED_TOKEN: files in the same folder sharing a name token. Group by
     # (folder_id, token); connect each group as a star from its first file so

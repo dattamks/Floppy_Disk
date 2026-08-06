@@ -103,6 +103,21 @@ def test_row_attaches_file_edge(user):
     assert GraphEdge.objects.filter(source=rnode, target=fnode, rel=GraphEdge.Rel.ATTACHES).exists()
 
 
+def test_row_relates_row_edge(user):
+    ta = _table(user, "A")
+    tb = _table(user, "B")
+    b_row = tb.rows.first()
+    rel = ta.fields.create(name="Links", type="relation", options={"table_id": str(tb.id)}, position=9)
+    a_row = ta.rows.first()
+    a_row.data = {str(rel.id): [str(b_row.id)]}
+    a_row.save()
+
+    rebuild_user_graph(user)
+    an = GraphNode.objects.get(owner=user, kind=NodeKind.ROW, meta__row_id=str(a_row.id))
+    bn = GraphNode.objects.get(owner=user, kind=NodeKind.ROW, meta__row_id=str(b_row.id))
+    assert GraphEdge.objects.filter(source=an, target=bn, rel=GraphEdge.Rel.RELATES).exists()
+
+
 def test_folder_scoped_key_sees_only_its_tables_in_graph(user):
     inside = Folder.objects.create(owner=user, name="Inside")
     outside = Folder.objects.create(owner=user, name="Outside")

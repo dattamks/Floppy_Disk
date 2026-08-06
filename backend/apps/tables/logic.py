@@ -81,6 +81,18 @@ def coerce_value(field: Field, value, owner=None):
             ).values_list("pk", flat=True))
             ids = [i for i in ids if i in owned]
         return ids or None
+    if t == Field.Type.RELATION:
+        ids = _uuid_ids(value)
+        target = field.options.get("table_id")
+        if owner is not None and ids and target:
+            from .models import Row
+            valid = set(str(x) for x in Row.objects.filter(
+                table_id=target, table__owner=owner, pk__in=ids,
+            ).values_list("pk", flat=True))
+            ids = [i for i in ids if i in valid]
+        elif not target:
+            return None
+        return ids or None
     return str(value)
 
 
