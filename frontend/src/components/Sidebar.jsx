@@ -48,6 +48,30 @@ export default function Sidebar(V) {
           My Files
         </button>{' '}
         <button
+          onClick={V.navToTables}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '11px',
+            padding: '10px 11px',
+            borderRadius: '9px',
+            border: 'none',
+            background: V.navTablesBg,
+            color: V.navTablesColor,
+            fontSize: '13.5px',
+            fontWeight: V.navTablesWeight,
+            cursor: 'pointer',
+            textAlign: 'left',
+            fontFamily: "'IBM Plex Sans',sans-serif",
+          }}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+            <rect x="3.5" y="4.5" width="17" height="15" rx="2" stroke="currentColor" strokeWidth="1.7" />
+            <path d="M3.5 9.5h17M3.5 14.5h17M9 9.5v10M15 9.5v10" stroke="currentColor" strokeWidth="1.5" />
+          </svg>
+          Tables
+        </button>{' '}
+        <button
           onClick={V.navToShared}
           style={{
             display: 'flex',

@@ -16,6 +16,7 @@ urlpatterns = [
     path("api/v1/public/", include((sharing_public, "sharing_public"))),
     path("api/v1/notifications/", include("apps.notifications.urls")),
     path("api/v1/graph/", include("apps.graph.urls")),
+    path("api/v1/tables/", include("apps.tables.urls")),
 ]
 
 # Standalone (single-deployment): Django also serves the built SPA. This

@@ -165,4 +165,19 @@ export const api = {
   startStorageMigration: (deleteLocal) =>
     request('/admin/storage/migrate', { method: 'POST', body: { delete_local: !!deleteLocal } }),
   pauseStorageMigration: () => request('/admin/storage/migrate/pause', { method: 'POST' }),
+
+  // --- Tables (structured data; a first-class entity like files/notes) ---
+  listTables: () => request('/tables/'),
+  getTable: (id) => request(`/tables/${id}`),
+  createTable: (body) => request('/tables/', { method: 'POST', body }),
+  updateTable: (id, patch) => request(`/tables/${id}`, { method: 'PATCH', body: patch }),
+  deleteTable: (id) => request(`/tables/${id}`, { method: 'DELETE' }),
+  tableRows: (id) => request(`/tables/${id}/rows`),
+  createRow: (id, data) => request(`/tables/${id}/rows`, { method: 'POST', body: { data } }),
+  updateRow: (rowId, data) => request(`/tables/rows/${rowId}`, { method: 'PATCH', body: { data } }),
+  deleteRow: (rowId) => request(`/tables/rows/${rowId}`, { method: 'DELETE' }),
+  createField: (id, body) => request(`/tables/${id}/fields`, { method: 'POST', body }),
+  updateField: (fieldId, patch) => request(`/tables/fields/${fieldId}`, { method: 'PATCH', body: patch }),
+  deleteField: (fieldId) => request(`/tables/fields/${fieldId}`, { method: 'DELETE' }),
+  updateView: (viewId, patch) => request(`/tables/views/${viewId}`, { method: 'PATCH', body: patch }),
 };
