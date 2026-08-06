@@ -553,7 +553,9 @@ def delete_rows(table_id: str, row_ids: list) -> dict:
 @mcp.tool
 def add_field(table_id: str, name: str, type: str = "text", options: Optional[dict] = None) -> dict:
     """Add a column. `type` is one of: text, long_text, number, checkbox,
-    single_select, date. For single_select pass options={"choices": [{"id","name","color"}]}.
+    single_select, multi_select, date, url, email, rating, currency, percent.
+    For single_select/multi_select pass options={"choices": [{"id","name","color"}]};
+    rating takes options={"max": 5}; currency options={"symbol": "$"}.
     """
     body: dict = {"name": name, "type": type}
     if options:

@@ -44,7 +44,13 @@ class Field(BaseModel):
         NUMBER = "number", "Number"
         CHECKBOX = "checkbox", "Checkbox"
         SINGLE_SELECT = "single_select", "Single select"
+        MULTI_SELECT = "multi_select", "Multi select"
         DATE = "date", "Date"
+        URL = "url", "URL"
+        EMAIL = "email", "Email"
+        RATING = "rating", "Rating"
+        CURRENCY = "currency", "Currency"
+        PERCENT = "percent", "Percent"
 
     table = models.ForeignKey(Table, on_delete=models.CASCADE, related_name="fields")
     name = models.CharField(max_length=255)
