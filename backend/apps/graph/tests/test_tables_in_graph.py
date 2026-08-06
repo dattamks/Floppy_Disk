@@ -88,6 +88,21 @@ def test_graph_api_reflects_a_table_edit(user):
     assert any(n["type"] == "row" and n["label"] == "Acme deal" for n in second["nodes"])
 
 
+def test_row_attaches_file_edge(user):
+    from apps.storage.models import File
+    f = File.objects.create(owner=user, name="brief.pdf", status=File.Status.READY, size_bytes=1)
+    t = _table(user)
+    att = t.fields.create(name="Files", type="attachment", position=9)
+    row = t.rows.first()
+    row.data = {str(att.id): [str(f.id)]}
+    row.save()
+
+    rebuild_user_graph(user)
+    fnode = GraphNode.objects.get(owner=user, kind=NodeKind.FILE, file=f)
+    rnode = GraphNode.objects.get(owner=user, kind=NodeKind.ROW, meta__row_id=str(row.id))
+    assert GraphEdge.objects.filter(source=rnode, target=fnode, rel=GraphEdge.Rel.ATTACHES).exists()
+
+
 def test_folder_scoped_key_sees_only_its_tables_in_graph(user):
     inside = Folder.objects.create(owner=user, name="Inside")
     outside = Folder.objects.create(owner=user, name="Outside")

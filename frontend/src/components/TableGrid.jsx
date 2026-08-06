@@ -17,6 +17,7 @@ const TYPE_LABEL = {
   text: 'Text', long_text: 'Long text', number: 'Number', checkbox: 'Checkbox',
   single_select: 'Select', multi_select: 'Multi-select', date: 'Date',
   url: 'URL', email: 'Email', rating: 'Rating', currency: 'Currency', percent: 'Percent',
+  attachment: 'Attachment',
 };
 
 function choiceOf(field, id) {
@@ -34,6 +35,7 @@ export function plainValue(field, value) {
   if (field.type === 'checkbox') return value ? 'true' : 'false';
   if (field.type === 'single_select') { const c = choiceOf(field, value); return c ? c.name : ''; }
   if (field.type === 'multi_select') return (value || []).map((id) => choiceOf(field, id)?.name || '').filter(Boolean).join(', ');
+  if (field.type === 'attachment') return `${(value || []).length} file${(value || []).length === 1 ? '' : 's'}`;
   if (field.type === 'currency' || field.type === 'percent') return fmtNum(field, value);
   return String(value);
 }
@@ -84,9 +86,10 @@ function Stars({ value, max, onSet }) {
 
 export default function TableGrid({
   fields, rows, widths, onResize, sort, onSortToggle,
-  selectedIds, onSelectionChange,
+  selectedIds, onSelectionChange, files = [],
   onEditCell, onAddRow, onAddField, onDeleteRows, onRenameField, onDeleteField, onUndo,
 }) {
+  const fileName = (id) => (files.find((f) => f.id === id) || {}).name || 'file';
   const scrollRef = React.useRef(null);
   const [scrollTop, setScrollTop] = React.useState(0);
   const [viewH, setViewH] = React.useState(480);
@@ -167,7 +170,7 @@ export default function TableGrid({
   const startEdit = (r, c, seed) => {
     const field = fields[c];
     if (!field || field.type === 'checkbox' || field.type === 'rating') return;
-    if (field.type === 'single_select' || field.type === 'multi_select') { setSel({ r, c }); setSelectOpen(true); return; }
+    if (field.type === 'single_select' || field.type === 'multi_select' || field.type === 'attachment') { setSel({ r, c }); setSelectOpen(true); return; }
     setEditing({ r, c });
     setDraft(seed !== undefined ? seed : (rows[r]?.data?.[field.id] ?? ''));
   };
@@ -286,6 +289,14 @@ export default function TableGrid({
           </button>
         ) : field.type === 'rating' ? (
           <Stars value={cellVal(row, field)} max={field.options?.max || 5} onSet={(v) => onEditCell(row.id, field.id, v || '')} />
+        ) : field.type === 'attachment' ? (
+          <span style={{ display: 'flex', gap: 4, overflow: 'hidden' }}>
+            {(Array.isArray(cellVal(row, field)) ? cellVal(row, field) : []).map((fid) => (
+              <span key={fid} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '12px', fontWeight: 600, color: theme.text, background: theme.surface2, borderRadius: '6px', padding: '2px 8px', whiteSpace: 'nowrap' }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M8 4h6l4 4v12H6V4z" stroke={theme.textMuted} strokeWidth="1.7" /></svg>{fileName(fid)}
+              </span>
+            ))}
+          </span>
         ) : (<CellValue field={field} value={cellVal(row, field)} />)}
         {isSel && selectOpen && field.type === 'single_select' ? (
           <div style={{ position: 'absolute', top: ROW_H - 2, left: 0, zIndex: 30, background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '9px', boxShadow: '0 10px 30px rgba(16,24,40,0.18)', padding: '5px', minWidth: w }}>
@@ -303,6 +314,23 @@ export default function TableGrid({
               return (
                 <button key={ch.id} onClick={() => { const next = on ? arr.filter((x) => x !== ch.id) : [...arr, ch.id]; onEditCell(row.id, field.id, next.length ? next : ''); }} style={menuItem}>
                   <span style={{ width: 14, display: 'inline-flex', color: theme.brand }}>{on ? '✓' : ''}</span><Pill c={ch} />
+                </button>
+              );
+            })}
+            <button onClick={() => setSelectOpen(false)} style={{ ...menuItem, color: theme.textMuted, justifyContent: 'center' }}>Done</button>
+          </div>
+        ) : null}
+        {isSel && selectOpen && field.type === 'attachment' ? (
+          <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} style={{ position: 'absolute', top: ROW_H - 2, left: 0, zIndex: 30, background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '9px', boxShadow: '0 10px 30px rgba(16,24,40,0.18)', padding: '5px', minWidth: Math.max(w, 220), maxHeight: 260, overflowY: 'auto' }}>
+            {files.length === 0 ? (
+              <div style={{ padding: '10px', fontSize: '12.5px', color: theme.textFaint }}>No files to attach yet.</div>
+            ) : files.map((f) => {
+              const arr = Array.isArray(cellVal(row, field)) ? cellVal(row, field) : [];
+              const on = arr.includes(f.id);
+              return (
+                <button key={f.id} onClick={() => { const next = on ? arr.filter((x) => x !== f.id) : [...arr, f.id]; onEditCell(row.id, field.id, next.length ? next : ''); }} style={menuItem}>
+                  <span style={{ width: 14, display: 'inline-flex', color: theme.brand }}>{on ? '✓' : ''}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                 </button>
               );
             })}
