@@ -559,7 +559,9 @@ def add_field(table_id: str, name: str, type: str = "text", options: Optional[di
     options={"symbol": "$"}. An attachment cell's value is a list of file ids
     (from list_files) - the row then links to those files in the graph. A
     relation links to rows in another table: pass options={"table_id": "..."}
-    and set the cell to a list of row ids from that table.
+    and set the cell to a list of row ids from that table. formula/lookup/rollup
+    are computed columns (options.expr, or options.relation + options.field
+    [+ options.agg]); they store no value and are derived at read time.
     """
     body: dict = {"name": name, "type": type}
     if options:
