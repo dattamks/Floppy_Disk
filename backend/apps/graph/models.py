@@ -25,6 +25,8 @@ from apps.common.models import TimeStampedModel
 class NodeKind(models.TextChoices):
     FILE = "file", "File"
     FOLDER = "folder", "Folder"
+    TABLE = "table", "Table"
+    ROW = "row", "Row"
 
 
 class Provenance(models.TextChoices):

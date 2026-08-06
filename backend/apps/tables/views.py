@@ -167,7 +167,9 @@ class FieldDetailView(APIView):
         if field.is_primary:
             return Response({"detail": "The primary field cannot be deleted."},
                             status=status.HTTP_400_BAD_REQUEST)
+        table = field.table
         field.delete()
+        table.save(update_fields=["updated_at"])  # invalidate the graph
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
