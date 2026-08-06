@@ -544,6 +544,13 @@ def delete_row(row_id: str) -> dict:
 
 
 @mcp.tool
+def delete_rows(table_id: str, row_ids: list) -> dict:
+    """Delete many rows from a table at once. Returns {deleted: n}."""
+    ids = [_uid(r, "row_id") for r in row_ids]
+    return client().post(f"tables/{_uid(table_id, 'table_id')}/rows/bulk_delete", json={"ids": ids})
+
+
+@mcp.tool
 def add_field(table_id: str, name: str, type: str = "text", options: Optional[dict] = None) -> dict:
     """Add a column. `type` is one of: text, long_text, number, checkbox,
     single_select, date. For single_select pass options={"choices": [{"id","name","color"}]}.

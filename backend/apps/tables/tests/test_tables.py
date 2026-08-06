@@ -123,6 +123,16 @@ def test_delete_row(user):
     assert not Row.objects.filter(pk=row["id"]).exists()
 
 
+def test_bulk_delete_rows(user):
+    c = _session(user)
+    t = _new_table(c)
+    rows = c.get(f"/api/v1/tables/{t['id']}/rows").json()  # 3 starter rows
+    ids = [rows[0]["id"], rows[1]["id"]]
+    r = c.post(f"/api/v1/tables/{t['id']}/rows/bulk_delete", {"ids": ids}, format="json")
+    assert r.status_code == 200 and r.json()["deleted"] == 2
+    assert Row.objects.filter(table_id=t["id"]).count() == 1
+
+
 # ------------------------------------------------------------- table lifecycle
 def test_rename_trash_and_restore(user):
     c = _session(user)
