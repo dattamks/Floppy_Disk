@@ -91,6 +91,7 @@ export default function TableGrid({
   fields, rows, widths, onResize, sort, onSortToggle,
   selectedIds, onSelectionChange, files = [], relLabels = {}, computed = () => '',
   onEditCell, onAddRow, onAddField, onDeleteRows, onRenameField, onDeleteField, onUndo, onExpandRow,
+  groups = null, onToggleGroup,
 }) {
   const fileName = (id) => (files.find((f) => f.id === id) || {}).name || 'file';
   const relMap = (field) => relLabels[field.options?.table_id] || {};
@@ -120,9 +121,32 @@ export default function TableGrid({
 
   const colW = (f) => widths[f.id] || (f.is_primary ? 220 : DEFAULT_W);
   const totalW = GUTTER_W + fields.reduce((a, f) => a + colW(f), 0) + 44;
+
+  // Layout slots. Without grouping: one slot per row. With grouping: a header
+  // slot precedes each group and collapsed groups contribute no row slots. Every
+  // slot is ROW_H tall so the windowing math stays uniform. rowTop maps a
+  // logical row index to its pixel offset (accounting for interspersed headers).
+  const { slots, rowTop } = React.useMemo(() => {
+    if (!groups) return { slots: null, rowTop: (r) => r * ROW_H };
+    const s = [];
+    const tops = new Array(rows.length);
+    let ri = 0;
+    for (const g of groups) {
+      s.push({ kind: 'header', group: g });
+      if (!g.collapsed) {
+        for (let k = 0; k < g.count && ri < rows.length; k++) {
+          tops[ri] = s.length * ROW_H;
+          s.push({ kind: 'row', r: ri });
+          ri += 1;
+        }
+      }
+    }
+    return { slots: s, rowTop: (r) => (tops[r] != null ? tops[r] : r * ROW_H) };
+  }, [groups, rows.length]);
+
+  const slotCount = slots ? slots.length : rows.length;
   const start = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
-  const end = Math.min(rows.length, Math.ceil((scrollTop + viewH) / ROW_H) + OVERSCAN);
-  const visible = rows.slice(start, end);
+  const end = Math.min(slotCount, Math.ceil((scrollTop + viewH) / ROW_H) + OVERSCAN);
   const cellVal = (row, field) => row.data?.[field.id];
   const selCount = selectedIds ? selectedIds.size : 0;
 
@@ -217,10 +241,10 @@ export default function TableGrid({
   React.useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const top = sel.r * ROW_H;
+    const top = rowTop(sel.r);
     if (top < el.scrollTop) el.scrollTop = top;
     else if (top + ROW_H > el.scrollTop + el.clientHeight - HEADER_H) el.scrollTop = top + ROW_H - el.clientHeight + HEADER_H;
-  }, [sel.r]);
+  }, [sel.r]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- column resize ----
   const dragRef = React.useRef(null);
@@ -380,6 +404,39 @@ export default function TableGrid({
     )
   );
 
+  const renderDataRow = (r, top) => {
+    const row = rows[r];
+    if (!row) return null;
+    const rowSelected = selectedIds.has(row.id);
+    return (
+      <div key={row.id} className={`fd-row${rowSelected ? ' fd-sel-on' : ''}`} style={{ position: 'absolute', top, left: 0, display: 'flex', height: ROW_H, background: rowSelected ? theme.brandBg : 'transparent' }}>
+        <div data-gutter-r={r} onMouseDown={(e) => gutterDown(e, r)} onMouseEnter={() => gutterEnter(r)} onClick={(e) => gutterClick(e, r, row.id)}
+          style={{ width: GUTTER_W, flex: `0 0 ${GUTTER_W}px`, height: ROW_H, borderRight: `1px solid ${theme.border}`, borderBottom: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, color: theme.textFaint, fontSize: '11px', background: rowSelected ? theme.brandBg : theme.white, cursor: 'pointer', userSelect: 'none' }}>
+          <span className="fd-check" style={{ display: rowSelected ? 'flex' : 'none' }}>{checkboxIcon(rowSelected)}</span>
+          <span className="fd-num" style={{ display: rowSelected ? 'none' : 'block' }}>{r + 1}</span>
+          {onExpandRow ? (
+            <button className="fd-expand" data-expand-r={r} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onExpandRow(row.id); }} aria-label="Expand row" title="Expand row"
+              style={{ display: 'none', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted, padding: 0 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 4H4v5M15 20h5v-5M4 4l6 6M20 20l-6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </button>
+          ) : null}
+        </div>
+        {fields.map((f, c) => renderCell(row, r, f, c))}
+      </div>
+    );
+  };
+
+  const renderGroupHeader = (g, top) => (
+    <div key={`g-${g.key}`} data-group-key={g.key} style={{ position: 'absolute', top, left: 0, height: ROW_H, minWidth: totalW, width: totalW, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', boxSizing: 'border-box', background: theme.surface2, borderBottom: `1px solid ${theme.border}` }}>
+      <button onClick={() => onToggleGroup && onToggleGroup(g.key)} data-group-toggle={g.key} aria-label={`${g.collapsed ? 'Expand' : 'Collapse'} group ${g.label}`}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', color: theme.textMuted, padding: 0, position: 'sticky', left: 12 }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" style={{ transform: g.collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .12s' }}><path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="1.9" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
+      </button>
+      <span style={{ fontSize: '12.5px', fontWeight: 700, color: theme.text, whiteSpace: 'nowrap', position: 'sticky', left: 34 }}>{g.label}</span>
+      <span style={{ fontSize: '11.5px', color: theme.textFaint, position: 'sticky', left: 34 }}>{g.count}</span>
+    </div>
+  );
+
   return (
     <div ref={scrollRef} tabIndex={0} onKeyDown={onKeyDown} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)} onClick={() => { if (menuField) setMenuField(null); }} data-testid="table-grid"
       style={{ flex: 1, overflow: 'auto', outline: 'none', border: `1px solid ${theme.border}`, borderRadius: '10px', background: theme.white, position: 'relative' }}>
@@ -393,27 +450,13 @@ export default function TableGrid({
             <svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
         </div>
-        <div style={{ position: 'relative', height: rows.length * ROW_H }}>
-          {visible.map((row, i) => {
-            const r = start + i;
-            const rowSelected = selectedIds.has(row.id);
-            return (
-              <div key={row.id} className={`fd-row${rowSelected ? ' fd-sel-on' : ''}`} style={{ position: 'absolute', top: r * ROW_H, left: 0, display: 'flex', height: ROW_H, background: rowSelected ? theme.brandBg : 'transparent' }}>
-                <div data-gutter-r={r} onMouseDown={(e) => gutterDown(e, r)} onMouseEnter={() => gutterEnter(r)} onClick={(e) => gutterClick(e, r, row.id)}
-                  style={{ width: GUTTER_W, flex: `0 0 ${GUTTER_W}px`, height: ROW_H, borderRight: `1px solid ${theme.border}`, borderBottom: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, color: theme.textFaint, fontSize: '11px', background: rowSelected ? theme.brandBg : theme.white, cursor: 'pointer', userSelect: 'none' }}>
-                  <span className="fd-check" style={{ display: rowSelected ? 'flex' : 'none' }}>{checkboxIcon(rowSelected)}</span>
-                  <span className="fd-num" style={{ display: rowSelected ? 'none' : 'block' }}>{r + 1}</span>
-                  {onExpandRow ? (
-                    <button className="fd-expand" data-expand-r={r} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onExpandRow(row.id); }} aria-label="Expand row" title="Expand row"
-                      style={{ display: 'none', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted, padding: 0 }}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 4H4v5M15 20h5v-5M4 4l6 6M20 20l-6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    </button>
-                  ) : null}
-                </div>
-                {fields.map((f, c) => renderCell(row, r, f, c))}
-              </div>
-            );
-          })}
+        <div style={{ position: 'relative', height: slotCount * ROW_H }}>
+          {slots
+            ? slots.slice(start, end).map((slot, i) => {
+                const top = (start + i) * ROW_H;
+                return slot.kind === 'header' ? renderGroupHeader(slot.group, top) : renderDataRow(slot.r, top);
+              })
+            : rows.slice(start, end).map((row, i) => renderDataRow(start + i, (start + i) * ROW_H))}
         </div>
       </div>
       <button onClick={onAddRow} data-testid="add-row" style={{ position: 'sticky', bottom: 0, left: 0, width: '100%', height: 34, background: theme.white, borderTop: `1px solid ${theme.border}`, cursor: 'pointer', color: theme.textMuted, display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', fontSize: '13px', fontWeight: 600, zIndex: 8 }}>
