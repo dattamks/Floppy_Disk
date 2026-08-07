@@ -5,6 +5,7 @@ import TableGrid, { plainValue } from './TableGrid';
 import RowDetailModal from './RowDetailModal';
 import { computeCell, COMPUTED_TYPES } from '../lib/tableCompute';
 import { filterRows, opsForType, opNeedsValue, OP_LABELS } from '../lib/tableFilter';
+import { groupRows, isGroupable } from '../lib/tableGroup';
 
 // Tables: a first-class full-page surface. Shows the list of tables, and opens
 // one into the hand-built grid. Owns optimistic row/field state, sorting,
@@ -44,6 +45,9 @@ export default function TablesPage({ V }) {
   const [sort, setSort] = React.useState(null);           // { field, dir }
   const [filters, setFilters] = React.useState([]);       // [{ field, op, value }]
   const [filterOpen, setFilterOpen] = React.useState(false);
+  const [groupBy, setGroupBy] = React.useState(null);     // fieldId | null
+  const [groupMenu, setGroupMenu] = React.useState(false);
+  const [collapsedGroups, setCollapsedGroups] = React.useState(new Set());
   const [selected, setSelected] = React.useState(new Set());
   const [expandedId, setExpandedId] = React.useState(null); // row id shown in the detail modal
   const [files, setFiles] = React.useState([]);           // owner's files, for attachment cells
@@ -78,7 +82,7 @@ export default function TablesPage({ V }) {
   }, []);
   React.useEffect(() => { loadList(); }, [loadList]);
 
-  const resetOpenState = () => { setSelected(new Set()); setExpandedId(null); undoRef.current = []; };
+  const resetOpenState = () => { setSelected(new Set()); setExpandedId(null); setCollapsedGroups(new Set()); setGroupMenu(false); undoRef.current = []; };
 
   const openTable = (id) => {
     setLoadingTable(true);
@@ -89,6 +93,7 @@ export default function TablesPage({ V }) {
         setWidths(t.views?.[0]?.config?.widths || {});
         setSort(t.views?.[0]?.config?.sort || null);
         setFilters(t.views?.[0]?.config?.filters || []);
+        setGroupBy(t.views?.[0]?.config?.groupBy || null);
         loadRelTargets(t.fields);
       })
       .catch((e) => toast(firstError(e, 'Could not open table')))
@@ -98,7 +103,7 @@ export default function TablesPage({ V }) {
   const newTable = () => {
     loadFiles(); loadList();
     api.createTable({ name: 'Untitled table' })
-      .then((t) => { setOpen(t); setWidths({}); setSort(null); setFilters([]); resetOpenState(); return api.tableRows(t.id).then(setRows); })
+      .then((t) => { setOpen(t); setWidths({}); setSort(null); setFilters([]); setGroupBy(null); resetOpenState(); return api.tableRows(t.id).then(setRows); })
       .catch((e) => toast(firstError(e, 'Could not create table')));
   };
   const backToList = () => { setOpen(null); setRows([]); resetOpenState(); loadList(); };
@@ -217,6 +222,7 @@ export default function TablesPage({ V }) {
     setOpen((o) => ({ ...o, fields: o.fields.filter((f) => f.id !== fieldId) }));
     if (filters.some((f) => f.field === fieldId)) updateFilters(filters.filter((f) => f.field !== fieldId));
     if (sort && sort.field === fieldId) { setSort(null); persistSort(null); }
+    if (groupBy === fieldId) updateGroupBy(null);
     api.deleteField(fieldId).catch((e) => { toast(firstError(e, 'Could not delete column')); openTable(open.id); });
   };
 
@@ -235,6 +241,10 @@ export default function TablesPage({ V }) {
 
   // ---- filtering ----
   const updateFilters = (next) => { setFilters(next); patchViewConfig({ filters: next }); };
+
+  // ---- grouping ----
+  const updateGroupBy = (fieldId) => { setGroupBy(fieldId); setCollapsedGroups(new Set()); setGroupMenu(false); patchViewConfig({ groupBy: fieldId }); };
+  const toggleGroup = (key) => setCollapsedGroups((prev) => { const s = new Set(prev); if (s.has(key)) s.delete(key); else s.add(key); return s; });
 
   // ---- sorting ----
   const persistSort = (next) => patchViewConfig({ sort: next });
@@ -260,6 +270,24 @@ export default function TablesPage({ V }) {
     }
     return out;
   }, [rows, sort, filters, open]);
+
+  // Group the (filtered + sorted) rows for display. Returns the visible rows in
+  // group order (collapsed groups excluded) plus a group descriptor for the grid
+  // to draw collapsible header bands. Null groups => flat, ungrouped rendering.
+  const grouped = React.useMemo(() => {
+    if (!open || !groupBy) return { rows: displayRows, groups: null };
+    const field = open.fields.find((f) => f.id === groupBy);
+    if (!field || !isGroupable(field.type)) return { rows: displayRows, groups: null };
+    const buckets = groupRows(displayRows, field);
+    const rowsOut = [];
+    const groups = buckets.map((g) => {
+      const collapsed = collapsedGroups.has(g.key);
+      if (!collapsed) rowsOut.push(...g.rows);
+      return { key: g.key, label: g.label, count: g.count, collapsed };
+    });
+    return { rows: rowsOut, groups };
+  }, [open, groupBy, displayRows, collapsedGroups]);
+  const visibleRows = grouped.rows;
 
   // Compute display values for formula/lookup/rollup cells on the client.
   const computed = React.useMemo(() => {
@@ -289,7 +317,7 @@ export default function TablesPage({ V }) {
 
   const copySelected = () => {
     if (!selected.size) return;
-    const chosen = displayRows.filter((r) => selected.has(r.id));
+    const chosen = visibleRows.filter((r) => selected.has(r.id));
     const head = open.fields.map((f) => f.name).join('\t');
     const body = chosen.map((r) => open.fields.map((f) => plainValue(f, r.data?.[f.id])).join('\t')).join('\n');
     if (navigator.clipboard) navigator.clipboard.writeText(`${head}\n${body}`).then(() => toast(`Copied ${chosen.length} row${chosen.length === 1 ? '' : 's'}`)).catch(() => {});
@@ -327,6 +355,24 @@ export default function TablesPage({ V }) {
               onClose={() => setFilterOpen(false)}
             />
           ) : null}
+
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setGroupMenu((v) => !v)} data-testid="group-button" aria-label="Group"
+              style={{ ...barBtn, display: 'inline-flex', alignItems: 'center', gap: 7, color: groupBy ? theme.brand : theme.text, borderColor: groupBy ? (theme.brandBorder || theme.brand) : theme.border, background: groupBy ? theme.brandBg : theme.white }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M7 12h13M10 18h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
+              {groupBy ? `Grouped by ${(open.fields.find((f) => f.id === groupBy) || {}).name || '—'}` : 'Group'}
+            </button>
+            {groupMenu ? (
+              <div role="dialog" aria-label="Group by" data-testid="group-menu" onClick={(e) => e.stopPropagation()}
+                style={{ position: 'absolute', top: 40, left: 0, zIndex: 38, minWidth: 190, background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '11px', padding: '5px', boxShadow: '0 16px 40px rgba(16,24,40,0.2)' }}>
+                <button onClick={() => updateGroupBy(null)} style={{ ...groupItem, color: groupBy ? theme.textMuted : theme.brand }}>No grouping</button>
+                {open.fields.filter((f) => isGroupable(f.type)).map((f) => (
+                  <button key={f.id} onClick={() => updateGroupBy(f.id)} style={{ ...groupItem, color: groupBy === f.id ? theme.brand : theme.text, fontWeight: groupBy === f.id ? 700 : 500 }}>{f.name}</button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
           <span style={{ flex: 1 }} />
           <span style={{ fontSize: '12px', color: theme.textFaint }} data-testid="row-count">{displayRows.length}{displayRows.length !== rows.length ? ` of ${rows.length}` : ''} row{rows.length === 1 ? '' : 's'}</span>
         </div>
@@ -343,7 +389,9 @@ export default function TablesPage({ V }) {
 
         <TableGrid
           fields={open.fields}
-          rows={displayRows}
+          rows={visibleRows}
+          groups={grouped.groups}
+          onToggleGroup={toggleGroup}
           widths={widths}
           onResize={resize}
           sort={sort}
@@ -364,15 +412,15 @@ export default function TablesPage({ V }) {
         />
 
         {(() => {
-          const idx = displayRows.findIndex((r) => r.id === expandedId);
+          const idx = visibleRows.findIndex((r) => r.id === expandedId);
           if (idx < 0) return null;
-          const go = (dir) => { const n = idx + dir; if (n >= 0 && n < displayRows.length) setExpandedId(displayRows[n].id); };
+          const go = (dir) => { const n = idx + dir; if (n >= 0 && n < visibleRows.length) setExpandedId(visibleRows[n].id); };
           return (
             <RowDetailModal
-              row={displayRows[idx]}
+              row={visibleRows[idx]}
               fields={open.fields}
               index={idx}
-              total={displayRows.length}
+              total={visibleRows.length}
               files={files}
               relLabels={relLabels}
               computed={computed}
@@ -486,6 +534,7 @@ const filterPanelStyle = { position: 'absolute', top: 40, left: 0, zIndex: 38, w
 const fSelect = { border: `1px solid ${theme.border}`, borderRadius: '8px', padding: '6px 8px', fontSize: '12.5px', color: theme.text, background: theme.white, outline: 'none', fontFamily: 'inherit', maxWidth: 150 };
 const fInput = { border: `1px solid ${theme.border}`, borderRadius: '8px', padding: '6px 9px', fontSize: '12.5px', color: theme.text, background: theme.white, outline: 'none', fontFamily: 'inherit', minWidth: 0 };
 const iconBtnSm = { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, border: `1px solid ${theme.border}`, background: theme.white, color: theme.textMuted, cursor: 'pointer', flex: '0 0 auto' };
+const groupItem = { display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '7px 10px', fontSize: '13px', borderRadius: '7px', fontFamily: 'inherit' };
 
 function FilterValue({ field, value, onChange }) {
   const type = field ? field.type : 'text';
