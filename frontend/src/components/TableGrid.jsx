@@ -43,7 +43,7 @@ export function plainValue(field, value) {
   return String(value);
 }
 
-function Pill({ c }) {
+export function Pill({ c }) {
   return <span style={{ fontSize: '12px', fontWeight: 600, color: theme.text, background: c.color || theme.surface2, borderRadius: '999px', padding: '2px 10px', whiteSpace: 'nowrap' }}>{c.name}</span>;
 }
 
@@ -74,7 +74,7 @@ function CellValue({ field, value }) {
   return <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(value)}</span>;
 }
 
-function Stars({ value, max, onSet }) {
+export function Stars({ value, max, onSet }) {
   const v = Number(value) || 0;
   return (
     <span style={{ display: 'flex', gap: 1 }} onMouseDown={(e) => e.stopPropagation()}>
@@ -90,7 +90,7 @@ function Stars({ value, max, onSet }) {
 export default function TableGrid({
   fields, rows, widths, onResize, sort, onSortToggle,
   selectedIds, onSelectionChange, files = [], relLabels = {}, computed = () => '',
-  onEditCell, onAddRow, onAddField, onDeleteRows, onRenameField, onDeleteField, onUndo,
+  onEditCell, onAddRow, onAddField, onDeleteRows, onRenameField, onDeleteField, onUndo, onExpandRow,
 }) {
   const fileName = (id) => (files.find((f) => f.id === id) || {}).name || 'file';
   const relMap = (field) => relLabels[field.options?.table_id] || {};
@@ -400,9 +400,15 @@ export default function TableGrid({
             return (
               <div key={row.id} className={`fd-row${rowSelected ? ' fd-sel-on' : ''}`} style={{ position: 'absolute', top: r * ROW_H, left: 0, display: 'flex', height: ROW_H, background: rowSelected ? theme.brandBg : 'transparent' }}>
                 <div data-gutter-r={r} onMouseDown={(e) => gutterDown(e, r)} onMouseEnter={() => gutterEnter(r)} onClick={(e) => gutterClick(e, r, row.id)}
-                  style={{ width: GUTTER_W, flex: `0 0 ${GUTTER_W}px`, height: ROW_H, borderRight: `1px solid ${theme.border}`, borderBottom: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: theme.textFaint, fontSize: '11px', background: rowSelected ? theme.brandBg : theme.white, cursor: 'pointer', userSelect: 'none' }}>
+                  style={{ width: GUTTER_W, flex: `0 0 ${GUTTER_W}px`, height: ROW_H, borderRight: `1px solid ${theme.border}`, borderBottom: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, color: theme.textFaint, fontSize: '11px', background: rowSelected ? theme.brandBg : theme.white, cursor: 'pointer', userSelect: 'none' }}>
                   <span className="fd-check" style={{ display: rowSelected ? 'flex' : 'none' }}>{checkboxIcon(rowSelected)}</span>
                   <span className="fd-num" style={{ display: rowSelected ? 'none' : 'block' }}>{r + 1}</span>
+                  {onExpandRow ? (
+                    <button className="fd-expand" data-expand-r={r} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onExpandRow(row.id); }} aria-label="Expand row" title="Expand row"
+                      style={{ display: 'none', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted, padding: 0 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 4H4v5M15 20h5v-5M4 4l6 6M20 20l-6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    </button>
+                  ) : null}
                 </div>
                 {fields.map((f, c) => renderCell(row, r, f, c))}
               </div>
@@ -417,6 +423,7 @@ export default function TableGrid({
       <style>{`
         [data-testid="table-grid"] .fd-row:hover .fd-num { display: none !important; }
         [data-testid="table-grid"] .fd-row:hover .fd-check { display: flex !important; }
+        [data-testid="table-grid"] .fd-row:hover .fd-expand { display: flex !important; }
       `}</style>
     </div>
   );

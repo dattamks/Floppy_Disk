@@ -102,6 +102,26 @@ def test_row_cell_edit_coerces_by_type(user):
     assert num_r["id"] not in d2
 
 
+def test_single_field_patch_preserves_other_cells(user):
+    # A per-field PATCH must merge onto existing data, not replace the row - so
+    # editing one cell never drops another (the property the row lock protects
+    # when two such patches land concurrently, e.g. from the row-detail modal).
+    c = _session(user)
+    t = _new_table(c)
+    name_f = t["fields"][0]["id"]
+    num_f = c.post(f"/api/v1/tables/{t['id']}/fields", {"name": "N", "type": "number"}, format="json").json()
+
+    row = c.post(f"/api/v1/tables/{t['id']}/rows", {"data": {name_f: "Alpha"}}, format="json").json()
+    # Patch only the number cell; the name must survive.
+    d = c.patch(f"/api/v1/tables/rows/{row['id']}", {"data": {num_f["id"]: "7"}}, format="json").json()["data"]
+    assert d[name_f] == "Alpha"
+    assert d[num_f["id"]] == 7
+    # And patching only the name back leaves the number intact.
+    d2 = c.patch(f"/api/v1/tables/rows/{row['id']}", {"data": {name_f: "Beta"}}, format="json").json()["data"]
+    assert d2[name_f] == "Beta"
+    assert d2[num_f["id"]] == 7
+
+
 def test_new_field_types_coerce_values(user):
     c = _session(user)
     t = _new_table(c)

@@ -221,30 +221,44 @@ class RowDetailView(APIView):
         return row
 
     def patch(self, request, row_id):
-        row = self._get(request, row_id)
-        if row is None:
+        if self._get(request, row_id) is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
-        if "data" in request.data:
-            # Merge cell-by-cell; an explicit null/empty clears that cell.
-            fields = {str(f.id): f for f in row.table.fields.all()}
-            merged = dict(row.data or {})
-            for fid, val in (request.data["data"] or {}).items():
-                f = fields.get(str(fid))
-                if f is None:
-                    continue
-                cv = coerce_value(f, val, owner=request.user)
-                if cv is None:
-                    merged.pop(str(fid), None)
-                else:
-                    merged[str(fid)] = cv
-            row.data = merged
-        if "position" in request.data:
-            try:
-                row.position = float(request.data["position"])
-            except (TypeError, ValueError):
-                pass
-        row.save()
-        row.table.save(update_fields=["updated_at"])
+        # Lock the row for the read-modify-write so two concurrent per-field
+        # patches (e.g. the row-detail modal committing two cells in quick
+        # succession) can't clobber each other's field - the second waits for
+        # the first, then merges onto the already-updated data. On backends
+        # without row locks (SQLite) this is a no-op, but writes are serialized
+        # there anyway.
+        with transaction.atomic():
+            row = (
+                Row.objects.select_for_update()
+                .filter(pk=row_id, table__owner=request.user)
+                .select_related("table")
+                .first()
+            )
+            if row is None:
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            if "data" in request.data:
+                # Merge cell-by-cell; an explicit null/empty clears that cell.
+                fields = {str(f.id): f for f in row.table.fields.all()}
+                merged = dict(row.data or {})
+                for fid, val in (request.data["data"] or {}).items():
+                    f = fields.get(str(fid))
+                    if f is None:
+                        continue
+                    cv = coerce_value(f, val, owner=request.user)
+                    if cv is None:
+                        merged.pop(str(fid), None)
+                    else:
+                        merged[str(fid)] = cv
+                row.data = merged
+            if "position" in request.data:
+                try:
+                    row.position = float(request.data["position"])
+                except (TypeError, ValueError):
+                    pass
+            row.save()
+            row.table.save(update_fields=["updated_at"])
         return Response(RowSerializer(row).data)
 
     def delete(self, request, row_id):
