@@ -84,6 +84,16 @@ config and are read-only through the API/MCP).
 - [ ] Filtering applies to the board; board mode + column field persist across reload.
 - **Correctness:** switching view / dragging never clobbers a previously-set sort/filter/group in the view config.
 
+## 8. Multiple saved views  (`tables-views.spec.js`)
+- [ ] A new table starts with one Grid view (one tab).
+- [ ] Add a view from the `+` menu (Grid or Board); it becomes a new tab and opens active.
+- [ ] Each view keeps its **own** config — a filter/sort/group/board-field on one view does **not** affect another.
+- [ ] Switch tabs → the working state reflects that view's config; the board/grid layout follows the view's kind.
+- [ ] Rename a view (double-click tab); delete a view (✕ on the active tab) — but never the last one (no delete affordance when one remains).
+- [ ] Views + their independent configs persist across reload; reopening lands on the first view.
+- **API:** `POST /tables/{id}/views` creates (validates kind); `DELETE /tables/views/{id}` (refuses the last); `get_table` lists all views with config.
+- **MCP:** `create_view` / `delete_view`; `get_table` exposes the views list.
+
 ## Cross-cutting (check on every Tables change)
 - [ ] **No regression:** the full `tables` E2E suite is green, plus backend `apps/tables`+`apps/graph`, frontend Vitest, and MCP smoke.
 - [ ] **Responsiveness:** on a phone viewport the toolbar wraps; the grid/board scroll horizontally without breaking the page; the row-detail modal fits.

@@ -93,6 +93,7 @@ class View(BaseModel):
 
     class Kind(models.TextChoices):
         GRID = "grid", "Grid"
+        KANBAN = "kanban", "Kanban"
 
     table = models.ForeignKey(Table, on_delete=models.CASCADE, related_name="views")
     name = models.CharField(max_length=255, default="Grid")

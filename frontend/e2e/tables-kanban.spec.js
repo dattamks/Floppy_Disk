@@ -33,8 +33,9 @@ test('board view: drag between columns, add card, open card, persist', async ({ 
   await page.keyboard.press('Enter');
   await pickSelect(page, grid, 0, 2, 'Todo');
 
-  // Switch to the board. Columns come from Status.
-  await page.getByTestId('view-kanban').click();
+  // Add a Board view (a second saved view on the same table). Columns come from Status.
+  await page.getByTestId('add-view').click();
+  await page.getByTestId('add-view-kanban').click();
   const board = page.getByTestId('kanban-board');
   await expect(board).toBeVisible();
   await expect(page.getByTestId('kanban-field')).toHaveValue(/.+/);
@@ -60,16 +61,19 @@ test('board view: drag between columns, add card, open card, persist', async ({ 
   await expect(page.getByTestId('row-detail-title')).toHaveText('Task A');
   await page.getByTestId('row-detail-done').click();
 
-  // Board mode persists across a reload.
+  // The saved Board view persists across a reload. Reopening lands on the Grid
+  // view (first tab); click the Board tab.
   await page.reload();
   await page.getByRole('button', { name: 'Tables' }).click();
   await page.getByTestId('table-card').first().click();
+  await expect(page.getByTestId('table-grid')).toBeVisible();
+  await page.getByTestId('view-tabs').locator('[data-view-kind="kanban"]').first().click();
   await expect(page.getByTestId('kanban-board')).toBeVisible();
   // Task A is still in Done after the drag persisted.
   await expect(page.getByTestId('kanban-board').locator('[data-kanban-col]').filter({ hasText: 'Done' })
     .locator('[data-kanban-card]').filter({ hasText: 'Task A' })).toBeVisible();
 
-  // Back to grid.
-  await page.getByTestId('view-grid').click();
+  // Back to the Grid view.
+  await page.getByTestId('view-tabs').locator('[data-view-kind="grid"]').first().click();
   await expect(page.getByTestId('table-grid')).toBeVisible();
 });
