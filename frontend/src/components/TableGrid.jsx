@@ -47,7 +47,7 @@ export function Pill({ c }) {
   return <span style={{ fontSize: '12px', fontWeight: 600, color: theme.text, background: c.color || theme.surface2, borderRadius: '999px', padding: '2px 10px', whiteSpace: 'nowrap' }}>{c.name}</span>;
 }
 
-function CellValue({ field, value }) {
+export function CellValue({ field, value }) {
   if (value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length)) return null;
   const t = field.type;
   if (t === 'checkbox') {

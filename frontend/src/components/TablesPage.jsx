@@ -3,6 +3,7 @@ import { theme } from '../lib/theme';
 import { api, firstError } from '../api';
 import TableGrid, { plainValue } from './TableGrid';
 import RowDetailModal from './RowDetailModal';
+import KanbanBoard from './KanbanBoard';
 import { computeCell, COMPUTED_TYPES } from '../lib/tableCompute';
 import { filterRows, opsForType, opNeedsValue, OP_LABELS } from '../lib/tableFilter';
 import { groupRows, isGroupable } from '../lib/tableGroup';
@@ -48,6 +49,8 @@ export default function TablesPage({ V }) {
   const [groupBy, setGroupBy] = React.useState(null);     // fieldId | null
   const [groupMenu, setGroupMenu] = React.useState(false);
   const [collapsedGroups, setCollapsedGroups] = React.useState(new Set());
+  const [viewMode, setViewMode] = React.useState('grid'); // 'grid' | 'kanban'
+  const [kanbanField, setKanbanField] = React.useState(null); // single_select fieldId for board columns
   const [selected, setSelected] = React.useState(new Set());
   const [expandedId, setExpandedId] = React.useState(null); // row id shown in the detail modal
   const [files, setFiles] = React.useState([]);           // owner's files, for attachment cells
@@ -94,6 +97,8 @@ export default function TablesPage({ V }) {
         setSort(t.views?.[0]?.config?.sort || null);
         setFilters(t.views?.[0]?.config?.filters || []);
         setGroupBy(t.views?.[0]?.config?.groupBy || null);
+        setViewMode(t.views?.[0]?.config?.mode === 'kanban' ? 'kanban' : 'grid');
+        setKanbanField(t.views?.[0]?.config?.kanbanField || null);
         loadRelTargets(t.fields);
       })
       .catch((e) => toast(firstError(e, 'Could not open table')))
@@ -103,7 +108,7 @@ export default function TablesPage({ V }) {
   const newTable = () => {
     loadFiles(); loadList();
     api.createTable({ name: 'Untitled table' })
-      .then((t) => { setOpen(t); setWidths({}); setSort(null); setFilters([]); setGroupBy(null); resetOpenState(); return api.tableRows(t.id).then(setRows); })
+      .then((t) => { setOpen(t); setWidths({}); setSort(null); setFilters([]); setGroupBy(null); setViewMode('grid'); setKanbanField(null); resetOpenState(); return api.tableRows(t.id).then(setRows); })
       .catch((e) => toast(firstError(e, 'Could not create table')));
   };
   const backToList = () => { setOpen(null); setRows([]); resetOpenState(); loadList(); };
@@ -163,8 +168,8 @@ export default function TablesPage({ V }) {
       .catch((e) => toast(firstError(e, 'Could not save cell')));
   };
 
-  const addRow = (record = true) => {
-    api.createRow(open.id, {}).then((row) => {
+  const addRow = (preset = {}, record = true) => {
+    api.createRow(open.id, preset).then((row) => {
       setRows((rs) => [...rs, row]);
       if (record) pushUndo(() => deleteRows([row.id], false));
     }).catch((e) => toast(firstError(e, 'Could not add row')));
@@ -226,16 +231,22 @@ export default function TablesPage({ V }) {
     api.deleteField(fieldId).catch((e) => { toast(firstError(e, 'Could not delete column')); openTable(open.id); });
   };
 
+  // Latest view config, always fresh (updated every render). patchViewConfig
+  // merges onto THIS, not a captured closure, so a debounced writer (e.g. the
+  // widths save) can't clobber a mode/sort/filter change made after it was
+  // scheduled.
+  const viewConfigRef = React.useRef({});
+  React.useEffect(() => { viewConfigRef.current = open?.views?.[0]?.config || {}; });
+
   // Merge a patch into the open table's (first) view config, updating local
-  // state and persisting. One writer for sort / filters / widths, so they merge
-  // onto the full config instead of each clobbering the others.
+  // state and persisting. One writer for sort / filters / group / mode / widths,
+  // so they compound instead of each clobbering the others.
   const patchViewConfig = (patch) => {
     const view = open?.views?.[0];
     if (!view) return;
-    const config = { ...(view.config || {}), ...patch };
-    setOpen((o) => (o?.views?.[0]
-      ? { ...o, views: [{ ...o.views[0], config: { ...(o.views[0].config || {}), ...patch } }, ...o.views.slice(1)] }
-      : o));
+    const config = { ...(viewConfigRef.current || {}), ...patch };
+    viewConfigRef.current = config; // compound back-to-back patches before re-render
+    setOpen((o) => (o?.views?.[0] ? { ...o, views: [{ ...o.views[0], config }, ...o.views.slice(1)] } : o));
     api.updateView(view.id, { config }).catch(() => {});
   };
 
@@ -245,6 +256,18 @@ export default function TablesPage({ V }) {
   // ---- grouping ----
   const updateGroupBy = (fieldId) => { setGroupBy(fieldId); setCollapsedGroups(new Set()); setGroupMenu(false); patchViewConfig({ groupBy: fieldId }); };
   const toggleGroup = (key) => setCollapsedGroups((prev) => { const s = new Set(prev); if (s.has(key)) s.delete(key); else s.add(key); return s; });
+
+  // ---- view mode (grid / kanban) ----
+  const updateViewMode = (mode) => {
+    setViewMode(mode);
+    const patch = { mode };
+    if (mode === 'kanban' && !kanbanField) {
+      const first = open?.fields.find((f) => f.type === 'single_select');
+      if (first) { setKanbanField(first.id); patch.kanbanField = first.id; }
+    }
+    patchViewConfig(patch);
+  };
+  const updateKanbanField = (fieldId) => { setKanbanField(fieldId); patchViewConfig({ kanbanField: fieldId }); };
 
   // ---- sorting ----
   const persistSort = (next) => patchViewConfig({ sort: next });
@@ -325,6 +348,15 @@ export default function TablesPage({ V }) {
 
   const page = { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, padding: '20px 22px', gap: '14px', overflow: 'hidden' };
 
+  const singleSelectFields = open ? open.fields.filter((f) => f.type === 'single_select') : [];
+  const kanbanFieldObj = open ? (open.fields.find((f) => f.id === kanbanField && f.type === 'single_select') || singleSelectFields[0] || null) : null;
+  const isKanban = viewMode === 'kanban';
+
+  const addCard = (choiceId) => {
+    if (!kanbanFieldObj) return;
+    addRow(choiceId ? { [kanbanFieldObj.id]: choiceId } : {});
+  };
+
   if (open) {
     return (
       <div style={page} data-testid="table-open">
@@ -340,8 +372,17 @@ export default function TablesPage({ V }) {
           </button>
         </div>
 
-        {/* Controls strip: filter (grouping lands here next). */}
+        {/* Controls strip: view switcher, filter, and group / kanban-columns. */}
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'inline-flex', border: `1px solid ${theme.border}`, borderRadius: '8px', overflow: 'hidden' }} role="tablist" aria-label="View mode">
+            {['grid', 'kanban'].map((m) => (
+              <button key={m} onClick={() => updateViewMode(m)} data-testid={`view-${m}`} aria-label={m === 'grid' ? 'Grid view' : 'Board view'} aria-selected={viewMode === m}
+                style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 600, padding: '6px 12px', background: viewMode === m ? theme.brand : theme.white, color: viewMode === m ? theme.white : theme.textMuted }}>
+                {m === 'grid' ? 'Grid' : 'Board'}
+              </button>
+            ))}
+          </div>
+
           <button onClick={() => setFilterOpen((v) => !v)} data-testid="filter-button" aria-label="Filter"
             style={{ ...barBtn, display: 'inline-flex', alignItems: 'center', gap: 7, color: filters.length ? theme.brand : theme.text, borderColor: filters.length ? (theme.brandBorder || theme.brand) : theme.border, background: filters.length ? theme.brandBg : theme.white }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 5h18l-7 8v6l-4-2v-4L3 5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>
@@ -356,28 +397,37 @@ export default function TablesPage({ V }) {
             />
           ) : null}
 
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setGroupMenu((v) => !v)} data-testid="group-button" aria-label="Group"
-              style={{ ...barBtn, display: 'inline-flex', alignItems: 'center', gap: 7, color: groupBy ? theme.brand : theme.text, borderColor: groupBy ? (theme.brandBorder || theme.brand) : theme.border, background: groupBy ? theme.brandBg : theme.white }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M7 12h13M10 18h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
-              {groupBy ? `Grouped by ${(open.fields.find((f) => f.id === groupBy) || {}).name || '—'}` : 'Group'}
-            </button>
-            {groupMenu ? (
-              <div role="dialog" aria-label="Group by" data-testid="group-menu" onClick={(e) => e.stopPropagation()}
-                style={{ position: 'absolute', top: 40, left: 0, zIndex: 38, minWidth: 190, background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '11px', padding: '5px', boxShadow: '0 16px 40px rgba(16,24,40,0.2)' }}>
-                <button onClick={() => updateGroupBy(null)} style={{ ...groupItem, color: groupBy ? theme.textMuted : theme.brand }}>No grouping</button>
-                {open.fields.filter((f) => isGroupable(f.type)).map((f) => (
-                  <button key={f.id} onClick={() => updateGroupBy(f.id)} style={{ ...groupItem, color: groupBy === f.id ? theme.brand : theme.text, fontWeight: groupBy === f.id ? 700 : 500 }}>{f.name}</button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          {!isKanban ? (
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => setGroupMenu((v) => !v)} data-testid="group-button" aria-label="Group"
+                style={{ ...barBtn, display: 'inline-flex', alignItems: 'center', gap: 7, color: groupBy ? theme.brand : theme.text, borderColor: groupBy ? (theme.brandBorder || theme.brand) : theme.border, background: groupBy ? theme.brandBg : theme.white }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M7 12h13M10 18h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" /></svg>
+                {groupBy ? `Grouped by ${(open.fields.find((f) => f.id === groupBy) || {}).name || '—'}` : 'Group'}
+              </button>
+              {groupMenu ? (
+                <div role="dialog" aria-label="Group by" data-testid="group-menu" onClick={(e) => e.stopPropagation()}
+                  style={{ position: 'absolute', top: 40, left: 0, zIndex: 38, minWidth: 190, background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '11px', padding: '5px', boxShadow: '0 16px 40px rgba(16,24,40,0.2)' }}>
+                  <button onClick={() => updateGroupBy(null)} style={{ ...groupItem, color: groupBy ? theme.textMuted : theme.brand }}>No grouping</button>
+                  {open.fields.filter((f) => isGroupable(f.type)).map((f) => (
+                    <button key={f.id} onClick={() => updateGroupBy(f.id)} style={{ ...groupItem, color: groupBy === f.id ? theme.brand : theme.text, fontWeight: groupBy === f.id ? 700 : 500 }}>{f.name}</button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : singleSelectFields.length > 0 ? (
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '12.5px', color: theme.textMuted }}>
+              Columns:
+              <select value={kanbanFieldObj ? kanbanFieldObj.id : ''} onChange={(e) => updateKanbanField(e.target.value)} data-testid="kanban-field" aria-label="Board columns field" style={fSelect}>
+                {singleSelectFields.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </label>
+          ) : null}
 
           <span style={{ flex: 1 }} />
           <span style={{ fontSize: '12px', color: theme.textFaint }} data-testid="row-count">{displayRows.length}{displayRows.length !== rows.length ? ` of ${rows.length}` : ''} row{rows.length === 1 ? '' : 's'}</span>
         </div>
 
-        {selected.size > 0 ? (
+        {!isKanban && selected.size > 0 ? (
           <div data-testid="row-selection-bar" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '10px', background: theme.brandBg, border: `1px solid ${theme.brandBorder || theme.border}` }}>
             <span style={{ fontSize: '13px', fontWeight: 600, color: theme.brand }}>{selected.size} selected</span>
             <div style={{ flex: 1 }} />
@@ -387,29 +437,51 @@ export default function TablesPage({ V }) {
           </div>
         ) : null}
 
-        <TableGrid
-          fields={open.fields}
-          rows={visibleRows}
-          groups={grouped.groups}
-          onToggleGroup={toggleGroup}
-          widths={widths}
-          onResize={resize}
-          sort={sort}
-          onSortToggle={onSortToggle}
-          selectedIds={selected}
-          onSelectionChange={setSelected}
-          files={files}
-          relLabels={relLabels}
-          computed={computed}
-          onEditCell={editCell}
-          onAddRow={() => addRow()}
-          onDeleteRows={(ids) => deleteRows(ids)}
-          onAddField={() => setAddField({ name: '', type: 'text' })}
-          onRenameField={renameField}
-          onDeleteField={deleteField}
-          onUndo={doUndo}
-          onExpandRow={setExpandedId}
-        />
+        {isKanban ? (
+          kanbanFieldObj ? (
+            <KanbanBoard
+              fields={open.fields}
+              rows={displayRows}
+              field={kanbanFieldObj}
+              files={files}
+              relLabels={relLabels}
+              computed={computed}
+              onSetColumn={(rowId, choiceId) => editCell(rowId, kanbanFieldObj.id, choiceId)}
+              onOpenRow={setExpandedId}
+              onAddCard={addCard}
+            />
+          ) : (
+            <div data-testid="kanban-empty" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: theme.textMuted, textAlign: 'center' }}>
+              <div style={{ fontSize: '15px', fontWeight: 600, color: theme.text }}>The board needs a Select column</div>
+              <div style={{ fontSize: '13.5px', maxWidth: 340 }}>Board columns come from a single-select field. Add one in Grid view, then switch back.</div>
+              <button onClick={() => updateViewMode('grid')} style={btnPrimary}>Back to Grid</button>
+            </div>
+          )
+        ) : (
+          <TableGrid
+            fields={open.fields}
+            rows={visibleRows}
+            groups={grouped.groups}
+            onToggleGroup={toggleGroup}
+            widths={widths}
+            onResize={resize}
+            sort={sort}
+            onSortToggle={onSortToggle}
+            selectedIds={selected}
+            onSelectionChange={setSelected}
+            files={files}
+            relLabels={relLabels}
+            computed={computed}
+            onEditCell={editCell}
+            onAddRow={() => addRow()}
+            onDeleteRows={(ids) => deleteRows(ids)}
+            onAddField={() => setAddField({ name: '', type: 'text' })}
+            onRenameField={renameField}
+            onDeleteField={deleteField}
+            onUndo={doUndo}
+            onExpandRow={setExpandedId}
+          />
+        )}
 
         {(() => {
           const idx = visibleRows.findIndex((r) => r.id === expandedId);
