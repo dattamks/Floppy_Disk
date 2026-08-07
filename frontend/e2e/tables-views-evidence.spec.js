@@ -91,8 +91,9 @@ test('Tables views evidence — row detail, filter, group, board', async ({ page
   await page.getByTestId('group-menu').getByRole('button', { name: 'No grouping' }).click();
   await beat(page);
 
-  // 4) Kanban board — switch, drag a card, add a card, open a card.
-  await page.getByTestId('view-kanban').click();
+  // 4) Kanban board — add a Board view, drag a card, add a card, open a card.
+  await page.getByTestId('add-view').click();
+  await page.getByTestId('add-view-kanban').click();
   const board = page.getByTestId('kanban-board');
   await expect(board).toBeVisible();
   await beat(page);

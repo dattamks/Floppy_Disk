@@ -22,13 +22,14 @@ test('tables is usable and non-overflowing on a phone', async ({ page }) => {
   const noBodyOverflow = async () => page.evaluate(() =>
     document.documentElement.scrollWidth <= window.innerWidth + 1);
 
-  // Grid view: toolbar controls present, no horizontal page overflow.
-  await expect(page.getByTestId('view-grid')).toBeVisible();
+  // Grid view: view tabs + toolbar present, no horizontal page overflow.
+  await expect(page.getByTestId('view-tabs')).toBeVisible();
   await expect(page.getByTestId('filter-button')).toBeVisible();
   expect(await noBodyOverflow()).toBeTruthy();
 
-  // Board view: still no page overflow (columns scroll inside the board).
-  await page.getByTestId('view-kanban').click();
+  // Add a Board view: still no page overflow (columns scroll inside the board).
+  await page.getByTestId('add-view').click();
+  await page.getByTestId('add-view-kanban').click();
   await expect(page.getByTestId('kanban-board')).toBeVisible();
   expect(await noBodyOverflow()).toBeTruthy();
 });

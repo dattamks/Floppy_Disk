@@ -180,5 +180,7 @@ export const api = {
   createField: (id, body) => request(`/tables/${id}/fields`, { method: 'POST', body }),
   updateField: (fieldId, patch) => request(`/tables/fields/${fieldId}`, { method: 'PATCH', body: patch }),
   deleteField: (fieldId) => request(`/tables/fields/${fieldId}`, { method: 'DELETE' }),
+  createView: (id, body) => request(`/tables/${id}/views`, { method: 'POST', body }),
   updateView: (viewId, patch) => request(`/tables/views/${viewId}`, { method: 'PATCH', body: patch }),
+  deleteView: (viewId) => request(`/tables/views/${viewId}`, { method: 'DELETE' }),
 };
