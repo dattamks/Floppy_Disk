@@ -2,6 +2,7 @@ import React from 'react';
 import { theme } from '../lib/theme';
 import { api, firstError } from '../api';
 import TableGrid, { plainValue } from './TableGrid';
+import RowDetailModal from './RowDetailModal';
 import { computeCell } from '../lib/tableCompute';
 
 // Tables: a first-class full-page surface. Shows the list of tables, and opens
@@ -41,6 +42,7 @@ export default function TablesPage({ V }) {
   const [addField, setAddField] = React.useState(null);
   const [sort, setSort] = React.useState(null);           // { field, dir }
   const [selected, setSelected] = React.useState(new Set());
+  const [expandedId, setExpandedId] = React.useState(null); // row id shown in the detail modal
   const [files, setFiles] = React.useState([]);           // owner's files, for attachment cells
   const [relLabels, setRelLabels] = React.useState({});   // {targetTableId: {rowId: label}} for relation cells
   const [relRows, setRelRows] = React.useState({});       // {targetTableId: {rowId: data}} for lookups/rollups
@@ -73,7 +75,7 @@ export default function TablesPage({ V }) {
   }, []);
   React.useEffect(() => { loadList(); }, [loadList]);
 
-  const resetOpenState = () => { setSelected(new Set()); undoRef.current = []; };
+  const resetOpenState = () => { setSelected(new Set()); setExpandedId(null); undoRef.current = []; };
 
   const openTable = (id) => {
     setLoadingTable(true);
@@ -140,7 +142,15 @@ export default function TablesPage({ V }) {
     }));
     if (record) pushUndo(() => editCell(rowId, fieldId, prev === undefined ? '' : prev, false));
     api.updateRow(rowId, { [fieldId]: value })
-      .then((saved) => setRows((rs) => rs.map((r) => (r.id === rowId ? { ...r, data: saved.data } : r))))
+      // Reconcile only the field we wrote (using the server's coerced value), so
+      // an out-of-order response can't clobber another cell edited concurrently.
+      .then((saved) => setRows((rs) => rs.map((r) => {
+        if (r.id !== rowId) return r;
+        const data = { ...(r.data || {}) };
+        if (saved.data && Object.prototype.hasOwnProperty.call(saved.data, fieldId)) data[fieldId] = saved.data[fieldId];
+        else delete data[fieldId];
+        return { ...r, data };
+      })))
       .catch((e) => toast(firstError(e, 'Could not save cell')));
   };
 
@@ -307,7 +317,29 @@ export default function TablesPage({ V }) {
           onRenameField={renameField}
           onDeleteField={deleteField}
           onUndo={doUndo}
+          onExpandRow={setExpandedId}
         />
+
+        {(() => {
+          const idx = displayRows.findIndex((r) => r.id === expandedId);
+          if (idx < 0) return null;
+          const go = (dir) => { const n = idx + dir; if (n >= 0 && n < displayRows.length) setExpandedId(displayRows[n].id); };
+          return (
+            <RowDetailModal
+              row={displayRows[idx]}
+              fields={open.fields}
+              index={idx}
+              total={displayRows.length}
+              files={files}
+              relLabels={relLabels}
+              computed={computed}
+              onEditCell={editCell}
+              onDeleteRow={() => { deleteRows([expandedId]); setExpandedId(null); }}
+              onNavigate={go}
+              onClose={() => setExpandedId(null)}
+            />
+          );
+        })()}
 
         {addField ? (
           <div role="dialog" aria-label="Add column" style={overlay} onClick={() => setAddField(null)}>
