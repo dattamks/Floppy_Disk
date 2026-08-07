@@ -23,7 +23,7 @@ function CardValue({ field, value, relLabels }) {
   return <span>{String(value)}</span>;
 }
 
-export default function KanbanBoard({ fields, rows, field, files = [], relLabels = {}, computed = () => '', onSetColumn, onOpenRow, onAddCard }) {
+export default function KanbanBoard({ fields, rows, field, files = [], relLabels = {}, computed = () => '', cardFieldIds = null, onSetColumn, onOpenRow, onAddCard }) {
   const [dragId, setDragId] = React.useState(null);
   const [overKey, setOverKey] = React.useState(null);
   const choices = field.options?.choices || [];
@@ -41,7 +41,9 @@ export default function KanbanBoard({ fields, rows, field, files = [], relLabels
   });
 
   const primary = fields.find((f) => f.is_primary) || fields[0];
-  const previewFields = fields.filter((f) => f.id !== primary?.id && f.id !== field.id).slice(0, 5);
+  // Which fields show on a card is a per-board choice (card curation). The parent
+  // supplies the id list (already defaulted); render them in that order.
+  const previewFields = (cardFieldIds || []).map((id) => fields.find((f) => f.id === id)).filter(Boolean);
 
   const drop = (colKey) => { if (dragId != null) onSetColumn(dragId, colKey); setDragId(null); setOverKey(null); };
 
