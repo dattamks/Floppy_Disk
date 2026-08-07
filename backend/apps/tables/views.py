@@ -205,7 +205,15 @@ class RowBulkDeleteView(APIView):
         ids = request.data.get("ids") or []
         if not isinstance(ids, list):
             return Response({"detail": "ids must be a list."}, status=status.HTTP_400_BAD_REQUEST)
-        deleted, _ = Row.objects.filter(table=table, pk__in=ids).delete()
+        # Keep only well-formed UUIDs so a malformed id can't raise on the query.
+        import uuid as _uuid
+        valid = []
+        for rid in ids:
+            try:
+                valid.append(str(_uuid.UUID(str(rid))))
+            except (ValueError, TypeError, AttributeError):
+                continue
+        deleted, _ = Row.objects.filter(table=table, pk__in=valid).delete()
         if deleted:
             table.save(update_fields=["updated_at"])
         return Response({"deleted": deleted})
@@ -238,11 +246,11 @@ class RowDetailView(APIView):
             )
             if row is None:
                 return Response(status=status.HTTP_404_NOT_FOUND)
-            if "data" in request.data:
+            if isinstance(request.data.get("data"), dict):
                 # Merge cell-by-cell; an explicit null/empty clears that cell.
                 fields = {str(f.id): f for f in row.table.fields.all()}
                 merged = dict(row.data or {})
-                for fid, val in (request.data["data"] or {}).items():
+                for fid, val in request.data["data"].items():
                     f = fields.get(str(fid))
                     if f is None:
                         continue

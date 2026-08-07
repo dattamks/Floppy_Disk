@@ -101,10 +101,13 @@ def coerce_value(field: Field, value, owner=None):
 
 def coerce_row_data(fields, data: dict, owner=None) -> dict:
     """Coerce a {field_id: value} dict against the table's fields, dropping
-    unknown field ids and null results."""
+    unknown field ids and null results. A non-dict payload yields an empty row
+    rather than raising."""
+    if not isinstance(data, dict):
+        return {}
     by_id = {str(f.id): f for f in fields}
     out = {}
-    for fid, val in (data or {}).items():
+    for fid, val in data.items():
         f = by_id.get(str(fid))
         if f is None:
             continue

@@ -58,6 +58,7 @@ export default function TablesPage({ V }) {
   const [relRows, setRelRows] = React.useState({});       // {targetTableId: {rowId: data}} for lookups/rollups
   const [relFields, setRelFields] = React.useState({});   // {targetTableId: [fields]}
   const undoRef = React.useRef([]);
+  const controlsRef = React.useRef(null);
 
   const loadFiles = () => api.listFiles().then((fs) => setFiles(fs || [])).catch(() => {});
   // For each relation field, load the target table's rows so we can show/pick
@@ -143,6 +144,16 @@ export default function TablesPage({ V }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Dismiss the filter / group popovers on an outside click or Escape.
+  React.useEffect(() => {
+    if (!filterOpen && !groupMenu) return undefined;
+    const onDown = (e) => { if (controlsRef.current && !controlsRef.current.contains(e.target)) { setFilterOpen(false); setGroupMenu(false); } };
+    const onKey = (e) => { if (e.key === 'Escape') { setFilterOpen(false); setGroupMenu(false); } };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [filterOpen, groupMenu]);
 
   // ---- cell / row edits (optimistic, undoable) ----
   const editCell = (rowId, fieldId, value, record = true) => {
@@ -373,7 +384,7 @@ export default function TablesPage({ V }) {
         </div>
 
         {/* Controls strip: view switcher, filter, and group / kanban-columns. */}
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div ref={controlsRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', rowGap: '8px' }}>
           <div style={{ display: 'inline-flex', border: `1px solid ${theme.border}`, borderRadius: '8px', overflow: 'hidden' }} role="tablist" aria-label="View mode">
             {['grid', 'kanban'].map((m) => (
               <button key={m} onClick={() => updateViewMode(m)} data-testid={`view-${m}`} aria-label={m === 'grid' ? 'Grid view' : 'Board view'} aria-selected={viewMode === m}
