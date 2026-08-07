@@ -52,6 +52,7 @@ export default function TablesPage({ V }) {
   const [activeViewId, setActiveViewId] = React.useState(null); // which saved view is open
   const [kanbanField, setKanbanField] = React.useState(null); // single_select fieldId for board columns
   const [addViewMenu, setAddViewMenu] = React.useState(false);
+  const [cardsMenu, setCardsMenu] = React.useState(false);
   const [selected, setSelected] = React.useState(new Set());
   const [expandedId, setExpandedId] = React.useState(null); // row id shown in the detail modal
   const [files, setFiles] = React.useState([]);           // owner's files, for attachment cells
@@ -87,7 +88,7 @@ export default function TablesPage({ V }) {
   }, []);
   React.useEffect(() => { loadList(); }, [loadList]);
 
-  const resetOpenState = () => { setSelected(new Set()); setExpandedId(null); setCollapsedGroups(new Set()); setGroupMenu(false); setFilterOpen(false); setAddViewMenu(false); undoRef.current = []; };
+  const resetOpenState = () => { setSelected(new Set()); setExpandedId(null); setCollapsedGroups(new Set()); setGroupMenu(false); setFilterOpen(false); setAddViewMenu(false); setCardsMenu(false); undoRef.current = []; };
 
   // Load a saved view's config into the working state. The view's kind (grid /
   // kanban) drives the layout; its config carries filters/sort/group/widths so
@@ -157,14 +158,14 @@ export default function TablesPage({ V }) {
 
   // Dismiss the filter / group / add-view popovers on an outside click or Escape.
   React.useEffect(() => {
-    if (!filterOpen && !groupMenu && !addViewMenu) return undefined;
-    const close = () => { setFilterOpen(false); setGroupMenu(false); setAddViewMenu(false); };
+    if (!filterOpen && !groupMenu && !addViewMenu && !cardsMenu) return undefined;
+    const close = () => { setFilterOpen(false); setGroupMenu(false); setAddViewMenu(false); setCardsMenu(false); };
     const onDown = (e) => { if (controlsRef.current && !controlsRef.current.contains(e.target) && !e.target.closest?.('[data-testid="view-tabs"]')) close(); };
     const onKey = (e) => { if (e.key === 'Escape') close(); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [filterOpen, groupMenu, addViewMenu]);
+  }, [filterOpen, groupMenu, addViewMenu, cardsMenu]);
 
   // ---- cell / row edits (optimistic, undoable) ----
   const editCell = (rowId, fieldId, value, record = true) => {
@@ -282,7 +283,7 @@ export default function TablesPage({ V }) {
     const v = viewsList.find((x) => x.id === viewId);
     if (!v || viewId === activeViewId) return;
     setActiveViewId(viewId);
-    setSelected(new Set()); setExpandedId(null); setFilterOpen(false); setGroupMenu(false);
+    setSelected(new Set()); setExpandedId(null); setFilterOpen(false); setGroupMenu(false); setCardsMenu(false);
     applyViewState(v);
   };
   const createView = (kind) => {
@@ -403,6 +404,19 @@ export default function TablesPage({ V }) {
     addRow(choiceId ? { [kanbanFieldObj.id]: choiceId } : {});
   };
 
+  // Which fields a board's cards show (per-view "card curation"). Candidates are
+  // every non-primary field except the one that forms the columns; if the view
+  // hasn't been curated yet, default to the first few.
+  const cardCandidates = open ? open.fields.filter((f) => !f.is_primary && f.id !== (kanbanFieldObj && kanbanFieldObj.id)) : [];
+  const configuredCardFields = activeView?.config?.cardFields;
+  const boardCardFieldIds = Array.isArray(configuredCardFields)
+    ? configuredCardFields.filter((id) => open?.fields.some((f) => f.id === id))
+    : cardCandidates.slice(0, 3).map((f) => f.id);
+  const toggleCardField = (id) => {
+    const next = boardCardFieldIds.includes(id) ? boardCardFieldIds.filter((x) => x !== id) : [...boardCardFieldIds, id];
+    patchViewConfig({ cardFields: next });
+  };
+
   if (open) {
     return (
       <div style={page} data-testid="table-open">
@@ -491,12 +505,38 @@ export default function TablesPage({ V }) {
               ) : null}
             </div>
           ) : singleSelectFields.length > 0 ? (
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '12.5px', color: theme.textMuted }}>
-              Columns:
-              <select value={kanbanFieldObj ? kanbanFieldObj.id : ''} onChange={(e) => updateKanbanField(e.target.value)} data-testid="kanban-field" aria-label="Board columns field" style={fSelect}>
-                {singleSelectFields.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-              </select>
-            </label>
+            <React.Fragment>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '12.5px', color: theme.textMuted }}>
+                Columns:
+                <select value={kanbanFieldObj ? kanbanFieldObj.id : ''} onChange={(e) => updateKanbanField(e.target.value)} data-testid="kanban-field" aria-label="Board columns field" style={fSelect}>
+                  {singleSelectFields.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+              </label>
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => setCardsMenu((v) => !v)} data-testid="cards-button" aria-label="Customize cards" style={{ ...barBtn, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" /><path d="M4 10h16" stroke="currentColor" strokeWidth="1.4" /></svg>
+                  Cards
+                </button>
+                {cardsMenu ? (
+                  <div role="dialog" aria-label="Card fields" data-testid="cards-menu" onClick={(e) => e.stopPropagation()}
+                    style={{ position: 'absolute', top: 40, left: 0, zIndex: 38, minWidth: 200, maxHeight: 280, overflowY: 'auto', background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '11px', padding: '6px', boxShadow: '0 16px 40px rgba(16,24,40,0.2)' }}>
+                    <div style={{ fontSize: '11.5px', color: theme.textFaint, padding: '4px 8px 6px' }}>Fields shown on cards</div>
+                    {cardCandidates.length === 0 ? (
+                      <div style={{ fontSize: '12.5px', color: theme.textFaint, padding: '4px 8px 8px' }}>Add more columns to show them on cards.</div>
+                    ) : cardCandidates.map((f) => {
+                      const on = boardCardFieldIds.includes(f.id);
+                      return (
+                        <button key={f.id} onClick={() => toggleCardField(f.id)} data-testid="card-field-toggle"
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '7px 8px', fontSize: '13px', borderRadius: '7px', fontFamily: 'inherit' }}>
+                          <span style={{ width: 14, display: 'inline-flex', color: theme.brand }}>{on ? '✓' : ''}</span>
+                          <span style={{ color: on ? theme.text : theme.textMuted }}>{f.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            </React.Fragment>
           ) : null}
 
           <span style={{ flex: 1 }} />
@@ -522,6 +562,7 @@ export default function TablesPage({ V }) {
               files={files}
               relLabels={relLabels}
               computed={computed}
+              cardFieldIds={boardCardFieldIds}
               onSetColumn={(rowId, choiceId) => editCell(rowId, kanbanFieldObj.id, choiceId)}
               onOpenRow={setExpandedId}
               onAddCard={addCard}
