@@ -3,7 +3,8 @@ import { theme } from '../lib/theme';
 import { api, firstError } from '../api';
 import TableGrid, { plainValue } from './TableGrid';
 import RowDetailModal from './RowDetailModal';
-import { computeCell } from '../lib/tableCompute';
+import { computeCell, COMPUTED_TYPES } from '../lib/tableCompute';
+import { filterRows, opsForType, opNeedsValue, OP_LABELS } from '../lib/tableFilter';
 
 // Tables: a first-class full-page surface. Shows the list of tables, and opens
 // one into the hand-built grid. Owns optimistic row/field state, sorting,
@@ -41,6 +42,8 @@ export default function TablesPage({ V }) {
   const [widths, setWidths] = React.useState({});
   const [addField, setAddField] = React.useState(null);
   const [sort, setSort] = React.useState(null);           // { field, dir }
+  const [filters, setFilters] = React.useState([]);       // [{ field, op, value }]
+  const [filterOpen, setFilterOpen] = React.useState(false);
   const [selected, setSelected] = React.useState(new Set());
   const [expandedId, setExpandedId] = React.useState(null); // row id shown in the detail modal
   const [files, setFiles] = React.useState([]);           // owner's files, for attachment cells
@@ -85,6 +88,7 @@ export default function TablesPage({ V }) {
         setOpen(t); setRows(rws); resetOpenState();
         setWidths(t.views?.[0]?.config?.widths || {});
         setSort(t.views?.[0]?.config?.sort || null);
+        setFilters(t.views?.[0]?.config?.filters || []);
         loadRelTargets(t.fields);
       })
       .catch((e) => toast(firstError(e, 'Could not open table')))
@@ -94,7 +98,7 @@ export default function TablesPage({ V }) {
   const newTable = () => {
     loadFiles(); loadList();
     api.createTable({ name: 'Untitled table' })
-      .then((t) => { setOpen(t); setWidths({}); setSort(null); resetOpenState(); return api.tableRows(t.id).then(setRows); })
+      .then((t) => { setOpen(t); setWidths({}); setSort(null); setFilters([]); resetOpenState(); return api.tableRows(t.id).then(setRows); })
       .catch((e) => toast(firstError(e, 'Could not create table')));
   };
   const backToList = () => { setOpen(null); setRows([]); resetOpenState(); loadList(); };
@@ -211,13 +215,29 @@ export default function TablesPage({ V }) {
   };
   const deleteField = (fieldId) => {
     setOpen((o) => ({ ...o, fields: o.fields.filter((f) => f.id !== fieldId) }));
+    if (filters.some((f) => f.field === fieldId)) updateFilters(filters.filter((f) => f.field !== fieldId));
+    if (sort && sort.field === fieldId) { setSort(null); persistSort(null); }
     api.deleteField(fieldId).catch((e) => { toast(firstError(e, 'Could not delete column')); openTable(open.id); });
   };
 
-  // ---- sorting ----
-  const persistSort = (next) => {
-    if (open?.views?.[0]) api.updateView(open.views[0].id, { config: { ...(open.views[0].config || {}), sort: next } }).catch(() => {});
+  // Merge a patch into the open table's (first) view config, updating local
+  // state and persisting. One writer for sort / filters / widths, so they merge
+  // onto the full config instead of each clobbering the others.
+  const patchViewConfig = (patch) => {
+    const view = open?.views?.[0];
+    if (!view) return;
+    const config = { ...(view.config || {}), ...patch };
+    setOpen((o) => (o?.views?.[0]
+      ? { ...o, views: [{ ...o.views[0], config: { ...(o.views[0].config || {}), ...patch } }, ...o.views.slice(1)] }
+      : o));
+    api.updateView(view.id, { config }).catch(() => {});
   };
+
+  // ---- filtering ----
+  const updateFilters = (next) => { setFilters(next); patchViewConfig({ filters: next }); };
+
+  // ---- sorting ----
+  const persistSort = (next) => patchViewConfig({ sort: next });
   const onSortToggle = (fieldId, forceDir) => {
     setSort((prev) => {
       let next;
@@ -230,12 +250,16 @@ export default function TablesPage({ V }) {
     });
   };
   const displayRows = React.useMemo(() => {
-    if (!sort || !open) return rows;
-    const field = open.fields.find((f) => f.id === sort.field);
-    if (!field) return rows;
-    const sorted = rows.slice().sort((a, b) => compareRows(field, a, b));
-    return sort.dir === 'desc' ? sorted.reverse() : sorted;
-  }, [rows, sort, open]);
+    if (!open) return rows;
+    const fieldsById = {};
+    open.fields.forEach((f) => { fieldsById[f.id] = f; });
+    let out = filterRows(rows, filters, fieldsById);
+    if (sort) {
+      const field = open.fields.find((f) => f.id === sort.field);
+      if (field) { out = out.slice().sort((a, b) => compareRows(field, a, b)); if (sort.dir === 'desc') out.reverse(); }
+    }
+    return out;
+  }, [rows, sort, filters, open]);
 
   // Compute display values for formula/lookup/rollup cells on the client.
   const computed = React.useMemo(() => {
@@ -259,7 +283,7 @@ export default function TablesPage({ V }) {
   const resize = (fieldId, w) => setWidths((x) => ({ ...x, [fieldId]: w }));
   React.useEffect(() => {
     if (!open?.views?.[0]) return undefined;
-    const t = setTimeout(() => { api.updateView(open.views[0].id, { config: { ...(open.views[0].config || {}), widths } }).catch(() => {}); }, 600);
+    const t = setTimeout(() => { patchViewConfig({ widths }); }, 600);
     return () => clearTimeout(t);
   }, [widths]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -286,6 +310,25 @@ export default function TablesPage({ V }) {
           <button onClick={deleteTable} style={{ ...iconBtn, color: theme.danger }} aria-label="Delete table" title="Delete table">
             <svg width="17" height="17" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2m-8 0 1 13h8l1-13" stroke="currentColor" strokeWidth="1.7" fill="none" strokeLinecap="round" /></svg>
           </button>
+        </div>
+
+        {/* Controls strip: filter (grouping lands here next). */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button onClick={() => setFilterOpen((v) => !v)} data-testid="filter-button" aria-label="Filter"
+            style={{ ...barBtn, display: 'inline-flex', alignItems: 'center', gap: 7, color: filters.length ? theme.brand : theme.text, borderColor: filters.length ? (theme.brandBorder || theme.brand) : theme.border, background: filters.length ? theme.brandBg : theme.white }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 5h18l-7 8v6l-4-2v-4L3 5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>
+            Filter{filters.length ? ` · ${filters.length}` : ''}
+          </button>
+          {filterOpen ? (
+            <FilterPanel
+              fields={open.fields}
+              filters={filters}
+              onChange={updateFilters}
+              onClose={() => setFilterOpen(false)}
+            />
+          ) : null}
+          <span style={{ flex: 1 }} />
+          <span style={{ fontSize: '12px', color: theme.textFaint }} data-testid="row-count">{displayRows.length}{displayRows.length !== rows.length ? ` of ${rows.length}` : ''} row{rows.length === 1 ? '' : 's'}</span>
         </div>
 
         {selected.size > 0 ? (
@@ -439,3 +482,69 @@ const btnGhost = { background: theme.white, color: theme.text, border: `1px soli
 const overlay = { position: 'absolute', inset: 0, background: 'rgba(20,23,28,0.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 40 };
 const popover = { width: 320, maxWidth: '92%', background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '11px', boxShadow: '0 24px 60px rgba(16,24,40,0.28)' };
 const input = { width: '100%', boxSizing: 'border-box', border: `1px solid ${theme.border}`, borderRadius: '9px', padding: '9px 11px', fontSize: '13.5px', color: theme.text, background: theme.white, outline: 'none', fontFamily: 'inherit' };
+const filterPanelStyle = { position: 'absolute', top: 40, left: 0, zIndex: 38, width: 460, maxWidth: '94vw', background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '13px', padding: '13px', boxShadow: '0 18px 44px rgba(16,24,40,0.2)' };
+const fSelect = { border: `1px solid ${theme.border}`, borderRadius: '8px', padding: '6px 8px', fontSize: '12.5px', color: theme.text, background: theme.white, outline: 'none', fontFamily: 'inherit', maxWidth: 150 };
+const fInput = { border: `1px solid ${theme.border}`, borderRadius: '8px', padding: '6px 9px', fontSize: '12.5px', color: theme.text, background: theme.white, outline: 'none', fontFamily: 'inherit', minWidth: 0 };
+const iconBtnSm = { width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 7, border: `1px solid ${theme.border}`, background: theme.white, color: theme.textMuted, cursor: 'pointer', flex: '0 0 auto' };
+
+function FilterValue({ field, value, onChange }) {
+  const type = field ? field.type : 'text';
+  if (type === 'single_select' || type === 'multi_select') {
+    const choices = field.options?.choices || [];
+    return (
+      <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} aria-label="Filter value" style={{ ...fSelect, flex: 1, maxWidth: 'none' }}>
+        <option value="">Select…</option>
+        {choices.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+    );
+  }
+  const inputType = ['number', 'currency', 'percent', 'rating'].includes(type) ? 'number' : type === 'date' ? 'date' : 'text';
+  return <input type={inputType} value={value ?? ''} onChange={(e) => onChange(e.target.value)} aria-label="Filter value" placeholder="Value" style={{ ...fInput, flex: 1 }} />;
+}
+
+function FilterPanel({ fields, filters, onChange, onClose }) {
+  const filterable = fields.filter((f) => !COMPUTED_TYPES.has(f.type));
+  const fieldById = {};
+  fields.forEach((f) => { fieldById[f.id] = f; });
+
+  const addFilter = () => {
+    const f = filterable[0];
+    if (!f) return;
+    onChange([...filters, { field: f.id, op: opsForType(f.type)[0], value: '' }]);
+  };
+  const update = (i, patch) => onChange(filters.map((flt, j) => (j === i ? { ...flt, ...patch } : flt)));
+  const remove = (i) => onChange(filters.filter((_, j) => j !== i));
+  const onFieldChange = (i, fieldId) => onChange(filters.map((flt, j) => (j === i ? { field: fieldId, op: opsForType(fieldById[fieldId].type)[0], value: '' } : flt)));
+
+  return (
+    <div role="dialog" aria-label="Filters" data-testid="filter-panel" style={filterPanelStyle} onClick={(e) => e.stopPropagation()}>
+      {filters.length === 0 ? (
+        <div style={{ fontSize: '12.5px', color: theme.textFaint, padding: '2px 2px 10px' }}>No filters yet — add one to narrow the rows.</div>
+      ) : filters.map((flt, i) => {
+        const field = fieldById[flt.field] || filterable[0];
+        const ftype = field ? field.type : 'text';
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
+            <span style={{ fontSize: '11.5px', color: theme.textFaint, width: 30, flex: '0 0 30px' }}>{i === 0 ? 'Where' : 'and'}</span>
+            <select value={flt.field} onChange={(e) => onFieldChange(i, e.target.value)} aria-label="Filter field" style={fSelect}>
+              {filterable.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </select>
+            <select value={flt.op} onChange={(e) => update(i, { op: e.target.value, value: opNeedsValue(e.target.value) ? flt.value : '' })} aria-label="Filter operator" style={fSelect}>
+              {opsForType(ftype).map((op) => <option key={op} value={op}>{OP_LABELS[op] || op}</option>)}
+            </select>
+            {opNeedsValue(flt.op) ? <FilterValue field={field} value={flt.value} onChange={(v) => update(i, { value: v })} /> : <span style={{ flex: 1 }} />}
+            <button onClick={() => remove(i)} aria-label="Remove filter" style={iconBtnSm}>
+              <svg width="13" height="13" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+        );
+      })}
+      <div style={{ display: 'flex', gap: 8, marginTop: 4, alignItems: 'center' }}>
+        <button onClick={addFilter} data-testid="filter-add" style={{ ...btnGhost, padding: '6px 12px' }}>+ Add filter</button>
+        {filters.length ? <button onClick={() => onChange([])} data-testid="filter-clear" style={{ ...btnGhost, padding: '6px 12px', color: theme.textMuted }}>Clear all</button> : null}
+        <span style={{ flex: 1 }} />
+        <button onClick={onClose} style={{ ...btnPrimary, padding: '6px 14px' }}>Done</button>
+      </div>
+    </div>
+  );
+}
