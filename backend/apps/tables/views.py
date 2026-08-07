@@ -280,15 +280,55 @@ class RowDetailView(APIView):
 
 
 # ---------------------------------------------------------------------- views
+class ViewListCreateView(APIView):
+    """Create a saved view of a table (a filtered grid, a board, ...). The table
+    already lists its views via get_table; this adds one more."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, table_id):
+        table = _get_table(request, table_id)
+        if table is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        kind = request.data.get("kind") or View.Kind.GRID
+        if kind not in View.Kind.values:
+            return Response({"detail": "Unknown view kind."}, status=status.HTTP_400_BAD_REQUEST)
+        name = (request.data.get("name") or dict(View.Kind.choices).get(kind, "View")).strip()[:255] or "View"
+        config = request.data.get("config")
+        view = View.objects.create(
+            table=table, name=name, kind=kind,
+            config=config if isinstance(config, dict) else {},
+            position=next_position(table.views.all()),
+        )
+        return Response(ViewSerializer(view).data, status=status.HTTP_201_CREATED)
+
+
 class ViewDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def patch(self, request, view_id):
+    def _get(self, request, view_id):
         view = View.objects.filter(pk=view_id, table__owner=request.user).select_related("table").first()
         if view is None or _get_table(request, view.table_id) is None:
+            return None
+        return view
+
+    def patch(self, request, view_id):
+        view = self._get(request, view_id)
+        if view is None:
             return Response(status=status.HTTP_404_NOT_FOUND)
         for attr in ("name", "config", "position"):
             if attr in request.data:
                 setattr(view, attr, request.data[attr])
         view.save()
         return Response(ViewSerializer(view).data)
+
+    def delete(self, request, view_id):
+        view = self._get(request, view_id)
+        if view is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        # A table must always keep at least one view.
+        if view.table.views.count() <= 1:
+            return Response({"detail": "A table must have at least one view."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        view.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

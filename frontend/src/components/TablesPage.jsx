@@ -49,8 +49,9 @@ export default function TablesPage({ V }) {
   const [groupBy, setGroupBy] = React.useState(null);     // fieldId | null
   const [groupMenu, setGroupMenu] = React.useState(false);
   const [collapsedGroups, setCollapsedGroups] = React.useState(new Set());
-  const [viewMode, setViewMode] = React.useState('grid'); // 'grid' | 'kanban'
+  const [activeViewId, setActiveViewId] = React.useState(null); // which saved view is open
   const [kanbanField, setKanbanField] = React.useState(null); // single_select fieldId for board columns
+  const [addViewMenu, setAddViewMenu] = React.useState(false);
   const [selected, setSelected] = React.useState(new Set());
   const [expandedId, setExpandedId] = React.useState(null); // row id shown in the detail modal
   const [files, setFiles] = React.useState([]);           // owner's files, for attachment cells
@@ -86,7 +87,20 @@ export default function TablesPage({ V }) {
   }, []);
   React.useEffect(() => { loadList(); }, [loadList]);
 
-  const resetOpenState = () => { setSelected(new Set()); setExpandedId(null); setCollapsedGroups(new Set()); setGroupMenu(false); undoRef.current = []; };
+  const resetOpenState = () => { setSelected(new Set()); setExpandedId(null); setCollapsedGroups(new Set()); setGroupMenu(false); setFilterOpen(false); setAddViewMenu(false); undoRef.current = []; };
+
+  // Load a saved view's config into the working state. The view's kind (grid /
+  // kanban) drives the layout; its config carries filters/sort/group/widths so
+  // each view is independent.
+  const applyViewState = (view) => {
+    const cfg = view?.config || {};
+    setWidths(cfg.widths || {});
+    setSort(cfg.sort || null);
+    setFilters(cfg.filters || []);
+    setGroupBy(cfg.groupBy || null);
+    setKanbanField(cfg.kanbanField || null);
+    setCollapsedGroups(new Set());
+  };
 
   const openTable = (id) => {
     setLoadingTable(true);
@@ -94,12 +108,8 @@ export default function TablesPage({ V }) {
     Promise.all([api.getTable(id), api.tableRows(id)])
       .then(([t, rws]) => {
         setOpen(t); setRows(rws); resetOpenState();
-        setWidths(t.views?.[0]?.config?.widths || {});
-        setSort(t.views?.[0]?.config?.sort || null);
-        setFilters(t.views?.[0]?.config?.filters || []);
-        setGroupBy(t.views?.[0]?.config?.groupBy || null);
-        setViewMode(t.views?.[0]?.config?.mode === 'kanban' ? 'kanban' : 'grid');
-        setKanbanField(t.views?.[0]?.config?.kanbanField || null);
+        setActiveViewId(t.views?.[0]?.id || null);
+        applyViewState(t.views?.[0]);
         loadRelTargets(t.fields);
       })
       .catch((e) => toast(firstError(e, 'Could not open table')))
@@ -109,7 +119,7 @@ export default function TablesPage({ V }) {
   const newTable = () => {
     loadFiles(); loadList();
     api.createTable({ name: 'Untitled table' })
-      .then((t) => { setOpen(t); setWidths({}); setSort(null); setFilters([]); setGroupBy(null); setViewMode('grid'); setKanbanField(null); resetOpenState(); return api.tableRows(t.id).then(setRows); })
+      .then((t) => { setOpen(t); setActiveViewId(t.views?.[0]?.id || null); applyViewState(t.views?.[0]); resetOpenState(); return api.tableRows(t.id).then(setRows); })
       .catch((e) => toast(firstError(e, 'Could not create table')));
   };
   const backToList = () => { setOpen(null); setRows([]); resetOpenState(); loadList(); };
@@ -145,15 +155,16 @@ export default function TablesPage({ V }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Dismiss the filter / group popovers on an outside click or Escape.
+  // Dismiss the filter / group / add-view popovers on an outside click or Escape.
   React.useEffect(() => {
-    if (!filterOpen && !groupMenu) return undefined;
-    const onDown = (e) => { if (controlsRef.current && !controlsRef.current.contains(e.target)) { setFilterOpen(false); setGroupMenu(false); } };
-    const onKey = (e) => { if (e.key === 'Escape') { setFilterOpen(false); setGroupMenu(false); } };
+    if (!filterOpen && !groupMenu && !addViewMenu) return undefined;
+    const close = () => { setFilterOpen(false); setGroupMenu(false); setAddViewMenu(false); };
+    const onDown = (e) => { if (controlsRef.current && !controlsRef.current.contains(e.target) && !e.target.closest?.('[data-testid="view-tabs"]')) close(); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
-  }, [filterOpen, groupMenu]);
+  }, [filterOpen, groupMenu, addViewMenu]);
 
   // ---- cell / row edits (optimistic, undoable) ----
   const editCell = (rowId, fieldId, value, record = true) => {
@@ -242,23 +253,57 @@ export default function TablesPage({ V }) {
     api.deleteField(fieldId).catch((e) => { toast(firstError(e, 'Could not delete column')); openTable(open.id); });
   };
 
-  // Latest view config, always fresh (updated every render). patchViewConfig
+  const viewsList = open?.views || [];
+  const activeView = viewsList.find((v) => v.id === activeViewId) || viewsList[0] || null;
+  const isKanban = activeView?.kind === 'kanban';
+
+  // Latest active-view config, always fresh (updated every render). patchViewConfig
   // merges onto THIS, not a captured closure, so a debounced writer (e.g. the
-  // widths save) can't clobber a mode/sort/filter change made after it was
+  // widths save) can't clobber a sort/filter/group change made after it was
   // scheduled.
   const viewConfigRef = React.useRef({});
-  React.useEffect(() => { viewConfigRef.current = open?.views?.[0]?.config || {}; });
+  React.useEffect(() => { viewConfigRef.current = activeView?.config || {}; });
 
-  // Merge a patch into the open table's (first) view config, updating local
-  // state and persisting. One writer for sort / filters / group / mode / widths,
-  // so they compound instead of each clobbering the others.
+  // Merge a patch into the ACTIVE view's config, updating local state and
+  // persisting. One writer for sort / filters / group / kanbanField / widths, so
+  // they compound instead of each clobbering the others - scoped to this view so
+  // sibling views keep their own config.
   const patchViewConfig = (patch) => {
-    const view = open?.views?.[0];
+    const view = activeView;
     if (!view) return;
     const config = { ...(viewConfigRef.current || {}), ...patch };
     viewConfigRef.current = config; // compound back-to-back patches before re-render
-    setOpen((o) => (o?.views?.[0] ? { ...o, views: [{ ...o.views[0], config }, ...o.views.slice(1)] } : o));
+    setOpen((o) => (o ? { ...o, views: (o.views || []).map((v) => (v.id === view.id ? { ...v, config } : v)) } : o));
     api.updateView(view.id, { config }).catch(() => {});
+  };
+
+  // ---- saved views (Notion-style tabs over one table) ----
+  const switchView = (viewId) => {
+    const v = viewsList.find((x) => x.id === viewId);
+    if (!v || viewId === activeViewId) return;
+    setActiveViewId(viewId);
+    setSelected(new Set()); setExpandedId(null); setFilterOpen(false); setGroupMenu(false);
+    applyViewState(v);
+  };
+  const createView = (kind) => {
+    setAddViewMenu(false);
+    const name = kind === 'kanban' ? 'Board' : 'Grid';
+    api.createView(open.id, { kind, name, config: {} })
+      .then((v) => { setOpen((o) => ({ ...o, views: [...(o.views || []), v] })); setActiveViewId(v.id); applyViewState(v); })
+      .catch((e) => toast(firstError(e, 'Could not add view')));
+  };
+  const renameView = (viewId, name) => {
+    const nm = (name || '').trim();
+    if (!nm) return;
+    setOpen((o) => ({ ...o, views: (o.views || []).map((v) => (v.id === viewId ? { ...v, name: nm } : v)) }));
+    api.updateView(viewId, { name: nm }).catch((e) => toast(firstError(e, 'Could not rename view')));
+  };
+  const deleteView = (viewId) => {
+    if (viewsList.length <= 1) return;
+    const remaining = viewsList.filter((v) => v.id !== viewId);
+    setOpen((o) => ({ ...o, views: remaining }));
+    if (viewId === activeViewId && remaining[0]) { setActiveViewId(remaining[0].id); applyViewState(remaining[0]); }
+    api.deleteView(viewId).catch((e) => { toast(firstError(e, 'Could not delete view')); openTable(open.id); });
   };
 
   // ---- filtering ----
@@ -268,16 +313,7 @@ export default function TablesPage({ V }) {
   const updateGroupBy = (fieldId) => { setGroupBy(fieldId); setCollapsedGroups(new Set()); setGroupMenu(false); patchViewConfig({ groupBy: fieldId }); };
   const toggleGroup = (key) => setCollapsedGroups((prev) => { const s = new Set(prev); if (s.has(key)) s.delete(key); else s.add(key); return s; });
 
-  // ---- view mode (grid / kanban) ----
-  const updateViewMode = (mode) => {
-    setViewMode(mode);
-    const patch = { mode };
-    if (mode === 'kanban' && !kanbanField) {
-      const first = open?.fields.find((f) => f.type === 'single_select');
-      if (first) { setKanbanField(first.id); patch.kanbanField = first.id; }
-    }
-    patchViewConfig(patch);
-  };
+  // ---- kanban column field (per board view) ----
   const updateKanbanField = (fieldId) => { setKanbanField(fieldId); patchViewConfig({ kanbanField: fieldId }); };
 
   // ---- sorting ----
@@ -361,7 +397,6 @@ export default function TablesPage({ V }) {
 
   const singleSelectFields = open ? open.fields.filter((f) => f.type === 'single_select') : [];
   const kanbanFieldObj = open ? (open.fields.find((f) => f.id === kanbanField && f.type === 'single_select') || singleSelectFields[0] || null) : null;
-  const isKanban = viewMode === 'kanban';
 
   const addCard = (choiceId) => {
     if (!kanbanFieldObj) return;
@@ -383,17 +418,47 @@ export default function TablesPage({ V }) {
           </button>
         </div>
 
-        {/* Controls strip: view switcher, filter, and group / kanban-columns. */}
-        <div ref={controlsRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', rowGap: '8px' }}>
-          <div style={{ display: 'inline-flex', border: `1px solid ${theme.border}`, borderRadius: '8px', overflow: 'hidden' }} role="tablist" aria-label="View mode">
-            {['grid', 'kanban'].map((m) => (
-              <button key={m} onClick={() => updateViewMode(m)} data-testid={`view-${m}`} aria-label={m === 'grid' ? 'Grid view' : 'Board view'} aria-selected={viewMode === m}
-                style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', fontWeight: 600, padding: '6px 12px', background: viewMode === m ? theme.brand : theme.white, color: viewMode === m ? theme.white : theme.textMuted }}>
-                {m === 'grid' ? 'Grid' : 'Board'}
-              </button>
-            ))}
+        {/* View tabs: one source table, many saved views (grid / board). */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4, borderBottom: `1px solid ${theme.border}`, paddingBottom: 0, overflowX: 'auto' }} role="tablist" aria-label="Views" data-testid="view-tabs">
+          {viewsList.map((v) => {
+            const on = v.id === activeViewId;
+            return (
+              <div key={v.id} data-testid="view-tab" data-view-kind={v.kind} onClick={() => switchView(v.id)}
+                onDoubleClick={() => { const nm = window.prompt('Rename view', v.name); if (nm) renameView(v.id, nm); }}
+                role="tab" aria-selected={on} title={v.name}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 11px', cursor: 'pointer', whiteSpace: 'nowrap', borderBottom: `2px solid ${on ? theme.brand : 'transparent'}`, color: on ? theme.text : theme.textMuted, fontSize: '13px', fontWeight: on ? 700 : 500 }}>
+                {v.kind === 'kanban' ? (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="5" height="16" rx="1.5" stroke="currentColor" strokeWidth="1.6" /><rect x="10" y="4" width="5" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.6" /><rect x="17" y="4" width="4" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.6" /></svg>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="15" rx="2" stroke="currentColor" strokeWidth="1.6" /><path d="M3.5 9.5h17M9 9.5v10" stroke="currentColor" strokeWidth="1.3" /></svg>
+                )}
+                {v.name}
+                {on && viewsList.length > 1 ? (
+                  <button onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete the "${v.name}" view?`)) deleteView(v.id); }} data-testid="view-delete" aria-label={`Delete ${v.name} view`}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textFaint, display: 'flex', padding: 0, marginLeft: 2 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" /></svg>
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setAddViewMenu((v) => !v)} data-testid="add-view" aria-label="Add view" title="Add view"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textMuted, display: 'flex', alignItems: 'center', padding: '7px 8px' }}>
+              <svg width="15" height="15" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            </button>
+            {addViewMenu ? (
+              <div role="dialog" aria-label="Add view" data-testid="add-view-menu" onClick={(e) => e.stopPropagation()}
+                style={{ position: 'absolute', top: 34, left: 0, zIndex: 38, minWidth: 150, background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '10px', padding: '5px', boxShadow: '0 16px 40px rgba(16,24,40,0.2)' }}>
+                <button onClick={() => createView('grid')} data-testid="add-view-grid" style={groupItem}>Grid view</button>
+                <button onClick={() => createView('kanban')} data-testid="add-view-kanban" style={groupItem}>Board view</button>
+              </div>
+            ) : null}
           </div>
+        </div>
 
+        {/* Controls strip: filter, and group / kanban-columns. */}
+        <div ref={controlsRef} style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', rowGap: '8px' }}>
           <button onClick={() => setFilterOpen((v) => !v)} data-testid="filter-button" aria-label="Filter"
             style={{ ...barBtn, display: 'inline-flex', alignItems: 'center', gap: 7, color: filters.length ? theme.brand : theme.text, borderColor: filters.length ? (theme.brandBorder || theme.brand) : theme.border, background: filters.length ? theme.brandBg : theme.white }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 5h18l-7 8v6l-4-2v-4L3 5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" /></svg>
@@ -465,7 +530,7 @@ export default function TablesPage({ V }) {
             <div data-testid="kanban-empty" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, color: theme.textMuted, textAlign: 'center' }}>
               <div style={{ fontSize: '15px', fontWeight: 600, color: theme.text }}>The board needs a Select column</div>
               <div style={{ fontSize: '13.5px', maxWidth: 340 }}>Board columns come from a single-select field. Add one in Grid view, then switch back.</div>
-              <button onClick={() => updateViewMode('grid')} style={btnPrimary}>Back to Grid</button>
+              <button onClick={() => { const g = viewsList.find((v) => v.kind === 'grid'); if (g) switchView(g.id); else createView('grid'); }} style={btnPrimary}>Back to Grid</button>
             </div>
           )
         ) : (

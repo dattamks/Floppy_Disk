@@ -569,6 +569,26 @@ def add_field(table_id: str, name: str, type: str = "text", options: Optional[di
     return client().post(f"tables/{_uid(table_id, 'table_id')}/fields", json=body)
 
 
+@mcp.tool
+def create_view(table_id: str, kind: str = "grid", name: Optional[str] = None,
+                config: Optional[dict] = None) -> dict:
+    """Add a saved view to a table. `kind` is "grid" or "kanban" (board). `config`
+    holds the view's own filters/sort/groupBy/kanbanField, so one source table can
+    have several independent views (get_table lists them). Returns the new view."""
+    body: dict = {"kind": kind}
+    if name:
+        body["name"] = name
+    if isinstance(config, dict):
+        body["config"] = config
+    return client().post(f"tables/{_uid(table_id, 'table_id')}/views", json=body)
+
+
+@mcp.tool
+def delete_view(view_id: str) -> dict:
+    """Delete a saved view. A table must keep at least one view."""
+    return client().delete(f"tables/views/{_uid(view_id, 'view_id')}")
+
+
 def main() -> None:
     """Entry point.
 

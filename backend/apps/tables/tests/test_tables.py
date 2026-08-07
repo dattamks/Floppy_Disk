@@ -220,6 +220,38 @@ def test_bulk_delete_rows(user):
     assert Row.objects.filter(table_id=t["id"]).count() == 1
 
 
+def test_multiple_views_create_list_delete(user):
+    # A table starts with one Grid view; you can add more (e.g. a board), each
+    # with its own config, and delete them - but never the last one.
+    c = _session(user)
+    t = _new_table(c)
+    detail = c.get(f"/api/v1/tables/{t['id']}").json()
+    assert len(detail["views"]) == 1 and detail["views"][0]["kind"] == "grid"
+
+    # Add a Kanban view with its own config.
+    r = c.post(f"/api/v1/tables/{t['id']}/views",
+               {"name": "By status", "kind": "kanban", "config": {"kanbanField": "x"}}, format="json")
+    assert r.status_code == 201, r.content
+    v = r.json()
+    assert v["kind"] == "kanban" and v["name"] == "By status" and v["config"]["kanbanField"] == "x"
+
+    # Unknown kind is rejected.
+    assert c.post(f"/api/v1/tables/{t['id']}/views", {"kind": "wat"}, format="json").status_code == 400
+
+    # get_table now lists both views.
+    detail = c.get(f"/api/v1/tables/{t['id']}").json()
+    assert len(detail["views"]) == 2
+
+    # Delete the board; the grid remains.
+    assert c.delete(f"/api/v1/tables/views/{v['id']}").status_code == 204
+    detail = c.get(f"/api/v1/tables/{t['id']}").json()
+    assert len(detail["views"]) == 1
+
+    # Can't delete the last remaining view.
+    last = detail["views"][0]["id"]
+    assert c.delete(f"/api/v1/tables/views/{last}").status_code == 400
+
+
 def test_malformed_row_payloads_are_handled_gracefully(user):
     # The API is a public surface (Bearer keys), so junk payloads must degrade to
     # a clean response, never a 500.
