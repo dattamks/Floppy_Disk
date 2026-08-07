@@ -220,6 +220,26 @@ def test_bulk_delete_rows(user):
     assert Row.objects.filter(table_id=t["id"]).count() == 1
 
 
+def test_malformed_row_payloads_are_handled_gracefully(user):
+    # The API is a public surface (Bearer keys), so junk payloads must degrade to
+    # a clean response, never a 500.
+    c = _session(user)
+    t = _new_table(c)
+
+    # create_row with a non-dict `data` -> empty row, not a crash.
+    r = c.post(f"/api/v1/tables/{t['id']}/rows", {"data": ["not", "a", "dict"]}, format="json")
+    assert r.status_code == 201 and r.json()["data"] == {}
+    row_id = r.json()["id"]
+
+    # patch a row with a non-dict `data` -> no change, not a crash.
+    r = c.patch(f"/api/v1/tables/rows/{row_id}", {"data": "nope"}, format="json")
+    assert r.status_code == 200 and r.json()["data"] == {}
+
+    # bulk_delete with malformed ids -> 0 deleted, not a crash.
+    r = c.post(f"/api/v1/tables/{t['id']}/rows/bulk_delete", {"ids": ["not-a-uuid", 123, None]}, format="json")
+    assert r.status_code == 200 and r.json()["deleted"] == 0
+
+
 # ------------------------------------------------------------- table lifecycle
 def test_rename_trash_and_restore(user):
     c = _session(user)
