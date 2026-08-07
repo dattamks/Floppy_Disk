@@ -82,6 +82,7 @@ config and are read-only through the API/MCP).
 - [ ] Drag a card between columns → that field changes; empty state guides you to add a Select column if none.
 - [ ] Per-column "Add card" seeds a row with that choice; clicking a card opens the row-detail modal.
 - [ ] Filtering applies to the board; board mode + column field persist across reload.
+- [ ] **Card curation:** the "Cards" menu (board only) chooses which fields show on cards; the card reflects the selection and it persists per board view across reload. (`tables-card-fields.spec.js`)
 - **Correctness:** switching view / dragging never clobbers a previously-set sort/filter/group in the view config.
 
 ## 8. Multiple saved views  (`tables-views.spec.js`)
