@@ -77,7 +77,7 @@ export default function MoveModal(V) {
           onClick={V.submitMove}
           style={{
             background: theme.brand,
-            color: theme.white,
+            color: theme.onAccent,
             border: 'none',
             borderRadius: '9px',
             padding: '9px 17px',

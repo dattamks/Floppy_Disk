@@ -10,4 +10,5 @@ urlpatterns = [
     path("search", views.GraphSearchView.as_view(), name="graph_search"),
     path("rebuild", views.GraphRebuildView.as_view(), name="graph_rebuild"),
     path("related/<uuid:file_id>", views.GraphRelatedView.as_view(), name="graph_related"),
+    path("mentions/<uuid:file_id>", views.GraphMentionsView.as_view(), name="graph_mentions"),
 ]

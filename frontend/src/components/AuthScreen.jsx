@@ -43,11 +43,11 @@ export default function AuthScreen(V) {
               <rect x="3" y="3" width="18" height="18" rx="4" fill={theme.brand} />
               <path
                 d="M8 3v5h6.5M8.5 20v-6h7v6"
-                stroke={theme.white}
+                stroke={theme.onAccent}
                 strokeWidth="1.7"
                 strokeLinejoin="round"
               />
-              <rect x="10" y="4" width="3" height="3.5" rx="0.5" fill={theme.white} />
+              <rect x="10" y="4" width="3" height="3.5" rx="0.5" fill={theme.onAccent} />
             </svg>{' '}
             <span
               style={{
@@ -222,7 +222,7 @@ export default function AuthScreen(V) {
             onClick={V.authPrimary}
             style={{
               background: theme.brand,
-              color: theme.white,
+              color: theme.onAccent,
               border: 'none',
               borderRadius: '10px',
               padding: '13px',

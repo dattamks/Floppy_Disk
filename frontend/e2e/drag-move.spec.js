@@ -20,17 +20,19 @@ test('drag a file onto a folder moves it there', async ({ page }) => {
     buffer: Buffer.from('drag me'),
   });
   await page.keyboard.press('Escape');
-  await expect(page.getByText('dragme.txt', { exact: true }).first()).toBeVisible();
+  const grid = page.getByTestId('files-grid');
+  await expect(grid.getByText('dragme.txt', { exact: true }).first()).toBeVisible();
 
-  // Drag the file card onto the folder card (native HTML5 DnD).
-  await page
+  // Drag the file card onto the folder card (native HTML5 DnD). Scope to the
+  // grid so the folder tree in the left secondary sidebar isn't the drop target.
+  await grid
     .getByText('dragme.txt', { exact: true })
     .first()
-    .dragTo(page.getByText('Dropzone', { exact: true }).first());
+    .dragTo(grid.getByText('Dropzone', { exact: true }).first());
 
   // The file left the root...
-  await expect(page.getByText('dragme.txt', { exact: true })).toHaveCount(0);
+  await expect(grid.getByText('dragme.txt', { exact: true })).toHaveCount(0);
   // ...and is inside the folder.
-  await page.getByText('Dropzone', { exact: true }).first().click();
-  await expect(page.getByText('dragme.txt', { exact: true }).first()).toBeVisible();
+  await grid.getByText('Dropzone', { exact: true }).first().click();
+  await expect(grid.getByText('dragme.txt', { exact: true }).first()).toBeVisible();
 });

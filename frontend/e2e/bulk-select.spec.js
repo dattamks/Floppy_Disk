@@ -30,7 +30,7 @@ test('select multiple files and bulk-trash them', async ({ page }) => {
 
   // The selection bar reports the count; bulk-trash them.
   await expect(page.getByText('2 selected')).toBeVisible();
-  await page.getByRole('button', { name: 'Trash', exact: true }).click();
+  await page.getByTestId('selection-bar').getByRole('button', { name: 'Trash', exact: true }).click();
 
   // Both leave the active listing.
   await expect(page.getByText('one.txt', { exact: true })).toHaveCount(0);
@@ -106,11 +106,11 @@ test('Trash view supports bulk restore', async ({ page }) => {
   // Trash both.
   await page.mouse.move(400, 400);
   await page.keyboard.press('Control+a');
-  await page.getByRole('button', { name: 'Trash', exact: true }).click();
+  await page.getByTestId('selection-bar').getByRole('button', { name: 'Trash', exact: true }).click();
   await expect(page.getByText('r1.txt', { exact: true })).toHaveCount(0);
 
   // In Trash, the bulk bar offers Restore / Delete permanently instead.
-  await page.getByText('Trash', { exact: false }).first().click();
+  await page.getByTestId('nav-trash').click();
   await expect(page.getByText('r1.txt', { exact: true }).first()).toBeVisible();
   await page.mouse.move(400, 400);
   await page.keyboard.press('Control+a');
@@ -120,7 +120,7 @@ test('Trash view supports bulk restore', async ({ page }) => {
   await bar.getByRole('button', { name: 'Restore', exact: true }).click();
 
   // Back in My Files, the restored files are listed again.
-  await page.getByText('My Files', { exact: false }).first().click();
+  await page.getByTestId('nav-all').click();
   await expect(page.getByText('r1.txt', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('r2.txt', { exact: true }).first()).toBeVisible();
 });

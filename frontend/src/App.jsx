@@ -1,8 +1,11 @@
 import React from 'react';
-import { theme } from './lib/theme';
+import { theme, effectiveTheme, setThemeMode, getThemeMode, getAccent, setAccent, setCustomAccent, getCustomAccentHex, CUSTOM_ACCENT, ACCENTS } from './lib/theme';
 import { api, firstError } from './api';
 import { humanSize, fmtStorage, kindOf, previewKindOf, fmtDuration, baseName, extOf } from './lib/ui';
 import { renderMarkdown } from './lib/markdown';
+import { renderNoteHtml, EXPORT_CSS } from './lib/noteexport';
+import { embedMediaInHtml } from './lib/mediaembed';
+import { bundleHtml, bundleMarkdown, collectAssetUrls, parseFileId, safeName, makeZip } from './lib/notebundle';
 import { fileType } from './lib/fileType';
 import AppView from './view/AppView';
 
@@ -28,6 +31,19 @@ export default class App extends React.Component {
     deviceMode: 'desktop',
     vw: typeof window !== 'undefined' ? window.innerWidth : 1200,
     currentFolderId: null,
+    // Primary sidebar collapse mode (user-controlled, persisted): 'expanded'
+    // (icon + label) | 'hover' (icon rail that expands on hover) | 'icons'
+    // (icon-only rail with tooltips).
+    sidebarMode:
+      (typeof localStorage !== 'undefined' && localStorage.getItem('fd.sidebarMode')) || 'expanded',
+    // My Files folder-tree expanded node ids (persisted to localStorage).
+    treeExpanded: (() => {
+      try {
+        return new Set(JSON.parse(localStorage.getItem('fd.treeExpanded') || '[]'));
+      } catch {
+        return new Set();
+      }
+    })(),
     // File-listing fetch status, so we show a skeleton (not a false "empty")
     // while loading and a retry affordance (not a false "empty") on failure.
     filesLoading: false,
@@ -42,6 +58,7 @@ export default class App extends React.Component {
     drawerOpen: false,
     mobileCreateOpen: false, // the mobile "+" FAB's create menu (note/folder/upload)
     modal: null,
+    filePage: false, // a document opened full-page in the content area (not a modal)
     activeFileId: null,
     // File preview (real uploads fetch a URL / text content on open).
     previewKind: 'doc',
@@ -58,6 +75,11 @@ export default class App extends React.Component {
     newNoteId: null, // a just-created note; discarded if closed while still empty
     noteView: 'write', // note editor tab: 'write' (WYSIWYG) | 'markdown' | 'preview'
     noteRelated: null, // graph neighbors of the open note (for the backlinks panel)
+    noteMentions: null, // linked + unlinked mentions with context snippets
+    themeDark: effectiveTheme() === 'dark', // light/dark UI theme
+    themeChoice: getThemeMode(), // 'light' | 'dark' | 'system'
+    accent: getAccent(), // primary color id ('custom' for a picked hex)
+    customHex: getCustomAccentHex(), // the last hex chosen in the color picker
     // Rename / move dialogs.
     renameName: '',
     renameTargetId: null,
@@ -80,6 +102,8 @@ export default class App extends React.Component {
     settingsPage: false,
     // Tables is a first-class full-page surface (its own list + grid).
     tablesPage: false,
+    // Gallery: a full-page surface showing all images + videos across the app.
+    galleryPage: false,
     settingsTab: 'profile',
     profileName: '',
     profileUsername: '',
@@ -489,14 +513,68 @@ export default class App extends React.Component {
       selectedIds: [],
       settingsPage: false, // leaving Settings when a primary nav item is chosen
       tablesPage: false, // and leaving Tables
+      galleryPage: false, // and leaving Gallery
+      filePage: false, // and closing an open file page
+      modal: null,
     });
+  }
+  // Close the full-page file view, back to the grid.
+  closeFilePage() {
+    this.setState({ filePage: false, editing: false, activeFileId: null });
   }
   navToAll() {
     this.go('all');
   }
   navToFolder(id) {
-    this.setState({ filterKey: 'all', currentFolderId: id, searchQuery: '', selectedIds: [] });
+    this.setState({ filterKey: 'all', currentFolderId: id, searchQuery: '', selectedIds: [], filePage: false });
     this.loadFolderContents(id); // lazily pull this folder's subfolders + files
+  }
+  // Open a folder from the tree: leave any other page (Tables/Gallery/Settings),
+  // navigate to it in the files grid, and close the mobile drawer.
+  openFolderFromTree(id) {
+    this.setState({ tablesPage: false, galleryPage: false, settingsPage: false, drawerOpen: false });
+    if (id) this.navToFolder(id);
+    else this.navToAll();
+  }
+  // Primary sidebar collapse mode.
+  setSidebarMode(m) {
+    this.setState({ sidebarMode: m });
+    try {
+      localStorage.setItem('fd.sidebarMode', m);
+    } catch {
+      /* ignore */
+    }
+  }
+  cycleSidebarMode() {
+    const order = ['expanded', 'hover', 'icons'];
+    const i = order.indexOf(this.state.sidebarMode);
+    this.setSidebarMode(order[(i + 1) % order.length]);
+  }
+  // Folder-tree expand/collapse (persisted).
+  _persistTree(set) {
+    try {
+      localStorage.setItem('fd.treeExpanded', JSON.stringify([...set]));
+    } catch {
+      /* ignore */
+    }
+  }
+  toggleTreeNode(id) {
+    this.setState((s) => {
+      const t = new Set(s.treeExpanded);
+      if (t.has(id)) t.delete(id);
+      else t.add(id);
+      this._persistTree(t);
+      return { treeExpanded: t };
+    });
+  }
+  expandAllTree(ids) {
+    const t = new Set(ids);
+    this._persistTree(t);
+    this.setState({ treeExpanded: t });
+  }
+  collapseAllTree() {
+    this._persistTree(new Set());
+    this.setState({ treeExpanded: new Set() });
   }
   navToShared() {
     this.go('shared');
@@ -589,13 +667,18 @@ export default class App extends React.Component {
     this.setState({
       settingsPage: true,
       tablesPage: false,
+      galleryPage: false,
+      filePage: false,
       settingsTab: 'profile',
       drawerOpen: false,
       newKeyToken: '',
     });
   }
   navToTables() {
-    this.setState({ tablesPage: true, settingsPage: false, drawerOpen: false, selectedIds: [] });
+    this.setState({ tablesPage: true, galleryPage: false, settingsPage: false, drawerOpen: false, selectedIds: [], filePage: false });
+  }
+  navToGallery() {
+    this.setState({ galleryPage: true, tablesPage: false, settingsPage: false, drawerOpen: false, selectedIds: [], filePage: false });
   }
   closeSettings() {
     this.setState({ settingsPage: false });
@@ -608,6 +691,9 @@ export default class App extends React.Component {
   }
   setSettingsSecurity() {
     this.setState({ settingsTab: 'security' });
+  }
+  setSettingsAppearance() {
+    this.setState({ settingsTab: 'appearance' });
   }
   setSettingsStorage() {
     this.setState({ settingsTab: 'storage' });
@@ -1249,9 +1335,17 @@ export default class App extends React.Component {
     }
     // Non-video preview (image / pdf / audio / markdown / json / yaml / text).
     const pk = previewKindOf(file.name, file.kind);
-    const isText = pk === 'markdown' || pk === 'json' || pk === 'yaml' || pk === 'text';
+    const isText = pk === 'markdown' || pk === 'json' || pk === 'yaml' || pk === 'code' || pk === 'text';
+    // Documents (text/markdown/code/json/pdf/doc) open full-page in the content
+    // area; media (image/audio) stays in the full-screen overlay viewer.
+    const asPage = isText || pk === 'pdf' || pk === 'doc';
+    // Notes (markdown) open directly in the clean editing surface (Notion/
+    // Obsidian style — the writing already looks like the document); other docs
+    // open in review with a one-click Edit.
+    const openEditing = asPage && pk === 'markdown' && !!file.real;
     this.setState({
-      modal: 'preview',
+      modal: asPage ? null : 'preview',
+      filePage: asPage,
       activeFileId: file.id,
       previewKind: pk,
       previewUrl: '',
@@ -1259,11 +1353,13 @@ export default class App extends React.Component {
       previewError: '',
       previewLoading: !!file.real,
       previewFullscreen: false,
-      editing: false,
+      editing: openEditing,
       editText: '',
-      editName: '',
+      editName: openEditing ? baseName(file.name) : '',
+      noteView: 'write',
       newNoteId: null,
       noteRelated: null,
+      noteMentions: null,
     });
     // Load backlinks/links for text notes so the editor can show connections.
     if (file.real && isText) this._loadBacklinks(file.id);
@@ -1283,7 +1379,10 @@ export default class App extends React.Component {
               })
               .then((txt) => {
                 if (this.state.activeFileId !== file.id) return;
-                this.setState({ previewUrl: url, previewText: txt, previewLoading: false });
+                // A note opened straight into the editing surface also needs its
+                // body in editText (there's no separate review→Edit step).
+                const intoEdit = this.state.editing && this.state.previewKind === 'markdown';
+                this.setState({ previewUrl: url, previewText: txt, previewLoading: false, ...(intoEdit ? { editText: txt } : {}) });
               });
           }
           this.setState({ previewUrl: url, previewLoading: false });
@@ -1337,9 +1436,11 @@ export default class App extends React.Component {
         };
         this.setState((s) => ({ files: [item, ...s.files], creatingNote: false }));
         this.loadUsage(); // a new note charges bytes - refresh the sidebar meter
-        // Open it immediately in edit mode with an empty body - start typing.
+        // Open it immediately full-page in edit mode with an empty body — a
+        // single clean writing surface, no modal.
         this.setState({
-          modal: 'preview',
+          modal: null,
+          filePage: true,
           activeFileId: f.id,
           previewKind: 'markdown',
           previewUrl: '',
@@ -1392,6 +1493,23 @@ export default class App extends React.Component {
   setNoteView(view) {
     this.setState({ noteView: view });
   }
+  toggleTheme() {
+    const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
+    setThemeMode(next);
+    this.setState({ themeDark: next === 'dark', themeChoice: next });
+  }
+  setThemeChoice(mode) {
+    setThemeMode(mode);
+    this.setState({ themeChoice: mode, themeDark: effectiveTheme() === 'dark' });
+  }
+  setAccentColor(id) {
+    setAccent(id);
+    this.setState({ accent: id });
+  }
+  setCustomAccentColor(hex) {
+    setCustomAccent(hex);
+    this.setState({ accent: CUSTOM_ACCENT, customHex: getCustomAccentHex() });
+  }
   setEditName(e) {
     this.setState({ editName: e.target.value });
   }
@@ -1422,7 +1540,9 @@ export default class App extends React.Component {
           this.setState((s) => ({
             editing: false,
             editSaving: false,
-            editName: '',
+            // Keep the title populated after save (the full-page note stays open
+            // and always-editing, so an empty editName would blank the title).
+            editName: baseName(finalName),
             newNoteId: null, // it's a real, saved note now
             previewText: content,
             files: s.files.map((x) =>
@@ -1459,7 +1579,8 @@ export default class App extends React.Component {
     const f = this.state.files.find((x) => x.id === id);
     if (f) this.openFile(f);
   }
-  // Fetch a note's graph neighbors so the editor can show its backlinks.
+  // Fetch a note's graph neighbors (outgoing links) + its linked/unlinked
+  // mentions with context, so the editor can show a full backlinks panel.
   _loadBacklinks(id) {
     api
       .graphRelated(id)
@@ -1470,6 +1591,14 @@ export default class App extends React.Component {
       })
       .catch(() => {
         if (this.state.activeFileId === id) this.setState({ noteRelated: [] });
+      });
+    api
+      .graphMentions(id)
+      .then((d) => {
+        if (this.state.activeFileId === id) this.setState({ noteMentions: d || null });
+      })
+      .catch(() => {
+        if (this.state.activeFileId === id) this.setState({ noteMentions: null });
       });
   }
 
@@ -1879,6 +2008,129 @@ export default class App extends React.Component {
     if (url) window.open(url, '_blank');
     this.toast('Download started');
   }
+  // Export the open note as Markdown (raw), HTML (rendered + styled), or PDF
+  // (a print-optimized window the browser saves as PDF). Dependency-free.
+  // Export the open note. Markdown and HTML embed their media as data: URIs, so
+  // the downloaded file is fully self-contained (renders offline / anywhere).
+  // PDF opens a print-optimized window (browser print-to-PDF, no dependency).
+  // Fetch one stored asset's bytes; read a data: URI too when it's small enough
+  // to be worth inlining (skipped for large files to save memory).
+  async fetchExportAsset(url, embedCap) {
+    const res = await fetch(url, { credentials: 'include' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const u8 = new Uint8Array(await blob.arrayBuffer());
+    let dataUri = null;
+    if (blob.size <= embedCap) {
+      dataUri = await new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = () => reject(new Error('read failed'));
+        fr.readAsDataURL(blob);
+      });
+    }
+    return { u8, size: blob.size, type: blob.type || '', dataUri };
+  }
+
+  // Resolve every stored-file URL a note references into an asset map (bytes +
+  // small-file data URI + the real filename/kind from the library).
+  async collectExportAssets(text, embedCap) {
+    const urls = collectAssetUrls(text);
+    const filesById = new Map(this.state.files.map((f) => [f.id, f]));
+    const nameFromUrl = (u) => { const id = parseFileId(u); return id ? id : 'file'; };
+    const assets = new Map();
+    await Promise.all(urls.map(async (url) => {
+      try {
+        const a = await this.fetchExportAsset(url, embedCap);
+        const id = parseFileId(url);
+        const f = id && filesById.get(id);
+        a.name = safeName(f ? f.name : nameFromUrl(url));
+        a.kind = f ? f.kind : null;
+        assets.set(url, a);
+      } catch (e) { /* skip unreachable asset */ }
+    }));
+    return assets;
+  }
+
+  async exportNote(format) {
+    const active = this.state.files.find((x) => x.id === this.state.activeFileId);
+    const fromFile = active ? (active.name || '').replace(/\.md$/i, '') : '';
+    const name = ((this.state.editName || fromFile || 'note').trim() || 'note')
+      .replace(/[‐-―]/g, '-') // normalize unicode dashes (em/en) → hyphen
+      .replace(/[\\/:*?"<>|]+/g, '-')
+      .replace(/\s+/g, ' ').trim() || 'note';
+    const rawMd = this.state.editText || '';
+    const bodyMd = rawMd.replace(/^---\n[\s\S]*?\n---\n?/, ''); // drop frontmatter for the body
+    const EMBED_CAP = 1024 * 1024; // ≤ 1 MB media embeds inline; larger → media/ folder
+    const enc = (s) => new TextEncoder().encode(s);
+    const dl = (filename, data, mime) => {
+      const url = URL.createObjectURL(new Blob([data], { type: mime }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    };
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    if (format === 'md') {
+      try {
+        const assets = await this.collectExportAssets(rawMd, EMBED_CAP);
+        const { md, files } = bundleMarkdown(rawMd, assets, { embedCap: EMBED_CAP });
+        if (Object.keys(files).length) {
+          const zip = makeZip({ [`${name}.md`]: enc(md), ...files });
+          dl(`${name}.zip`, zip, 'application/zip');
+          this.toast('Exported Markdown bundle (.zip)');
+        } else {
+          dl(`${name}.md`, md, 'text/markdown;charset=utf-8');
+          this.toast('Exported Markdown');
+        }
+      } catch (e) {
+        dl(`${name}.md`, rawMd, 'text/markdown;charset=utf-8');
+        this.toast('Exported Markdown');
+      }
+      return;
+    }
+
+    const body = renderNoteHtml(bodyMd);
+    const doc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(name)}</title><style>${EXPORT_CSS}</style></head><body><div class="wrap"><h1 class="note-title">${esc(name)}</h1><div class="md">${body}</div></div></body></html>`;
+
+    if (format === 'html') {
+      try {
+        const assets = await this.collectExportAssets(doc, EMBED_CAP);
+        const { doc: outDoc, files } = bundleHtml(doc, assets, { embedCap: EMBED_CAP });
+        if (Object.keys(files).length) {
+          const zip = makeZip({ [`${name}.html`]: enc(outDoc), ...files });
+          dl(`${name}.zip`, zip, 'application/zip');
+          this.toast('Exported HTML bundle (.zip)');
+        } else {
+          dl(`${name}.html`, outDoc, 'text/html;charset=utf-8');
+          this.toast('Exported HTML');
+        }
+      } catch (e) {
+        dl(`${name}.html`, doc, 'text/html;charset=utf-8');
+        this.toast('Exported HTML');
+      }
+      return;
+    }
+    if (format === 'pdf') {
+      // A print window can't reference a zip, and can't play media. Images embed
+      // inline; audio/video become a labeled card with a link to the file — the
+      // same way Notion/Confluence/Word export media to PDF.
+      let printDoc = doc;
+      try {
+        const inlined = await embedMediaInHtml(body, { cap: 24 * 1024 * 1024, mediaAsCard: true });
+        printDoc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(name)}</title><style>${EXPORT_CSS}</style></head><body><div class="wrap"><h1 class="note-title">${esc(name)}</h1><div class="md">${inlined}</div></div></body></html>`;
+      } catch (e) { /* keep server URLs */ }
+      const w = window.open('', '_blank');
+      if (!w) { this.toast('Allow pop-ups to export PDF'); return; }
+      w.document.write(printDoc + '<script>window.onload=function(){setTimeout(function(){window.focus();window.print();},150)}<\/script>');
+      w.document.close();
+      this.toast('Opening print dialog…');
+    }
+  }
   saveToCloud() {
     this.toast('Saved to My Files');
   }
@@ -1997,6 +2249,10 @@ export default class App extends React.Component {
     const f = this.state.files.find((x) => x.id === id);
     if (!f) return;
     const isFolder = f.kind === 'folder';
+    // If this item is open full-page, deleting it returns to the grid.
+    const closePage = this.state.filePage && this.state.activeFileId === id
+      ? { filePage: false, editing: false, activeFileId: null }
+      : {};
     if (f.trashed) {
       // Permanent purge from trash. Folders purge their whole subtree server-side.
       if (f.real) {
@@ -2009,6 +2265,7 @@ export default class App extends React.Component {
           (x) => x.id !== id && (!isFolder || !this._isDescendantOf(x, id, s.files))
         ),
         modal: null,
+        ...closePage,
       }));
       this.toast('Deleted permanently');
       this.loadUsage(); // purge freed committed bytes - refresh the sidebar meter
@@ -2021,6 +2278,7 @@ export default class App extends React.Component {
       this.setState((s) => ({
         files: s.files.map((x) => (x.id === id ? { ...x, trashed: true } : x)),
         modal: null,
+        ...closePage,
       }));
       this.toast('Moved to trash', { label: 'Undo', fn: () => this.undoTrash([id]) });
     }
@@ -2137,6 +2395,31 @@ export default class App extends React.Component {
       });
   }
 
+  // Upload a file chosen from inside the note editor: run the same
+  // reserve→PUT→commit pipeline, add it to the library (so it shows in the grid
+  // and gallery), and resolve with a stable inline URL to embed in the note.
+  uploadNoteFile(file) {
+    const kind = kindOf(file.type || '');
+    return api
+      .initiateUpload({ name: file.name, size_bytes: file.size, kind })
+      .then((res) => api.uploadBytes(res.upload.url, file).then(() => api.completeUpload(res.file.id)))
+      .then((f) => {
+        const nf = {
+          id: f.id, name: f.name, kind: f.kind, parentId: f.folder || null,
+          size: humanSize(f.size_bytes), sizeBytes: f.size_bytes, modified: 'Just now',
+          shared: false, starred: false, trashed: false, status: f.status,
+          poster: f.poster_url || undefined, duration: fmtDuration(f.duration_seconds) || undefined,
+          real: true,
+        };
+        this.setState((s) => ({ files: [nf, ...s.files.filter((x) => x.id !== f.id)] }));
+        this.loadUsage();
+        return { id: f.id, name: f.name, kind: f.kind, url: api.fileRawUrl(f.id) };
+      })
+      .catch((err) => {
+        this.toast(firstError(err, 'Upload failed'));
+        throw err;
+      });
+  }
   audioRef(el) {
     if (el && this._activeAudioSrc && el.src !== this._activeAudioSrc)
       el.src = this._activeAudioSrc;
@@ -2644,6 +2927,8 @@ export default class App extends React.Component {
       d,
       isMobile,
       isDesktop: !isMobile,
+      themeDark: st.themeDark,
+      toggleTheme: () => this.toggleTheme(),
       isApp,
       isAuth: !isApp,
       urlPath: !isApp ? (authView === 'register' ? 'signup' : 'login') : 'files',
@@ -2683,10 +2968,10 @@ export default class App extends React.Component {
       toastForgot: () => this.toastForgot(),
       setDesktop: () => this.setDesktop(),
       setMobile: () => this.setMobile(),
-      deskTabBg: isMobile ? 'transparent' : '#5145E5',
-      deskTabColor: isMobile ? '#656B76' : '#fff',
-      mobTabBg: isMobile ? '#5145E5' : 'transparent',
-      mobTabColor: isMobile ? '#fff' : '#656B76',
+      deskTabBg: isMobile ? 'transparent' : theme.brand,
+      deskTabColor: isMobile ? theme.textMuted : theme.onAccent,
+      mobTabBg: isMobile ? theme.brand : 'transparent',
+      mobTabColor: isMobile ? theme.onAccent : theme.textMuted,
       searchQuery,
       setSearch: (e) => this.setSearch(e),
       clearSearch: () => this.clearSearch(),
@@ -2735,7 +3020,7 @@ export default class App extends React.Component {
       })(),
       navToFolder: (id) => this.navToFolder(id),
       isTrashView: af('trash'),
-      crumbRootColor: currentFolderName ? '#9AA1AC' : '#15171C',
+      crumbRootColor: currentFolderName ? theme.textFaint : theme.text,
       showCarousel,
       carouselItems,
       showGridLabel: showCarousel,
@@ -2810,10 +3095,56 @@ export default class App extends React.Component {
       navTablesBg: navBg(st.tablesPage),
       navTablesColor: navColor(st.tablesPage),
       navTablesWeight: navW(st.tablesPage),
+      navToGallery: () => this.navToGallery(),
+      navGalleryBg: navBg(st.galleryPage),
+      navGalleryColor: navColor(st.galleryPage),
+      navGalleryWeight: navW(st.galleryPage),
+      // Primary sidebar collapse mode + control.
+      sidebarMode: st.sidebarMode,
+      onCycleSidebar: () => this.cycleSidebarMode(),
+      // My Files secondary sidebar (folder tree) is shown in the files views
+      // (not on the Tables / Gallery / Settings pages).
+      isFilesView: !st.tablesPage && !st.galleryPage && !st.settingsPage,
+      // Whether a secondary sidebar is on screen (folder tree / Tables /
+      // Settings). When it is, the primary rail auto-collapses to icons so the
+      // two panes don't both eat width.
+      secondarySidebar:
+        !isMobile && (!st.tablesPage && !st.galleryPage && !st.settingsPage
+          ? true
+          : st.tablesPage || st.settingsPage),
+      ...(() => {
+        const folders = files.filter((f) => f.kind === 'folder' && !f.trashed);
+        const byParent = {};
+        folders.forEach((f) => {
+          (byParent[f.parentId || 'root'] || (byParent[f.parentId || 'root'] = [])).push({
+            id: f.id,
+            name: f.name,
+            parentId: f.parentId || null,
+            hasChildren: false,
+          });
+        });
+        Object.values(byParent).forEach((arr) => {
+          arr.sort((a, b) => a.name.localeCompare(b.name));
+          arr.forEach((n) => {
+            n.hasChildren = !!byParent[n.id];
+          });
+        });
+        return {
+          treeByParent: byParent,
+          treeExpanded: st.treeExpanded,
+          treeCurrentId: st.currentFolderId,
+          treeAtRoot: st.currentFolderId === null && !st.tablesPage && !st.galleryPage && !st.settingsPage,
+          allFolderIds: folders.map((f) => f.id),
+          onTreeToggle: (id) => this.toggleTreeNode(id),
+          onTreeOpen: (id) => this.openFolderFromTree(id),
+          onTreeExpandAll: () => this.expandAllTree(folders.map((f) => f.id)),
+          onTreeCollapseAll: () => this.collapseAllTree(),
+        };
+      })(),
       storageUsedLabel: fmtStorage(storageUsedGB),
       storageTotalLabel: fmtStorage(storageTotalGB),
       storagePct,
-      storageBarColor: storagePct > 90 ? '#E5484D' : storagePct > 75 ? '#D97706' : '#5145E5',
+      storageBarColor: storagePct > 90 ? theme.danger : storagePct > 75 ? theme.warn : theme.brand,
       quotaWarn,
       isDetailsModal: modal === 'details',
       detailsView: (() => {
@@ -2940,7 +3271,7 @@ export default class App extends React.Component {
       canEdit:
         !!activeFile &&
         !!activeFile.real &&
-        ['markdown', 'json', 'yaml', 'text'].includes(st.previewKind) &&
+        ['markdown', 'json', 'yaml', 'code', 'text'].includes(st.previewKind) &&
         !st.previewLoading &&
         !st.previewError,
       isEditing: st.editing,
@@ -2975,6 +3306,51 @@ export default class App extends React.Component {
           name: r.node.label,
           onOpen: () => this._openById(r.node.file_id),
         })),
+      // Folder trail to the open note, for the note breadcrumb (Obsidian-style).
+      noteCrumbs: (() => {
+        if (!activeFile) return [];
+        const chain = [];
+        let id = activeFile.parentId;
+        while (id) {
+          const f = st.files.find((x) => x.id === id);
+          if (!f) break;
+          chain.unshift({ id: f.id, name: f.name, onOpen: () => this.navToFolder(f.id) });
+          id = f.parentId;
+        }
+        return chain;
+      })(),
+      // Linked + unlinked mentions with context snippets (the backlinks panel).
+      noteMentions: st.noteMentions
+        ? {
+            title: st.noteMentions.title,
+            counts: st.noteMentions.counts || { linked: 0, unlinked: 0 },
+            linked: (st.noteMentions.linked || []).map((m) => ({
+              ...m,
+              onOpen: () => this._openById(m.file_id),
+            })),
+            unlinked: (st.noteMentions.unlinked || []).map((m) => ({
+              ...m,
+              onOpen: () => this._openById(m.file_id),
+            })),
+          }
+        : null,
+      // Existing note titles (sans .md), for the [[ wiki-link autocomplete —
+      // excludes the note being edited and anything in the trash.
+      noteNames: st.files
+        .filter((f) => !f.trashed && /\.md$/i.test(f.name || '') && f.id !== st.activeFileId)
+        .map((f) => (f.name || '').replace(/\.md$/i, ''))
+        .filter((n, i, a) => n && a.indexOf(n) === i),
+      // Upload a file chosen inside the note editor; resolves to { url, name, kind }.
+      onUploadFile: (file) => this.uploadNoteFile(file),
+      // Open a note by its [[wiki-link]] title, if one with that name exists.
+      onOpenWikiLink: (name) => {
+        const key = String(name || '').trim().toLowerCase();
+        const target = st.files.find(
+          (f) => !f.trashed && (f.name || '').replace(/\.md$/i, '').toLowerCase() === key,
+        );
+        if (target) this._openById(target.id);
+        else this.toast(`No note named "${name}" yet`);
+      },
       previewLoading: st.previewLoading,
       previewError: st.previewError,
       previewHtml: st.previewKind === 'markdown' ? renderMarkdown(st.previewText || '') : '',
@@ -2988,6 +3364,7 @@ export default class App extends React.Component {
               }
             })()
           : st.previewText || '',
+      previewLang: activeFile ? extOf(activeFile.name || '') : '',
       // Rename dialog.
       isRenameModal: modal === 'rename',
       renameName: st.renameName,
@@ -3013,21 +3390,39 @@ export default class App extends React.Component {
       isSettingsPage: st.settingsPage && isApp,
       // Tables: a first-class full-page surface (its own list + grid).
       isTablesPage: st.tablesPage && isApp,
-      showToast: (m) => this.toast(m),
+      // Gallery: a full-page surface of all images + videos.
+      isGalleryPage: st.galleryPage && isApp,
+      isFilePage: st.filePage && isApp,
+      closeFilePage: () => this.closeFilePage(),
+      onActiveDetails: () => {
+        const af = st.files.find((x) => x.id === st.activeFileId);
+        if (af) this.openDetails(af);
+      },
+      showToast: (m, action) => this.toast(m, action),
       closeSettings: () => this.closeSettings(),
       settingsTab,
       stIsProfile: settingsTab === 'profile',
       stIsAccount: settingsTab === 'account',
       stIsSecurity: settingsTab === 'security',
+      stIsAppearance: settingsTab === 'appearance',
       stIsDeveloper: settingsTab === 'developer',
       stIsStorage: settingsTab === 'storage',
       stIsLinks: settingsTab === 'links',
       setSettingsProfile: () => this.setSettingsProfile(),
       setSettingsAccount: () => this.setSettingsAccount(),
       setSettingsSecurity: () => this.setSettingsSecurity(),
+      setSettingsAppearance: () => this.setSettingsAppearance(),
       setSettingsDeveloper: () => this.setSettingsDeveloper(),
       setSettingsStorage: () => this.setSettingsStorage(),
       setSettingsLinks: () => this.setSettingsLinks(),
+      // Appearance: theme mode + accent color.
+      themeChoice: st.themeChoice,
+      setThemeChoice: (m) => this.setThemeChoice(m),
+      accent: st.accent,
+      accents: ACCENTS,
+      customHex: st.customHex,
+      setAccent: (id) => this.setAccentColor(id),
+      setCustomAccent: (hex) => this.setCustomAccentColor(hex),
       // Storage administration (owner only)
       isOwner: st.isOwner,
       storage: {
@@ -3118,6 +3513,7 @@ export default class App extends React.Component {
       activeFile,
       openShareForActive: () => this.openShareForActive(),
       downloadActive: () => this.downloadActive(),
+      onExportNote: (fmt) => this.exportNote(fmt),
       deleteActive: () => this.deleteActive(),
       saveToCloud: () => this.saveToCloud(),
       downloadDevice: () => this.downloadDevice(),
@@ -3139,9 +3535,9 @@ export default class App extends React.Component {
       toggleTheater: () => this.toggleTheater(),
       videoFullscreen,
       videoNotFullscreen: !videoFullscreen,
-      volumeColor: videoMuted ? '#E5484D' : theater ? '#fff' : '#15171C',
-      ccColor: videoCC ? (theater ? '#B9B2FF' : '#5145E5') : '#9AA1AC',
-      ccBorder: videoCC ? '#C7C3F5' : theater ? '#3A3D44' : '#E5E7EC',
+      volumeColor: videoMuted ? theme.danger : theater ? '#fff' : theme.text,
+      ccColor: videoCC ? (theater ? '#B9B2FF' : theme.brand) : theme.textFaint,
+      ccBorder: videoCC ? theme.brandBorder : theater ? '#3A3D44' : theme.border,
       overlayBg: theater || previewFull ? 'rgba(8,9,12,0.92)' : 'rgba(20,23,28,0.42)',
       overlayAlign: theater ? 'stretch' : d.modalAlign,
       overlayPad: theater ? 0 : previewFull ? Math.min(d.modalPad, 16) : d.modalPad,
@@ -3172,15 +3568,15 @@ export default class App extends React.Component {
           : previewFull
             ? '96vh'
             : undefined,
-      boxBg: theater ? '#0B0C0F' : '#FFFFFF',
-      boxBorder: theater ? 'none' : '1px solid #E5E7EC',
+      boxBg: theater ? '#0B0C0F' : theme.white,
+      boxBorder: theater ? 'none' : `1px solid ${theme.border}`,
       boxRadius: theater ? '0px' : d.modalRadius,
       boxPad: theater ? 18 : 20,
-      vTextColor: theater ? '#fff' : '#15171C',
-      vMutedColor: '#9AA1AC',
-      vTrackBg: theater ? '#2A2D34' : '#E5E7EC',
-      sdBg: theater ? '#1A1C22' : '#EEF0F4',
-      sdBorder: theater ? '#3A3D44' : '#E5E7EC',
+      vTextColor: theater ? '#fff' : theme.text,
+      vMutedColor: theme.textFaint,
+      vTrackBg: theater ? '#2A2D34' : theme.border,
+      sdBg: theater ? '#1A1C22' : theme.surface,
+      sdBorder: theater ? '#3A3D44' : theme.border,
       vVideoMaxH: theater ? '78vh' : '300px',
       vVideoFlex: theater ? '1' : '0 0 auto',
       copyLink: () => this.copyLink(),

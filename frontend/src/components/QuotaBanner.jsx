@@ -40,7 +40,7 @@ export default function QuotaBanner(V) {
           onClick={Q.openStorageSettings}
           style={{
             background: danger ? theme.danger : theme.warnDark,
-            color: theme.white,
+            color: theme.onAccent,
             border: 'none',
             borderRadius: '7px',
             padding: '6px 12px',

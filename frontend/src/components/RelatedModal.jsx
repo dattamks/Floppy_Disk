@@ -77,8 +77,8 @@ export default function RelatedModal(V) {
                   fontWeight: '600',
                   padding: '2px 7px',
                   borderRadius: '6px',
-                  background: it.provenance === 'inferred' ? '#FFF4E5' : '#EEF2FF',
-                  color: it.provenance === 'inferred' ? '#B25E09' : theme.brand,
+                  background: it.provenance === 'inferred' ? theme.warnBg : theme.brandBg,
+                  color: it.provenance === 'inferred' ? theme.warnDark : theme.brand,
                   flex: '0 0 auto',
                 }}
               >

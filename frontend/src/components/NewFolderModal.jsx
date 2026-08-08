@@ -53,7 +53,7 @@ export default function NewFolderModal(V) {
         disabled={V.newFolderBusy}
         style={{
           background: theme.brand,
-          color: theme.white,
+          color: theme.onAccent,
           border: 'none',
           borderRadius: '10px',
           padding: '12px',

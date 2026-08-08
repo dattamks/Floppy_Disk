@@ -33,8 +33,9 @@ async function uploadText(page, name, mimeType, body) {
 }
 
 async function ctx(page, label) {
-  // Right-click the item card and return the (scoped) context menu locator.
-  await page.getByText(label, { exact: true }).first().click({ button: 'right' });
+  // Right-click the item card (scoped to the file grid so the left folder-tree
+  // sidebar's matching name isn't hit) and return the context menu locator.
+  await page.getByTestId('files-grid').getByText(label, { exact: true }).first().click({ button: 'right' });
   return page.getByTestId('ctx-menu');
 }
 
@@ -43,16 +44,19 @@ test('Drive use case: folders, viewers, rename, move, delete/restore + naming', 
 }) => {
   await blockExternal(page);
   await registerNewUser(page);
+  // Scope folder-name assertions to the file grid so the left folder-tree
+  // sidebar (which lists the same names) doesn't cause strict-mode collisions.
+  const grid = page.getByTestId('files-grid');
 
   await test.step('Create folders', async () => {
     await newFolder(page, 'Projects');
     await newFolder(page, 'Archive');
-    await expect(page.getByText('Projects', { exact: true }).first()).toBeVisible();
+    await expect(grid.getByText('Projects', { exact: true }).first()).toBeVisible();
   });
 
   await test.step('Folder naming sense: duplicate name auto-suffixes', async () => {
     await newFolder(page, 'Projects'); // collides -> "Projects (2)"
-    await expect(page.getByText('Projects (2)', { exact: true })).toBeVisible();
+    await expect(grid.getByText('Projects (2)', { exact: true })).toBeVisible();
   });
 
   await test.step('Upload varied file types', async () => {
@@ -89,12 +93,12 @@ test('Drive use case: folders, viewers, rename, move, delete/restore + naming', 
       timeout: 15000,
     });
     await beat(page, 900);
-    await page.keyboard.press('Escape');
+    await page.getByTestId('file-page-back').click(); // docs open full-page now
 
     await page.getByText('data.json', { exact: true }).first().click();
     await expect(page.getByText('"app": "floppy"')).toBeVisible({ timeout: 15000 });
     await beat(page, 800);
-    await page.keyboard.press('Escape');
+    await page.getByTestId('file-page-back').click();
 
     await page.getByText('beach-sunset.png', { exact: false }).first().click();
     await expect(page.getByRole('dialog').locator('img')).toBeVisible({ timeout: 15000 });
@@ -120,10 +124,10 @@ test('Drive use case: folders, viewers, rename, move, delete/restore + naming', 
     await dialog.getByRole('button', { name: 'Move here' }).click();
     await beat(page);
     // Open the folder and confirm the file landed there.
-    await page.getByText('Projects', { exact: true }).first().click();
+    await grid.getByText('Projects', { exact: true }).first().click();
     await expect(page.getByText('readme.md', { exact: true }).first()).toBeVisible();
     await beat(page, 800);
-    await page.getByText('My Files', { exact: true }).first().click();
+    await page.getByTestId('nav-all').click();
   });
 
   await test.step('Move a folder into another folder', async () => {
@@ -133,7 +137,7 @@ test('Drive use case: folders, viewers, rename, move, delete/restore + naming', 
     await dialog.getByRole('button', { name: 'Projects', exact: true }).click();
     await dialog.getByRole('button', { name: 'Move here' }).click();
     await beat(page);
-    await expect(page.getByText('Archive', { exact: true })).toHaveCount(0); // gone from root
+    await expect(grid.getByText('Archive', { exact: true })).toHaveCount(0); // gone from root
   });
 
   await test.step('Delete a folder, reuse its name, then restore the original', async () => {
@@ -142,15 +146,15 @@ test('Drive use case: folders, viewers, rename, move, delete/restore + naming', 
     await m1.getByRole('button', { name: 'Move to trash' }).click();
     await beat(page);
     await newFolder(page, 'Reports'); // reuse the freed name
-    await expect(page.getByText('Reports', { exact: true }).first()).toBeVisible();
+    await expect(grid.getByText('Reports', { exact: true }).first()).toBeVisible();
 
     // Restore the original from Trash -> it comes back under a variant name.
-    await page.getByText('Trash', { exact: false }).first().click();
+    await page.getByTestId('nav-trash').click();
     const m2 = await ctx(page, 'Reports');
     await m2.getByRole('button', { name: 'Restore' }).click();
     await beat(page);
-    await page.getByText('My Files', { exact: true }).first().click();
-    await expect(page.getByText('Reports (2)', { exact: true })).toBeVisible();
+    await page.getByTestId('nav-all').click();
+    await expect(grid.getByText('Reports (2)', { exact: true })).toBeVisible();
     await beat(page, 900);
   });
 });

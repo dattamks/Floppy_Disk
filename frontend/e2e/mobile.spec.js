@@ -30,8 +30,9 @@ test('the hamburger opens a nav drawer with the secondary destinations', async (
   await page.getByRole('button', { name: 'Create', exact: true }).waitFor();
   // Open the drawer via the hamburger (first icon button in the mobile top bar).
   await page.locator('svg path[d="M4 6h16M4 12h16M4 18h16"]').locator('xpath=ancestor::button[1]').click();
-  await expect(page.getByRole('button', { name: 'Starred' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Recent' })).toBeVisible();
+  const drawer = page.getByTestId('mobile-drawer');
+  await expect(drawer.getByRole('button', { name: 'Starred' })).toBeVisible();
+  await expect(drawer.getByRole('button', { name: 'Recent' })).toBeVisible();
 });
 
 test('the create FAB reveals upload / new folder / new note', async ({ page }) => {

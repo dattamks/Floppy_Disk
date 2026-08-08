@@ -313,7 +313,7 @@ export default function ShareModal(V) {
         onClick={V.closeModal}
         style={{
           background: theme.brand,
-          color: theme.white,
+          color: theme.onAccent,
           border: 'none',
           borderRadius: '10px',
           padding: '11px',

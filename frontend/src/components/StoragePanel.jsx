@@ -42,7 +42,7 @@ export default function StoragePanel(V) {
 
   const isR2 = cfg.effective_backend === 'r2';
   const backendChip = isR2
-    ? chip(theme.tealBg, '#0F766E', '#99E7DF', '☁ Cloudflare R2')
+    ? chip(theme.tealBg, theme.teal, theme.teal, '☁ Cloudflare R2')
     : chip(theme.warnBg, theme.warnDark, theme.warnBorder, '🖥 This server’s disk');
 
   return (
@@ -163,7 +163,7 @@ export default function StoragePanel(V) {
             disabled={S.busy}
             style={{
               background: theme.brand,
-              color: theme.white,
+              color: theme.onAccent,
               border: 'none',
               borderRadius: '9px',
               padding: '11px',
@@ -193,7 +193,7 @@ function BudgetCard({ V }) {
   const total = cfg.total_bytes || 0;
   const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
   const over = !!cfg.over_cap;
-  const barColor = over || pct >= 90 ? theme.danger : pct >= 75 ? '#D97706' : theme.brand;
+  const barColor = over || pct >= 90 ? theme.danger : pct >= 75 ? theme.warn : theme.brand;
 
   return (
     <div
@@ -287,7 +287,7 @@ function BudgetCard({ V }) {
         style={{
           alignSelf: 'flex-start',
           background: theme.brand,
-          color: theme.white,
+          color: theme.onAccent,
           border: 'none',
           borderRadius: '9px',
           padding: '9px 16px',
@@ -404,7 +404,7 @@ function MigrationCard({ V }) {
             disabled={S.busy}
             style={{
               background: theme.brand,
-              color: theme.white,
+              color: theme.onAccent,
               border: 'none',
               borderRadius: '9px',
               padding: '10px',

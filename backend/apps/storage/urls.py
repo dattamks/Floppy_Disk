@@ -13,6 +13,7 @@ urlpatterns = [
     path("download", views.BulkDownloadView.as_view(), name="bulk_download"),
     path("camera-backup", views.CameraBackupFolderView.as_view(), name="camera_backup"),
     path("files", views.FileListView.as_view(), name="file_list"),
+    path("media", views.MediaListView.as_view(), name="media"),
     path("files/<uuid:file_id>/download", views.FileDownloadView.as_view(), name="file_download"),
     path("files/<uuid:file_id>/raw", views.FileRawView.as_view(), name="file_raw"),
     path("files/<uuid:file_id>/content", views.FileContentView.as_view(), name="file_content"),
