@@ -467,7 +467,7 @@ export default function AppShell(V) {
                     <div data-testid="files-grid" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       {' '}
                       {(V.visibleFiles || []).map((file, $index) => (
-                        <FileRow key={$index} V={V} file={file} />
+                        <FileRow key={file.id ?? $index} V={V} file={file} />
                       ))}{' '}
                     </div>
                   ) : (
@@ -481,7 +481,7 @@ export default function AppShell(V) {
                     >
                       {' '}
                       {(V.visibleFiles || []).map((file, $index) => (
-                        <FileCard key={$index} V={V} file={file} />
+                        <FileCard key={file.id ?? $index} V={V} file={file} />
                       ))}{' '}
                     </div>
                   )}{' '}
