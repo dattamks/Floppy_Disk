@@ -81,7 +81,7 @@ test('New folder submits on Enter', async ({ page }) => {
   await expect(input).toBeFocused(); // dialog autofocuses its field
   await input.fill('Reports');
   await input.press('Enter');
-  await expect(page.getByText('Reports')).toBeVisible();
+  await expect(page.getByTestId('files-grid').getByText('Reports')).toBeVisible();
 });
 
 test('opening a modal moves focus into it', async ({ page }) => {
@@ -309,7 +309,7 @@ test('a folder offers a .zip download', async ({ page }) => {
   const input = page.getByLabel('Folder name');
   await input.fill('Bundle');
   await input.press('Enter');
-  await expect(page.getByText('Bundle')).toBeVisible();
+  await expect(page.getByTestId('files-grid').getByText('Bundle')).toBeVisible();
   await page.getByRole('button', { name: 'More actions' }).first().click();
   await expect(page.getByRole('button', { name: 'Download (.zip)' })).toBeVisible();
 });

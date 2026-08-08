@@ -38,10 +38,16 @@ export async function registerNewUser(
   ]);
   // If this account is the instance Owner (first user ever), the first-run
   // storage setup appears over the app; dismiss it so specs interact freely.
-  const setup = page.getByTestId('setup-modal');
-  if (dismissSetup && (await setup.isVisible().catch(() => false))) {
-    await page.getByTestId('setup-skip').click();
-    await setup.waitFor({ state: 'hidden' }).catch(() => {});
+  // It mounts a beat after the app is ready (after a storage-config check), so
+  // give it a bounded moment to appear before deciding — otherwise it can pop up
+  // mid-test and intercept clicks (it's a full-screen overlay).
+  if (dismissSetup) {
+    const setup = page.getByTestId('setup-modal');
+    await setup.waitFor({ state: 'visible', timeout: 1500 }).catch(() => {});
+    if (await setup.isVisible().catch(() => false)) {
+      await page.getByTestId('setup-skip').click();
+      await setup.waitFor({ state: 'hidden' }).catch(() => {});
+    }
   }
   return email;
 }

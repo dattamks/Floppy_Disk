@@ -1,5 +1,5 @@
 import React from 'react';
-import { theme } from '../lib/theme';
+import { theme, cssVar } from '../lib/theme';
 import GraphSimWorker from '../lib/graphSim.worker.js?worker';
 
 // Interactive force-directed knowledge graph (Barnes-Hut, O(n log n)). Physics
@@ -14,7 +14,6 @@ import GraphSimWorker from '../lib/graphSim.worker.js?worker';
 const FOLDER_RING = '#ffffff';
 const INFERRED = '#E8912D';
 const EXTRACTED = '#C2C8D2';
-const TEXT = theme.text || '#15171C';
 const PALETTE = [
   '#5145E5', '#2F9E6E', '#E5484D', '#E8912D', '#4C82F7',
   '#9C4DCC', '#0E9BA6', '#C2410C', '#7C8B1B', '#B4235E',
@@ -434,6 +433,10 @@ export default class GraphCanvas extends React.Component {
     ctx.globalAlpha = 1;
 
     const showAll = vis.size <= 40 || k > 1.7;
+    // Resolve theme/accent colors per-frame so the canvas tracks them.
+    const TEXT = cssVar('--text');
+    const BRAND = cssVar('--brand');
+    const DANGER = cssVar('--danger');
     ctx.font = `${11 / k}px 'IBM Plex Sans',sans-serif`;
     ctx.textBaseline = 'middle';
     const lod = this.nodes.length > 3000; // heavy graph: draw dots only, no rings
@@ -449,11 +452,11 @@ export default class GraphCanvas extends React.Component {
       ctx.globalAlpha = faded ? 0.2 : 1;
       ctx.beginPath();
       ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
-      ctx.fillStyle = this.props.colorByFolder ? n.color : isFolder ? PALETTE[0] : '#4C82F7';
+      ctx.fillStyle = this.props.colorByFolder ? n.color : isFolder ? BRAND : '#4C82F7';
       ctx.fill();
       if (!lod || active || match) {
         ctx.lineWidth = (active || match ? 2.2 : 1.4) / k;
-        ctx.strokeStyle = active ? TEXT : match ? '#E5484D' : FOLDER_RING;
+        ctx.strokeStyle = active ? TEXT : match ? DANGER : FOLDER_RING;
         ctx.stroke();
       }
       if (showAll || active || isNeighbor || match) {

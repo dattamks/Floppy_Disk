@@ -50,7 +50,7 @@ export default function RenameModal(V) {
           onClick={V.submitRename}
           style={{
             background: theme.brand,
-            color: theme.white,
+            color: theme.onAccent,
             border: 'none',
             borderRadius: '9px',
             padding: '9px 17px',

@@ -130,7 +130,7 @@ export default function ApiKeysPanel(V) {
           onClick={V.createApiKey}
           style={{
             background: theme.brand,
-            color: theme.white,
+            color: theme.onAccent,
             border: 'none',
             borderRadius: '9px',
             padding: '10px',
@@ -185,7 +185,7 @@ export default function ApiKeysPanel(V) {
                       fontWeight: '600',
                       padding: '2px 7px',
                       borderRadius: '6px',
-                      background: k.root_folder ? '#EEF2FF' : theme.surface2,
+                      background: k.root_folder ? theme.brandBg : theme.surface2,
                       color: k.root_folder ? theme.brand : theme.textMuted,
                     }}
                   >

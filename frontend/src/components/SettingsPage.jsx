@@ -1,5 +1,5 @@
 import React from 'react';
-import { theme } from '../lib/theme';
+import { theme, CUSTOM_ACCENT, normalizeHex } from '../lib/theme';
 import { hov } from '../lib/ui';
 import ApiKeysPanel from './ApiKeysPanel';
 import StoragePanel from './StoragePanel';
@@ -23,7 +23,7 @@ const inputStyle = {
 const label = { fontSize: '12px', color: theme.textMuted, fontWeight: '500' };
 const primaryBtn = {
   background: theme.brand,
-  color: theme.white,
+  color: theme.onAccent,
   border: 'none',
   borderRadius: theme.radius,
   padding: '11px',
@@ -31,6 +31,105 @@ const primaryBtn = {
   fontWeight: '600',
   cursor: 'pointer',
 };
+
+// Theme mode (Light / Dark / System) + primary accent color. Both apply live.
+function Appearance(V) {
+  const modes = [
+    { id: 'light', label: 'Light' },
+    { id: 'dark', label: 'Dark' },
+    { id: 'system', label: 'System' },
+  ];
+  const seg = (active) => ({
+    padding: '9px 16px',
+    borderRadius: '8px',
+    border: 'none',
+    background: active ? theme.white : 'transparent',
+    color: active ? theme.text : theme.textMuted,
+    fontSize: '13.5px',
+    fontWeight: active ? '600' : '500',
+    cursor: 'pointer',
+    boxShadow: active ? '0 1px 3px rgba(0,0,0,0.14)' : 'none',
+    fontFamily: "'IBM Plex Sans',sans-serif",
+  });
+  return (
+    <div style={{ maxWidth: '560px', display: 'flex', flexDirection: 'column', gap: '26px' }}>
+      <div>
+        <div style={{ ...label, marginBottom: '9px' }}>Theme</div>
+        <div style={{ display: 'inline-flex', gap: '3px', padding: '3px', borderRadius: '10px', background: theme.surface, border: `1px solid ${theme.border}` }}>
+          {modes.map((m) => (
+            <button key={m.id} data-testid={`theme-${m.id}`} onClick={() => V.setThemeChoice(m.id)} style={seg(V.themeChoice === m.id)}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: '12px', color: theme.textFaint, marginTop: '8px' }}>
+          System follows your device’s appearance setting.
+        </div>
+      </div>
+      <AccentPicker V={V} />
+    </div>
+  );
+}
+
+// Preset color dots + a custom-color swatch (opens the OS color picker) + a hex
+// input. Everything applies live and works on both light and dark grounds.
+function AccentPicker({ V }) {
+  const custom = V.accent === CUSTOM_ACCENT;
+  const [hex, setHex] = React.useState(normalizeHex(V.customHex) || '#7c5cff');
+  React.useEffect(() => { setHex(normalizeHex(V.customHex) || '#7c5cff'); }, [V.customHex]);
+  const commit = (val) => {
+    setHex(val);
+    const norm = normalizeHex(val);
+    if (norm && V.setCustomAccent) V.setCustomAccent(norm);
+  };
+  const dot = (active, bg) => ({
+    width: '36px', height: '36px', borderRadius: '50%', cursor: 'pointer', background: bg,
+    border: active ? `2px solid ${theme.text}` : `2px solid ${theme.border}`,
+    boxShadow: active ? `0 0 0 3px ${theme.appBg2}, 0 0 0 4px ${bg}` : 'none',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
+  });
+  const check = <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+  const wheel = 'conic-gradient(from 90deg, #e23d6d, #dd8305, #0e9e6e, #2e6df0, #5145e5, #e23d6d)';
+  const swatchHex = normalizeHex(hex) || '#7c5cff';
+  return (
+    <div>
+      <div style={{ ...label, marginBottom: '10px' }}>Primary color</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+        {(V.accents || []).map((a) => {
+          const active = !custom && V.accent === a.id;
+          return (
+            <button key={a.id} data-testid={`accent-${a.id}`} onClick={() => V.setAccent(a.id)}
+              title={a.label} aria-label={a.label} aria-pressed={active} data-round style={dot(active, a.base)}>
+              {active ? check : null}
+            </button>
+          );
+        })}
+        {/* Custom color: the label opens the native picker; keeps the chosen hue. */}
+        <label data-testid="accent-custom" data-round title="Custom color" aria-label="Custom color"
+          style={{ ...dot(custom, custom ? swatchHex : wheel), border: custom ? `2px solid ${theme.text}` : `2px dashed ${theme.borderStrong2 || theme.borderStrong}` }}>
+          {custom ? check : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" /></svg>
+          )}
+          <input type="color" value={swatchHex} onInput={(e) => commit(e.target.value)} onChange={(e) => commit(e.target.value)}
+            data-testid="accent-color-input" aria-label="Pick a custom color"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', border: 'none', padding: 0 }} />
+        </label>
+      </div>
+      {/* Hex entry — a live preview square + a normalized #rrggbb field. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '14px' }}>
+        <span aria-hidden style={{ width: '26px', height: '26px', borderRadius: '7px', flex: '0 0 auto', background: swatchHex, border: `1px solid ${theme.border}` }} />
+        <input value={hex} spellCheck={false} data-testid="accent-hex-input" aria-label="Custom color hex"
+          placeholder="#7C5CFF" onChange={(e) => commit(e.target.value)}
+          onBlur={() => setHex(normalizeHex(hex) || normalizeHex(V.customHex) || '#7c5cff')}
+          style={{ width: '128px', background: theme.surface, border: `1px solid ${custom ? (theme.brandBorder || theme.border) : theme.border}`, borderRadius: theme.radius, padding: '9px 11px', fontSize: '13px', outline: 'none', color: theme.text, fontFamily: "'IBM Plex Mono','SFMono-Regular',Menlo,monospace", textTransform: 'uppercase' }} />
+        <span style={{ fontSize: '12px', color: theme.textFaint }}>or enter a hex code</span>
+      </div>
+      <div style={{ fontSize: '12px', color: theme.textFaint, marginTop: '10px' }}>
+        Applies across the app and works with both light and dark themes.
+      </div>
+    </div>
+  );
+}
 
 function Profile(V) {
   const initial = ((V.profileName || V.accountEmail || 'A').trim()[0] || 'A').toUpperCase();
@@ -53,7 +152,7 @@ function Profile(V) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: theme.white,
+              color: theme.onAccent,
               fontFamily: "'Space Grotesk',sans-serif",
               fontWeight: '700',
               fontSize: '22px',
@@ -173,7 +272,7 @@ function Account(V) {
               onClick={V.resendVerification}
               style={{
                 background: theme.brand,
-                color: theme.white,
+                color: theme.onAccent,
                 border: 'none',
                 borderRadius: theme.radius,
                 padding: '8px 12px',
@@ -374,6 +473,7 @@ export default function SettingsPage(V) {
     { key: 'profile', label: 'Profile', onClick: V.setSettingsProfile, active: V.stIsProfile },
     { key: 'account', label: 'Account', onClick: V.setSettingsAccount, active: V.stIsAccount },
     { key: 'security', label: 'Security', onClick: V.setSettingsSecurity, active: V.stIsSecurity },
+    { key: 'appearance', label: 'Appearance', onClick: V.setSettingsAppearance, active: V.stIsAppearance },
     { key: 'developer', label: 'Developer', onClick: V.setSettingsDeveloper, active: V.stIsDeveloper },
     ...(V.isOwner
       ? [{ key: 'storage', label: 'Storage', onClick: V.setSettingsStorage, active: V.stIsStorage }]
@@ -410,6 +510,8 @@ export default function SettingsPage(V) {
       ? Account(V)
       : V.stIsSecurity
         ? Security(V)
+        : V.stIsAppearance
+          ? Appearance(V)
         : V.stIsDeveloper
           ? ApiKeysPanel(V)
           : V.stIsStorage
@@ -470,11 +572,11 @@ export default function SettingsPage(V) {
         overflowY: 'auto',
         minWidth: '0',
         padding: V.isDesktop ? '24px 26px 40px' : '16px 16px 90px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '18px',
       }}
     >
+      {/* A single centered column holds the header + section body, so every
+          settings page is aligned to the middle of the content area. */}
+      <div style={{ width: '100%', maxWidth: '560px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px' }}>
       {/* Header: current section + a way back to files. */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
         <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: '600', fontSize: '18px' }}>
@@ -509,13 +611,13 @@ export default function SettingsPage(V) {
       <div
         style={{
           width: '100%',
-          maxWidth: '560px',
           display: 'flex',
           flexDirection: 'column',
           gap: '13px',
         }}
       >
         {body}
+      </div>
       </div>
     </div>
   );

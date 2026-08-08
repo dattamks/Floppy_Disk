@@ -1,15 +1,49 @@
 import React from 'react';
 import { theme } from '../lib/theme';
-import { hov } from '../lib/ui';
 
-// Extracted from AppShell.
+// Bottom navigation for mobile: five thumb-reachable slots with the primary
+// create action as a prominent center FAB — Files · Shared · [＋] · Starred ·
+// Trash. Everything else lives in the drawer (hamburger, top-left).
+const ICONS = {
+  files: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" stroke="currentColor" strokeWidth="1.7" />,
+  shared: <><circle cx="7" cy="12" r="2.3" stroke="currentColor" strokeWidth="1.7" /><circle cx="17" cy="6" r="2.3" stroke="currentColor" strokeWidth="1.7" /><circle cx="17" cy="18" r="2.3" stroke="currentColor" strokeWidth="1.7" /><path d="M9.2 10.8 14.8 7.2M9.2 13.2l5.6 3.6" stroke="currentColor" strokeWidth="1.7" /></>,
+  starred: <path d="M12 3l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.6-4.1 6.1-.6L12 3Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />,
+  trash: <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-9 0 1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />,
+};
+
 export default function MobileTabBar(V) {
-  return V.isMobile ? (
+  if (!V.isMobile) return null;
+
+  const tab = (key, label, onClick, color) => (
+    <button
+      key={key}
+      data-testid={`tab-${key}`}
+      onClick={onClick}
+      aria-label={label}
+      style={{
+        background: 'none',
+        border: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '3px',
+        color,
+        cursor: 'pointer',
+        flex: '1 1 0',
+        minWidth: 0,
+        padding: '4px 0',
+      }}
+    >
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">{ICONS[key]}</svg>
+      <span style={{ fontSize: '9.5px', fontWeight: '500' }}>{label}</span>
+    </button>
+  );
+
+  return (
     <React.Fragment>
-      {' '}
       {V.mobileCreateOpen ? (
         <div onClick={V.closeMobileCreate} style={{ position: 'absolute', inset: '0', zIndex: '4' }} />
-      ) : null}{' '}
+      ) : null}
       <div
         style={{
           position: 'absolute',
@@ -22,60 +56,21 @@ export default function MobileTabBar(V) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-around',
-          padding: '0 6px',
+          padding: '0 4px',
+          paddingBottom: 'env(safe-area-inset-bottom)',
           zIndex: '5',
         }}
       >
-        {' '}
-        <button
-          onClick={V.navToAll}
-          style={{
-            background: 'none',
-            border: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '3px',
-            color: V.navAllColor,
-            cursor: 'pointer',
-          }}
-        >
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"
-              stroke="currentColor"
-              strokeWidth="1.7"
-            />
-          </svg>
-          <span style={{ fontSize: '9.5px', fontWeight: '500' }}>Files</span>
-        </button>{' '}
-        <button
-          onClick={V.navToShared}
-          style={{
-            background: 'none',
-            border: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '3px',
-            color: V.navSharedColor,
-            cursor: 'pointer',
-          }}
-        >
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
-            <circle cx="7" cy="12" r="2.3" stroke="currentColor" strokeWidth="1.7" />
-            <circle cx="17" cy="6" r="2.3" stroke="currentColor" strokeWidth="1.7" />
-            <circle cx="17" cy="18" r="2.3" stroke="currentColor" strokeWidth="1.7" />
-            <path d="M9.2 10.8 14.8 7.2M9.2 13.2l5.6 3.6" stroke="currentColor" strokeWidth="1.7" />
-          </svg>
-          <span style={{ fontSize: '9.5px', fontWeight: '500' }}>Shared</span>
-        </button>{' '}
-        <div style={{ position: 'relative', display: 'flex', justifyContent: 'center' }}>
+        {tab('files', 'Files', V.navToAll, V.navAllColor)}
+        {tab('shared', 'Shared', V.navToShared, V.navSharedColor)}
+
+        {/* Center create FAB. */}
+        <div style={{ flex: '0 0 auto', position: 'relative', display: 'flex', justifyContent: 'center', width: '58px' }}>
           {V.mobileCreateOpen ? (
             <div
               style={{
                 position: 'absolute',
-                bottom: '54px',
+                bottom: '58px',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 display: 'flex',
@@ -85,7 +80,7 @@ export default function MobileTabBar(V) {
                 border: `1px solid ${theme.border}`,
                 borderRadius: '14px',
                 padding: '8px',
-                boxShadow: '0 12px 30px rgba(16,24,40,0.22)',
+                boxShadow: '0 12px 30px rgba(0,0,0,0.28)',
                 zIndex: '6',
               }}
             >
@@ -120,55 +115,36 @@ export default function MobileTabBar(V) {
             aria-label="Create"
             aria-expanded={!!V.mobileCreateOpen}
             data-round
+            data-testid="tab-create"
             style={{
               background: theme.brand,
-              border: 'none',
-              width: '46px',
-              height: '46px',
+              border: `3px solid ${theme.white}`,
+              width: '52px',
+              height: '52px',
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              marginTop: '-20px',
-              boxShadow: '0 6px 16px rgba(81,69,229,0.4)',
+              marginTop: '-24px',
+              boxShadow: '0 6px 16px rgba(0,0,0,0.3)',
             }}
           >
             <svg
-              width="20"
-              height="20"
+              width="21"
+              height="21"
               viewBox="0 0 24 24"
               fill="none"
               style={{ transition: 'transform 0.15s', transform: V.mobileCreateOpen ? 'rotate(45deg)' : 'none' }}
             >
-              <path d="M12 5v14M5 12h14" stroke={theme.white} strokeWidth="2.2" strokeLinecap="round" />
+              <path d="M12 5v14M5 12h14" stroke={theme.onAccent} strokeWidth="2.3" strokeLinecap="round" />
             </svg>
           </button>
-        </div>{' '}
-        <button
-          onClick={V.navToTrash}
-          style={{
-            background: 'none',
-            border: 'none',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: '3px',
-            color: V.navTrashColor,
-            cursor: 'pointer',
-          }}
-        >
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-9 0 1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"
-              stroke="currentColor"
-              strokeWidth="1.7"
-              strokeLinecap="round"
-            />
-          </svg>
-          <span style={{ fontSize: '9.5px', fontWeight: '500' }}>Trash</span>
-        </button>{' '}
-      </div>{' '}
+        </div>
+
+        {tab('starred', 'Starred', V.navToStarred, V.navStarredColor)}
+        {tab('trash', 'Trash', V.navToTrash, V.navTrashColor)}
+      </div>
     </React.Fragment>
-  ) : null;
+  );
 }

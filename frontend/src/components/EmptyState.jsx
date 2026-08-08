@@ -40,7 +40,7 @@ export default function EmptyState(V) {
                   alignItems: 'center',
                   gap: '7px',
                   background: theme.brand,
-                  color: theme.white,
+                  color: theme.onAccent,
                   border: 'none',
                   borderRadius: '10px',
                   padding: '10px 18px',
@@ -54,7 +54,7 @@ export default function EmptyState(V) {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <path
                     d="M12 16V4M7 9l5-5 5 5M4 20h16"
-                    stroke={theme.white}
+                    stroke={theme.onAccent}
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"

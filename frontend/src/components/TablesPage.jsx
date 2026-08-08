@@ -59,6 +59,9 @@ export default function TablesPage({ V }) {
   const [relLabels, setRelLabels] = React.useState({});   // {targetTableId: {rowId: label}} for relation cells
   const [relRows, setRelRows] = React.useState({});       // {targetTableId: {rowId: data}} for lookups/rollups
   const [relFields, setRelFields] = React.useState({});   // {targetTableId: [fields]}
+  const [openTabs, setOpenTabs] = React.useState([]);     // [tableId,...] — open tabs, in order
+  const cacheRef = React.useRef({});                      // {id: {table, rows}} for instant tab switch
+  const activeIdRef = React.useRef(null);                 // guards async refresh against fast tab switches
   const undoRef = React.useRef([]);
   const controlsRef = React.useRef(null);
 
@@ -103,33 +106,100 @@ export default function TablesPage({ V }) {
     setCollapsedGroups(new Set());
   };
 
+  // Snapshot the active table's live state so switching back to its tab is
+  // instant (no refetch) and doesn't lose unsaved-to-cache edits.
+  const snapshotActive = () => {
+    if (open) cacheRef.current[open.id] = { table: open, rows };
+  };
+  // Activate a table's data + its first saved view. View config (widths / sort /
+  // filters / group / kanban field) is carried on the table object and applied
+  // via applyViewState, so a cached table restores its full working state.
+  const applyTable = (t, rws) => {
+    setOpen(t); setRows(rws); resetOpenState();
+    setActiveViewId(t.views?.[0]?.id || null);
+    applyViewState(t.views?.[0]);
+    loadRelTargets(t.fields);
+  };
+
+  // Open a table in a tab and make it active. Instant from cache when possible,
+  // with a background refresh; otherwise fetch.
   const openTable = (id) => {
-    setLoadingTable(true);
-    loadFiles(); loadList();  // loadList: keep the tables list fresh for the relation-target picker
+    if (open?.id === id) return;
+    snapshotActive();
+    activeIdRef.current = id;
+    setOpenTabs((tabs) => (tabs.includes(id) ? tabs : [...tabs, id]));
+    loadFiles(); loadList();
+    const cached = cacheRef.current[id];
+    if (cached) {
+      applyTable(cached.table, cached.rows);
+    } else {
+      setLoadingTable(true);
+    }
     Promise.all([api.getTable(id), api.tableRows(id)])
       .then(([t, rws]) => {
-        setOpen(t); setRows(rws); resetOpenState();
-        setActiveViewId(t.views?.[0]?.id || null);
-        applyViewState(t.views?.[0]);
-        loadRelTargets(t.fields);
+        cacheRef.current[id] = { table: t, rows: rws };
+        if (activeIdRef.current === id) applyTable(t, rws);
       })
-      .catch((e) => toast(firstError(e, 'Could not open table')))
+      .catch((e) => { if (!cached) toast(firstError(e, 'Could not open table')); })
       .finally(() => setLoadingTable(false));
   };
 
   const newTable = () => {
     loadFiles(); loadList();
     api.createTable({ name: 'Untitled table' })
-      .then((t) => { setOpen(t); setActiveViewId(t.views?.[0]?.id || null); applyViewState(t.views?.[0]); resetOpenState(); return api.tableRows(t.id).then(setRows); })
+      .then((t) => {
+        snapshotActive();
+        activeIdRef.current = t.id;
+        setOpenTabs((tabs) => [...tabs, t.id]);
+        cacheRef.current[t.id] = { table: t, rows: [] };
+        setOpen(t); resetOpenState();
+        setActiveViewId(t.views?.[0]?.id || null);
+        applyViewState(t.views?.[0]);
+        loadList();  // refresh the sidebar list now that the new table exists
+        return api.tableRows(t.id).then((rws) => { if (cacheRef.current[t.id]) cacheRef.current[t.id].rows = rws; if (activeIdRef.current === t.id) setRows(rws); });
+      })
       .catch((e) => toast(firstError(e, 'Could not create table')));
   };
-  const backToList = () => { setOpen(null); setRows([]); resetOpenState(); loadList(); };
+  // Re-fetch the active table from the server (used to recover after a failed
+  // optimistic edit); openTable() early-returns for the active id, so this is
+  // the explicit refresh path.
+  const refreshActive = () => {
+    const id = open?.id;
+    if (!id) return;
+    Promise.all([api.getTable(id), api.tableRows(id)]).then(([t, rws]) => {
+      cacheRef.current[id] = { table: t, rows: rws };
+      if (activeIdRef.current === id) applyTable(t, rws);
+    }).catch(() => {});
+  };
+  // Deactivate (show the tables list) without closing any tab.
+  const backToList = () => { snapshotActive(); activeIdRef.current = null; setOpen(null); setRows([]); resetOpenState(); loadList(); };
+  // Close a tab; if it was active, fall back to the neighbouring tab.
+  const closeTab = (id) => {
+    delete cacheRef.current[id];
+    setOpenTabs((tabs) => {
+      const next = tabs.filter((t) => t !== id);
+      if (open?.id === id) {
+        const idx = tabs.indexOf(id);
+        const neighbour = next[idx] || next[idx - 1] || null;
+        if (neighbour) setTimeout(() => openTable(neighbour), 0);
+        else { activeIdRef.current = null; setOpen(null); setRows([]); resetOpenState(); }
+      }
+      return next;
+    });
+  };
 
   const renameTable = (name) => {
     if (!open || !name.trim() || name === open.name) return;
-    const prev = open.name;
-    setOpen((o) => ({ ...o, name }));
-    api.updateTable(open.id, { name: name.trim() }).catch((e) => { setOpen((o) => ({ ...o, name: prev })); toast(firstError(e, 'Could not rename')); });
+    const prev = open.name; const nm = name.trim();
+    const id = open.id;
+    setOpen((o) => ({ ...o, name: nm }));
+    if (cacheRef.current[id]) cacheRef.current[id].table = { ...cacheRef.current[id].table, name: nm };
+    setTables((ts) => (ts || []).map((t) => (t.id === id ? { ...t, name: nm } : t)));  // keep sidebar + tabs live
+    api.updateTable(id, { name: nm }).catch((e) => {
+      setOpen((o) => ({ ...o, name: prev }));
+      setTables((ts) => (ts || []).map((t) => (t.id === id ? { ...t, name: prev } : t)));
+      toast(firstError(e, 'Could not rename'));
+    });
   };
   const deleteTable = () => {
     if (!open || !window.confirm(`Move "${open.name}" to trash?`)) return;
@@ -213,7 +283,7 @@ export default function TablesPage({ V }) {
       });
     }
     const call = ids.length === 1 ? api.deleteRow(ids[0]) : api.bulkDeleteRows(open.id, ids);
-    call.catch((e) => { toast(firstError(e, 'Could not delete rows')); openTable(open.id); });
+    call.catch((e) => { toast(firstError(e, 'Could not delete rows')); refreshActive(); });
   };
 
   // ---- fields ----
@@ -251,7 +321,7 @@ export default function TablesPage({ V }) {
     if (filters.some((f) => f.field === fieldId)) updateFilters(filters.filter((f) => f.field !== fieldId));
     if (sort && sort.field === fieldId) { setSort(null); persistSort(null); }
     if (groupBy === fieldId) updateGroupBy(null);
-    api.deleteField(fieldId).catch((e) => { toast(firstError(e, 'Could not delete column')); openTable(open.id); });
+    api.deleteField(fieldId).catch((e) => { toast(firstError(e, 'Could not delete column')); refreshActive(); });
   };
 
   const viewsList = open?.views || [];
@@ -417,8 +487,9 @@ export default function TablesPage({ V }) {
     patchViewConfig({ cardFields: next });
   };
 
-  if (open) {
-    return (
+  // The open-table surface (grid or board), captured as a value so the tab-strip
+  // layout can compose it beside the tables sidebar.
+  const tableView = open ? (
       <div style={page} data-testid="table-open">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button onClick={backToList} aria-label="Back to tables" style={iconBtn}>
@@ -669,10 +740,9 @@ export default function TablesPage({ V }) {
           </div>
         ) : null}
       </div>
-    );
-  }
+    ) : null;
 
-  return (
+  const listView = (
     <div style={page} data-testid="tables-list">
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: '22px', color: theme.text }}>Tables</span>
@@ -710,11 +780,94 @@ export default function TablesPage({ V }) {
       )}
     </div>
   );
+
+  // Sidebar list = server tables ∪ any open tabs not yet in that list (a freshly
+  // created table appears instantly, before the list GET returns).
+  const listIds = new Set((tables || []).map((t) => t.id));
+  const extraTabs = openTabs
+    .filter((id) => !listIds.has(id))
+    .map((id) => ({ id, name: (open?.id === id ? open.name : cacheRef.current[id]?.table?.name) || 'Untitled table', row_count: open?.id === id ? rows.length : (cacheRef.current[id]?.rows?.length || 0) }));
+  const sidebarTables = [...(tables || []), ...extraTabs];
+
+  // Secondary sidebar: the list of tables (each expandable to its views once
+  // opened) + New table. Mirrors the Settings / My Files secondary sidebars.
+  const tablesSidebar = (
+    <div data-testid="tables-sidebar" style={{ width: 232, flex: '0 0 auto', background: theme.surface2, borderRight: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 12px 8px' }}>
+        <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontWeight: 700, fontSize: '14px', color: theme.text, flex: 1 }}>Tables</span>
+        <button onClick={newTable} data-testid="tables-sidebar-new" title="New table" style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.brand, display: 'flex', padding: 4, borderRadius: 6 }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+        </button>
+      </div>
+      <div style={{ overflowY: 'auto', padding: '2px 8px 12px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {sidebarTables.map((t) => {
+          const active = open?.id === t.id;
+          const cached = cacheRef.current[t.id];
+          const views = active ? open.views : cached?.table?.views;
+          const nm = (active ? open.name : cached?.table?.name) || t.name;  // live name (rename may outrun the list refetch)
+          return (
+            <div key={t.id}>
+              <button
+                onClick={() => openTable(t.id)}
+                data-testid="tables-sidebar-item"
+                title={nm}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', border: 'none', background: active ? theme.brandBg : 'transparent', color: active ? theme.brand : theme.text, fontWeight: active ? 600 : 500, cursor: 'pointer', fontFamily: "'IBM Plex Sans',sans-serif", fontSize: '13px', padding: '7px 8px', borderRadius: 7, textAlign: 'left' }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style={{ flex: '0 0 15px' }}><rect x="3.5" y="4.5" width="17" height="15" rx="2" stroke="currentColor" strokeWidth="1.7" /><path d="M3.5 9.5h17M9 9.5v10" stroke="currentColor" strokeWidth="1.4" /></svg>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{nm}</span>
+                <span style={{ fontSize: '11px', color: theme.textFaint }}>{active ? rows.length : t.row_count}</span>
+              </button>
+              {active && (views || []).length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 1, paddingLeft: 8 }}>
+                  {views.map((v) => (
+                    <div key={v.id} data-testid="tables-sidebar-view" style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '4px 8px 4px 16px', fontSize: '12px', color: theme.textMuted }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ flex: '0 0 12px' }}><rect x="4" y="4" width="16" height="16" rx="2" stroke="currentColor" strokeWidth="1.7" /><path d="M4 9h16M9 9v11" stroke="currentColor" strokeWidth="1.3" /></svg>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.name || 'Grid'}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+        {sidebarTables.length === 0 ? <div style={{ padding: '10px 8px', fontSize: '12px', color: theme.textFaint }}>No tables yet.</div> : null}
+      </div>
+    </div>
+  );
+
+  // Tab strip for the open tables — instant switch, close per tab.
+  const tabName = (id) => (open?.id === id ? open.name : cacheRef.current[id]?.table?.name) || (tables || []).find((t) => t.id === id)?.name || 'Table';
+  const tabStrip = openTabs.length ? (
+    <div data-testid="tables-tabstrip" style={{ display: 'flex', alignItems: 'stretch', gap: 4, padding: '8px 12px 0', borderBottom: `1px solid ${theme.border}`, overflowX: 'auto', flex: '0 0 auto' }}>
+      {openTabs.map((id) => {
+        const active = open?.id === id;
+        return (
+          <div key={id} data-testid="tables-tab" data-active={active ? 'true' : 'false'}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 9px 7px 11px', borderRadius: '9px 9px 0 0', border: `1px solid ${active ? theme.border : 'transparent'}`, borderBottom: active ? `1px solid ${theme.white}` : '1px solid transparent', marginBottom: -1, background: active ? theme.white : 'transparent', cursor: 'pointer' }}>
+            <button onClick={() => openTable(id)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '12.5px', fontWeight: active ? 600 : 500, color: active ? theme.text : theme.textMuted, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tabName(id)}</button>
+            <button onClick={() => closeTab(id)} data-testid="tables-tab-close" aria-label={`Close ${tabName(id)}`} style={{ border: 'none', background: 'none', cursor: 'pointer', color: theme.textFaint, display: 'flex', padding: 1, borderRadius: 4 }}>
+              <svg width="13" height="13" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  ) : null;
+
+  return (
+    <div style={{ flex: 1, display: 'flex', minWidth: 0, minHeight: 0, overflow: 'hidden' }} data-testid="tables-page">
+      {V?.isDesktop ? tablesSidebar : null}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, background: theme.white }}>
+        {tabStrip}
+        {open ? tableView : listView}
+      </div>
+    </div>
+  );
 }
 
 const iconBtn = { width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: `1px solid ${theme.border}`, background: theme.white, color: theme.textMuted, cursor: 'pointer', flex: '0 0 auto' };
 const barBtn = { background: theme.white, color: theme.text, border: `1px solid ${theme.border}`, borderRadius: '8px', padding: '6px 13px', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' };
-const btnPrimary = { background: theme.brand, color: theme.white, border: 'none', borderRadius: '9px', padding: '9px 16px', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' };
+const btnPrimary = { background: theme.brand, color: theme.onAccent, border: 'none', borderRadius: '9px', padding: '9px 16px', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' };
 const btnGhost = { background: theme.white, color: theme.text, border: `1px solid ${theme.border}`, borderRadius: '9px', padding: '9px 14px', fontSize: '13.5px', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' };
 const overlay = { position: 'absolute', inset: 0, background: 'rgba(20,23,28,0.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 40 };
 const popover = { width: 320, maxWidth: '92%', background: theme.white, border: `1px solid ${theme.border}`, borderRadius: '14px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '11px', boxShadow: '0 24px 60px rgba(16,24,40,0.28)' };

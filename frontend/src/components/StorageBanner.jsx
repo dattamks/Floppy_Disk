@@ -29,7 +29,7 @@ export default function StorageBanner(V) {
         onClick={S.openStorageSettings}
         style={{
           background: theme.warnDark,
-          color: theme.white,
+          color: theme.onAccent,
           border: 'none',
           borderRadius: '7px',
           padding: '6px 12px',

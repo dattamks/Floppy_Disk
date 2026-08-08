@@ -22,6 +22,55 @@ export function highlightJson(src) {
   });
 }
 
+// Generic source-code highlighter for the common languages we preview (JS/TS,
+// Python, shell, SQL, CSS, Go, Rust, Java, …). Deliberately lightweight and
+// dependency-free: one left-to-right pass over a master alternation, so a token
+// (comment / string) is matched as a whole and its interior is never re-scanned
+// - the same safety property as highlightJson/Yaml. `lang` is the file extension
+// and only decides which line-comment markers apply, so we don't mis-colour a
+// CSS `#fff` as a comment.
+const CODE_KEYWORDS = [
+  // JS/TS
+  'const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'do', 'switch',
+  'case', 'break', 'continue', 'new', 'class', 'extends', 'super', 'import', 'from', 'export',
+  'default', 'async', 'await', 'yield', 'try', 'catch', 'finally', 'throw', 'typeof',
+  'instanceof', 'in', 'of', 'this', 'void', 'delete', 'interface', 'type', 'enum', 'implements',
+  'public', 'private', 'protected', 'static', 'readonly', 'as', 'namespace',
+  // Python
+  'def', 'elif', 'lambda', 'pass', 'with', 'not', 'and', 'or', 'is', 'None', 'True', 'False',
+  'global', 'nonlocal', 'assert', 'del', 'raise', 'except', 'finally',
+  // shell / sql / misc
+  'echo', 'fi', 'then', 'done', 'esac', 'local', 'select', 'insert', 'update', 'delete', 'where',
+  'join', 'group', 'order', 'by', 'into', 'values', 'set', 'create', 'table', 'struct', 'func',
+  'package', 'fn', 'impl', 'match', 'use', 'mut', 'pub', 'null', 'true', 'false',
+];
+const HASH_COMMENT = new Set(['py', 'sh', 'bash', 'zsh', 'rb', 'r', 'pl', 'toml', 'ini', 'conf', 'env', 'dockerfile', 'makefile', 'yml', 'yaml']);
+const DASH_COMMENT = new Set(['sql']);
+
+export function highlightCode(src, lang) {
+  const ext = (lang || '').toLowerCase();
+  const markers = ['//'];
+  if (HASH_COMMENT.has(ext)) markers.push('#');
+  if (DASH_COMMENT.has(ext)) markers.push('--');
+  const lineC = markers.map((m) => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const kw = '\\b(?:' + CODE_KEYWORDS.join('|') + ')\\b';
+  const re = new RegExp(
+    '(\\/\\*[\\s\\S]*?\\*\\/)' +                                          // 1 block comment
+    `|((?:${lineC}).*)` +                                                 // 2 line comment (to EOL)
+    '|(`(?:\\\\.|[^`\\\\])*`|"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\')' + // 3 string
+    '|(' + kw + ')' +                                                     // 4 keyword
+    '|(\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b)',                        // 5 number
+    'g'
+  );
+  return esc(src).replace(re, (m, block, line, str, kwm, num) => {
+    if (block) return `<span class="tok-comment">${m}</span>`;
+    if (line) return `<span class="tok-comment">${m}</span>`;
+    if (str) return `<span class="tok-str">${m}</span>`;
+    if (kwm) return `<span class="tok-kw">${m}</span>`;
+    return `<span class="tok-num">${m}</span>`;
+  });
+}
+
 // YAML: comments, `key:`, quoted strings, and scalar booleans/null.
 // Order matters - each pass must not re-scan markup emitted by an earlier pass.
 // Strings run first (only that pass looks for quotes, and it's single-pass), so

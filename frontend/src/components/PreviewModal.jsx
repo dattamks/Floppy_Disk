@@ -1,7 +1,7 @@
 import React from 'react';
 import { theme } from '../lib/theme';
 import { swipeX } from '../lib/ui';
-import { highlightJson, highlightYaml } from '../lib/highlight';
+import { highlightJson, highlightYaml, highlightCode } from '../lib/highlight';
 
 // The WYSIWYG editor pulls in TipTap/ProseMirror (~160KB gzip); load it lazily
 // so it only reaches users who actually open a note, keeping the app's initial
@@ -43,7 +43,7 @@ const mdCss = () => `
   .md-body a{color:${theme.brand};} .md-body hr{border:none;border-top:1px solid ${theme.border};margin:0.8em 0;}
 `;
 
-function Body(V) {
+export function PreviewBody(V) {
   const f = V.activeFile;
   if (V.previewLoading) {
     return (
@@ -304,13 +304,15 @@ function Body(V) {
       </div>
     );
   }
-  if (k === 'json' || k === 'yaml' || k === 'text') {
+  if (k === 'json' || k === 'yaml' || k === 'code' || k === 'text') {
     const html =
       k === 'json'
         ? highlightJson(V.previewCode)
         : k === 'yaml'
           ? highlightYaml(V.previewCode)
-          : null;
+          : k === 'code'
+            ? highlightCode(V.previewCode, V.previewLang)
+            : null;
     if (html) {
       return (
         <React.Fragment>
@@ -347,67 +349,107 @@ function Body(V) {
   );
 }
 
-// Backlinks / links for a note - the connections the knowledge graph found.
-function Backlinks(V) {
-  const back = V.noteBacklinks || [];
+// Backlinks panel for a note — the Obsidian-style "Linked mentions" and
+// "Unlinked mentions", each source note collapsible with in-context snippets,
+// plus the note's own outgoing links as chips. Rendered as a plain function
+// (no hooks), so collapsing uses native <details>.
+const blCss = () => `
+  .bl-wrap{border-top:1px solid ${theme.border};margin-top:26px;padding-top:20px;display:flex;flex-direction:column;gap:22px;}
+  .bl-sec-head{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .bl-sec-title{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:${theme.textInk};}
+  .bl-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:${theme.surface};color:${theme.textMuted};font-size:11.5px;font-weight:600;}
+  .bl-src{border:1px solid ${theme.border};border-radius:10px;background:${theme.surface2};overflow:hidden;margin-bottom:8px;}
+  .bl-src > summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;padding:9px 12px;font-weight:600;font-size:13px;color:${theme.text};user-select:none;}
+  .bl-src > summary::-webkit-details-marker{display:none;}
+  .bl-src > summary:hover{background:${theme.surface};}
+  .bl-chev{transition:transform 0.15s;color:${theme.textFaint};flex:0 0 auto;}
+  .bl-src[open] .bl-chev{transform:rotate(90deg);}
+  .bl-src-count{margin-left:auto;font-weight:500;font-size:11.5px;color:${theme.textFaint};}
+  .bl-snips{padding:2px 12px 10px 30px;display:flex;flex-direction:column;gap:8px;}
+  .bl-snip{font-size:13px;line-height:1.55;color:${theme.textMuted};border-left:2px solid ${theme.border};padding-left:11px;}
+  .bl-snip .bl-hit{color:${theme.brand};font-weight:600;background:${theme.brandBg};border-radius:3px;padding:0 2px;}
+  .bl-snip .bl-hit-plain{color:${theme.text};font-weight:600;background:${theme.starBgSoft};border-radius:3px;padding:0 2px;}
+  .bl-links{display:flex;flex-wrap:wrap;gap:6px;}
+  .bl-empty{font-size:12.5px;color:${theme.textFaint};}
+`;
+
+function BacklinkSource(m, linked) {
+  return (
+    <details className="bl-src" key={(linked ? 'l' : 'u') + m.file_id} open>
+      <summary onClick={(e) => { if (e.detail === 2) e.preventDefault(); }}>
+        <svg className="bl-chev" width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        <span
+          role="link"
+          tabIndex={0}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); m.onOpen(); }}
+          style={{ color: theme.brand, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        >
+          {m.name}
+        </span>
+        {m.count > 1 ? <span className="bl-src-count">{m.count} mentions</span> : null}
+      </summary>
+      <div className="bl-snips">
+        {(m.snippets || []).map((s, i) => (
+          <div className="bl-snip" key={i}>
+            {s.before}
+            <span className={linked ? 'bl-hit' : 'bl-hit-plain'}>{s.match}</span>
+            {s.after}
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+export function Backlinks(V) {
   const out = V.noteLinksOut || [];
-  if (!back.length && !out.length) return null;
-  const chip = (item, incoming) => (
+  const m = V.noteMentions;
+  const linked = (m && m.linked) || [];
+  const unlinked = (m && m.unlinked) || [];
+  if (!out.length && !linked.length && !unlinked.length) return null;
+
+  const outChip = (item) => (
     <button
-      key={(incoming ? 'b' : 'o') + item.id}
+      key={'o' + item.id}
       onClick={item.onOpen}
       title={item.reason || 'Open'}
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '5px',
-        background: theme.surface,
-        border: `1px solid ${theme.border}`,
-        borderRadius: '999px',
-        padding: '4px 11px',
-        fontSize: '12px',
-        color: theme.text,
-        cursor: 'pointer',
-        maxWidth: '220px',
+        display: 'inline-flex', alignItems: 'center', gap: '5px',
+        background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: '999px',
+        padding: '4px 11px', fontSize: '12px', color: theme.text, cursor: 'pointer', maxWidth: '220px',
       }}
     >
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
-        <path
-          d="M9 15l6-6M10.5 6.5l1-1a4 4 0 0 1 6 6l-1 1M13.5 17.5l-1 1a4 4 0 0 1-6-6l1-1"
-          stroke={theme.brand}
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        />
-      </svg>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {item.name}
-      </span>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M9 15l6-6M10.5 6.5l1-1a4 4 0 0 1 6 6l-1 1M13.5 17.5l-1 1a4 4 0 0 1-6-6l1-1" stroke={theme.brand} strokeWidth="1.8" strokeLinecap="round" /></svg>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
     </button>
   );
-  const section = (label, items, incoming) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      <span style={{ fontSize: '11px', fontWeight: '600', color: theme.textMuted, letterSpacing: '0.02em' }}>
-        {label}
-      </span>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-        {items.map((it) => chip(it, incoming))}
-      </div>
+
+  const secHead = (title, count) => (
+    <div className="bl-sec-head">
+      <span className="bl-sec-title">{title}</span>
+      <span className="bl-count">{count}</span>
     </div>
   );
+
   return (
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-        padding: '12px',
-        border: `1px solid ${theme.border}`,
-        borderRadius: '11px',
-        background: theme.appBg2,
-      }}
-    >
-      {out.length ? section('Links in this note', out, false) : null}
-      {back.length ? section('Linked mentions', back, true) : null}
+    <div className="bl-wrap">
+      <style>{blCss()}</style>
+      {out.length ? (
+        <div>
+          {secHead('Links in this note', out.length)}
+          <div className="bl-links">{out.map(outChip)}</div>
+        </div>
+      ) : null}
+      <div>
+        {secHead('Linked mentions', (m && m.counts.linked) || linked.length)}
+        {linked.length ? linked.map((s) => BacklinkSource(s, true)) : <div className="bl-empty">No other note links here yet.</div>}
+      </div>
+      {unlinked.length ? (
+        <div>
+          {secHead('Unlinked mentions', (m && m.counts.unlinked) || unlinked.length)}
+          {unlinked.map((s) => BacklinkSource(s, false))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -500,7 +542,7 @@ export default function PreviewModal(V) {
           </button>
         </div>
       </div>{' '}
-      {Body(V)}{' '}
+      {PreviewBody(V)}{' '}
       {V.isNote && !V.isEditing ? Backlinks(V) : null}{' '}
       <div
         style={{
@@ -533,7 +575,7 @@ export default function PreviewModal(V) {
               disabled={V.editSaving}
               style={{
                 background: theme.brand,
-                color: theme.white,
+                color: theme.onAccent,
                 border: 'none',
                 borderRadius: '9px',
                 padding: '0 16px',
@@ -622,7 +664,7 @@ export default function PreviewModal(V) {
               onClick={V.openShareForActive}
               style={{
                 background: theme.brand,
-                color: theme.white,
+                color: theme.onAccent,
                 border: 'none',
                 borderRadius: '9px',
                 padding: '0 16px',

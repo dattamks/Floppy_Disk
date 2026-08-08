@@ -1,16 +1,19 @@
-body{margin:0;background:#EEF0F4;}
+body{margin:0;background:var(--appBg2,#EEF0F4);color:var(--text,#15171C);}
     *{box-sizing:border-box;}
     ::-webkit-scrollbar{width:9px;height:9px;}
-    ::-webkit-scrollbar-thumb{background:#CBD0D8;border-radius:9px;}
+    ::-webkit-scrollbar-thumb{background:var(--borderStrong2,#CBD0D8);border-radius:9px;}
     ::-webkit-scrollbar-track{background:transparent;}
-    input::placeholder,textarea::placeholder{color:#9AA1AC;}
-    a{color:#5145E5;text-decoration:none;}
-    a:hover{color:#4238CC;}
+    input::placeholder,textarea::placeholder{color:var(--textFaint,#9AA1AC);}
+    a{color:var(--brand,#5145E5);text-decoration:none;}
+    a:hover{color:var(--brandDark,#4238CC);}
     .fd-carousel{scrollbar-width:thin;}
     .fd-carousel::-webkit-scrollbar{height:6px;}
     @keyframes fdspin{to{transform:rotate(360deg);}}
     @keyframes fdshimmer{0%{background-position:100% 0;}100%{background-position:0 0;}}
-    :focus-visible{outline:2px solid #5145E5;outline-offset:2px;border-radius:4px;}
+    :root{color-scheme:light;}
+    :root[data-theme="dark"]{color-scheme:dark;}
+    @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){color-scheme:dark;}}
+    :focus-visible{outline:2px solid var(--brand,#5145E5);outline-offset:2px;border-radius:4px;}
     button:focus:not(:focus-visible){outline:none;}
     /* Controls are square with only a slight round - a single global rule so the
        whole app stays consistent instead of ~180 inline radii drifting apart.
