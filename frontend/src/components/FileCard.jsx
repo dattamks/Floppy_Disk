@@ -196,7 +196,7 @@ export default function FileCard({ V, file }) {
                     justifyContent: 'center',
                     gap: '7px',
                     background: 'rgba(10,12,20,0.55)',
-                    color: theme.white,
+                    color: theme.onAccent,
                     fontSize: '11px',
                     fontWeight: '600',
                   }}
@@ -260,7 +260,7 @@ export default function FileCard({ V, file }) {
                       borderRadius: '5px',
                       padding: '1px 6px',
                       fontSize: '10px',
-                      color: theme.white,
+                      color: theme.onAccent,
                       pointerEvents: 'none',
                     }}
                   >

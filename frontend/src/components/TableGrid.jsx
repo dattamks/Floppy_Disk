@@ -44,7 +44,9 @@ export function plainValue(field, value) {
 }
 
 export function Pill({ c }) {
-  return <span style={{ fontSize: '12px', fontWeight: 600, color: theme.text, background: c.color || theme.surface2, borderRadius: '999px', padding: '2px 10px', whiteSpace: 'nowrap' }}>{c.name}</span>;
+  // Choice colors are stored light pastels, so a colored pill always needs dark
+  // text; an uncolored pill uses the theme surface + adaptive text.
+  return <span style={{ fontSize: '12px', fontWeight: 600, color: c.color ? '#242A33' : theme.text, background: c.color || theme.surface2, borderRadius: '999px', padding: '2px 10px', whiteSpace: 'nowrap' }}>{c.name}</span>;
 }
 
 export function CellValue({ field, value }) {

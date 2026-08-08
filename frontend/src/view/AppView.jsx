@@ -3,6 +3,7 @@ import { theme } from '../lib/theme';
 import { hov } from '../lib/ui';
 import AuthScreen from '../components/AuthScreen';
 import AppShell from '../components/AppShell';
+import FolderTree from '../components/FolderTree';
 import UploadModal from '../components/UploadModal';
 import NewFolderModal from '../components/NewFolderModal';
 import NotificationsModal from '../components/NotificationsModal';
@@ -123,6 +124,7 @@ export default function AppView({ V }) {
                 {' '}
                 <div
                   onClick={V.stop}
+                  data-testid="mobile-drawer"
                   style={{
                     width: '258px',
                     height: '100%',
@@ -147,7 +149,7 @@ export default function AppView({ V }) {
                       <rect x="3" y="3" width="18" height="18" rx="4" fill={theme.brand} />
                       <path
                         d="M8 3v5h6.5M8.5 20v-6h7v6"
-                        stroke={theme.white}
+                        stroke={theme.onAccent}
                         strokeWidth="1.7"
                         strokeLinejoin="round"
                       />
@@ -212,6 +214,31 @@ export default function AppView({ V }) {
                       <path d="M3.5 9.5h17M3.5 14.5h17M9 9.5v10M15 9.5v10" stroke="currentColor" strokeWidth="1.5" />
                     </svg>
                     Tables
+                  </button>{' '}
+                  <button
+                    onClick={V.navToGallery}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '11px',
+                      padding: '11px 11px',
+                      borderRadius: '9px',
+                      border: 'none',
+                      background: V.navGalleryBg,
+                      color: V.navGalleryColor,
+                      fontSize: '14px',
+                      fontWeight: V.navGalleryWeight,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontFamily: "'IBM Plex Sans',sans-serif",
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <rect x="3.5" y="4.5" width="17" height="15" rx="2" stroke="currentColor" strokeWidth="1.7" />
+                      <circle cx="8.5" cy="9.5" r="1.6" fill="currentColor" />
+                      <path d="M4 17l4.5-4.5 3 3L15 11l5 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Gallery
                   </button>{' '}
                   <button
                     onClick={V.navToShared}
@@ -337,6 +364,7 @@ export default function AppView({ V }) {
                       {V.trashCount}
                     </span>
                   </button>{' '}
+                  <FolderTree V={V} mobile />{' '}
                   <button
                     onClick={V.openSettings}
                     style={{

@@ -13,8 +13,8 @@ export default function Toast(V) {
           bottom: `${V.toastBottom}px`,
           left: '50%',
           transform: 'translateX(-50%)',
-          background: theme.text,
-          color: theme.white,
+          background: theme.toastBg,
+          color: theme.toastFg,
           fontSize: '13px',
           padding: '11px 18px',
           borderRadius: '10px',
@@ -33,14 +33,14 @@ export default function Toast(V) {
             style={{
               background: 'none',
               border: 'none',
-              color: '#B9B2FF',
+              color: theme.toastAction,
               fontSize: '13px',
               fontWeight: '700',
               cursor: 'pointer',
               padding: '0',
               fontFamily: "'IBM Plex Sans',sans-serif",
             }}
-            {...hov({ color: theme.white })}
+            {...hov({ color: theme.toastFg })}
           >
             {V.toastActionLabel}
           </button>

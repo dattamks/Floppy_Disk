@@ -562,6 +562,24 @@ class FileListView(APIView):
         return Response(FileSerializer(qs, many=True).data)
 
 
+class MediaListView(APIView):
+    """All of the owner's images, videos + audio across every folder, newest
+    first - the Gallery surface. Scope-aware: a folder-scoped key sees only its
+    subtree."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = scope_files(
+            File.objects.filter(
+                owner=request.user, deleted_at__isnull=True,
+                kind__in=[File.Kind.IMAGE, File.Kind.VIDEO, File.Kind.AUDIO],
+            ),
+            request,
+        ).exclude(status=File.Status.PENDING).select_related("poster_object").order_by("-created_at")
+        return Response(FileSerializer(qs, many=True).data)
+
+
 class UsageView(APIView):
     permission_classes = [IsAuthenticated]
 

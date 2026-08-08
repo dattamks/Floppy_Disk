@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .build import ensure_fresh, rebuild_user_graph
-from .read import graph_json, graph_search, related_to_file
+from .read import graph_json, graph_search, mentions_for_file, related_to_file
 
 
 class GraphView(APIView):
@@ -27,6 +27,19 @@ class GraphRelatedView(APIView):
         result = related_to_file(request.user, request, file_id)
         if result is None:
             return Response({"detail": "No graph node for this file."}, status=404)
+        return Response(result)
+
+
+class GraphMentionsView(APIView):
+    """Linked + unlinked mentions of a file, with in-context snippets — the
+    data behind the note's Obsidian-style backlinks panel."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, file_id):
+        result = mentions_for_file(request.user, request, file_id)
+        if result is None:
+            return Response({"detail": "No visible file for this id."}, status=404)
         return Response(result)
 
 

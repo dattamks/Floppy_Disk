@@ -77,6 +77,7 @@ export const api = {
   restoreFolder: (id) => request(`/storage/folders/${id}/restore`, { method: 'POST' }),
   purgeFolder: (id) => request(`/storage/folders/${id}/purge`, { method: 'POST' }),
   listFiles: (folder) => request(`/storage/files${folder ? `?folder=${folder}` : ''}`),
+  listMedia: () => request('/storage/media'),
   search: (q) => request(`/storage/search?q=${encodeURIComponent(q)}`),
   usage: () => request('/storage/usage'),
   trash: () => request('/storage/trash'),
@@ -141,6 +142,7 @@ export const api = {
   // Knowledge graph
   graph: () => request('/graph/'),
   graphRelated: (fileId) => request(`/graph/related/${fileId}`),
+  graphMentions: (fileId) => request(`/graph/mentions/${fileId}`),
 
   // API keys (programmatic / MCP access). `root_folder` (a folder id) confines
   // the key to that folder's subtree - including the knowledge graph.

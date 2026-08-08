@@ -71,7 +71,11 @@ describe('previewKindOf', () => {
     expect(previewKindOf('notes.md', 'doc')).toBe('markdown');
     expect(previewKindOf('data.JSON', 'doc')).toBe('json');
     expect(previewKindOf('conf.yaml', 'doc')).toBe('yaml');
-    expect(previewKindOf('script.py', 'doc')).toBe('text');
+    expect(previewKindOf('script.py', 'doc')).toBe('code');
+    expect(previewKindOf('app.tsx', 'doc')).toBe('code');
+    expect(previewKindOf('query.sql', 'doc')).toBe('code');
+    expect(previewKindOf('readme.txt', 'doc')).toBe('text');
+    expect(previewKindOf('data.csv', 'doc')).toBe('text');
     expect(previewKindOf('unknown.xyz', 'doc')).toBe('doc');
   });
 

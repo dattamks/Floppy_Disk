@@ -75,10 +75,10 @@ test('full user journey: sign up → upload → share → play → trash → log
   await page.getByTestId('ctx-menu').getByRole('button', { name: 'Move to trash' }).click();
 
   // 7. Trash shows the item with the retention notice
-  await page.getByText('Trash', { exact: false }).first().click();
+  await page.getByTestId('nav-trash').click();
   await expect(page.getByText(/kept for|days? left|retention/i).first()).toBeVisible();
 
   // 9. Log out
-  await page.getByText('Log out', { exact: false }).first().click();
+  await page.getByTestId('nav-logout').click();
   await expect(page.getByPlaceholder('Email address')).toBeVisible();
 });

@@ -9,6 +9,8 @@ export default function TopBarMobile(V) {
       {' '}
       <button
         onClick={V.openDrawer}
+        aria-label="Menu"
+        title="Menu"
         style={{
           background: theme.surface,
           border: `1px solid ${theme.border}`,
@@ -47,6 +49,8 @@ export default function TopBarMobile(V) {
       </span>{' '}
       <button
         onClick={V.toggleMobileSearch}
+        aria-label="Search"
+        title="Search"
         style={{
           background: theme.surface,
           border: `1px solid ${theme.border}`,
@@ -107,7 +111,7 @@ export default function TopBarMobile(V) {
               height: '15px',
               padding: '0 3px',
               borderRadius: '8px',
-              background: '#E5484D',
+              background: theme.danger,
               color: '#fff',
               fontSize: '9.5px',
               fontWeight: '700',
@@ -136,7 +140,7 @@ export default function TopBarMobile(V) {
           justifyContent: 'center',
           fontSize: '12.5px',
           fontWeight: '600',
-          color: theme.white,
+          color: theme.onAccent,
           fontFamily: "'Space Grotesk',sans-serif",
           flex: '0 0 auto',
           cursor: 'pointer',

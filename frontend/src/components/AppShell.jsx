@@ -12,6 +12,9 @@ import TrashScreen from './TrashScreen';
 import EmptyState from './EmptyState';
 import SettingsPage from './SettingsPage';
 import TablesPage from './TablesPage';
+import GalleryPage from './GalleryPage';
+import FolderTree from './FolderTree';
+import FilePage from './FilePage';
 
 // Bulk-selection action bar, shown when one or more items are selected.
 function SelectionBar(V) {
@@ -219,7 +222,7 @@ function DropOverlay() {
         zIndex: '5',
         borderRadius: '16px',
         border: `2px dashed ${theme.brand}`,
-        background: 'rgba(81,69,229,0.06)',
+        background: theme.brandBgSoft,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -303,7 +306,7 @@ function LoadErrorCard(V) {
         onClick={V.retryLoad}
         style={{
           background: theme.brand,
-          color: theme.white,
+          color: theme.onAccent,
           border: 'none',
           borderRadius: '8px',
           padding: '8px 18px',
@@ -343,10 +346,15 @@ export default function AppShell(V) {
         <div style={{ flex: '1', display: 'flex', overflow: 'hidden', minHeight: '0' }}>
           {' '}
           {Sidebar(V)}{' '}
+          {V.isDesktop && V.isFilesView ? <FolderTree V={V} /> : null}{' '}
           {V.isTablesPage ? (
             <TablesPage V={V} />
+          ) : V.isGalleryPage ? (
+            <GalleryPage V={V} />
           ) : V.isSettingsPage ? (
             SettingsPage(V)
+          ) : V.isFilePage ? (
+            <FilePage V={V} />
           ) : (
           <div
             onDragEnter={V.onUploadDragOver}
@@ -456,7 +464,7 @@ export default function AppShell(V) {
                     </React.Fragment>
                   ) : null}{' '}
                   {V.isListView ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div data-testid="files-grid" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                       {' '}
                       {(V.visibleFiles || []).map((file, $index) => (
                         <FileRow key={$index} V={V} file={file} />
@@ -464,6 +472,7 @@ export default function AppShell(V) {
                     </div>
                   ) : (
                     <div
+                      data-testid="files-grid"
                       style={{
                         display: 'grid',
                         gridTemplateColumns: `repeat(auto-fill, minmax(${V.d.gridMin}px, 1fr))`,

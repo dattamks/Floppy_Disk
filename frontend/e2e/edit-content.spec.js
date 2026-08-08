@@ -22,15 +22,14 @@ test('edit a text file in place and save', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(page.getByText('todo.md', { exact: true }).first()).toBeVisible();
 
-  // Open; the rendered markdown confirms the content loaded.
+  // Open; a .md note opens full-page straight into the clean writing surface,
+  // and the content is shown as the rendered document.
   await page.getByText('todo.md', { exact: true }).first().click();
-  const dialog = page.getByRole('dialog');
+  const dialog = page.getByTestId('file-page'); // documents now open full-page in the content area
   await expect(dialog.getByText(before, { exact: true })).toBeVisible({ timeout: 15000 });
 
-  // Edit and save. A .md file opens the note editor (Write | Markdown | Preview);
-  // the raw textarea lives under the "Markdown" tab.
-  await dialog.getByRole('button', { name: 'Edit' }).click();
-  await dialog.getByRole('button', { name: 'Markdown' }).click();
+  // Toggle to editable Source (raw Markdown) to make a precise edit.
+  await dialog.getByTestId('file-page-source').click();
   await expect(dialog.locator('textarea')).toHaveValue(new RegExp(before));
   const [resp] = await Promise.all([
     page.waitForResponse((r) => r.url().includes('/content') && r.request().method() === 'PUT'),
@@ -42,7 +41,7 @@ test('edit a text file in place and save', async ({ page }) => {
   expect(resp.status()).toBe(200);
 
   // Re-open to confirm the edit persisted.
-  await page.keyboard.press('Escape');
+  await page.getByTestId('file-page-back').click();
   await page.getByText('todo.md', { exact: true }).first().click();
   await expect(dialog.getByText(after, { exact: true })).toBeVisible({ timeout: 15000 });
 });

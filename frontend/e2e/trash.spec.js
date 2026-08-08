@@ -34,6 +34,6 @@ test('soft-delete a file to trash, and it stays deleted on the backend', async (
   await expect(page.getByText('trashme.txt')).toHaveCount(0);
 
   // But it IS in Trash (loaded from the backend trash endpoint).
-  await page.getByText('Trash', { exact: false }).first().click();
+  await page.getByTestId('nav-trash').click();
   await expect(page.getByText('trashme.txt')).toBeVisible();
 });

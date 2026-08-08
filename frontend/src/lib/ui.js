@@ -47,7 +47,7 @@ export const extOf = (name = '') => {
 export const baseName = (name) => (name || '').replace(/\.(md|markdown|txt)$/i, '');
 
 // Finer-grained "how should we preview this" kind, from the name + coarse kind.
-// One of: video | image | audio | pdf | markdown | json | yaml | text | doc.
+// One of: video | image | audio | pdf | markdown | json | yaml | code | text | doc.
 export const previewKindOf = (name, kind) => {
   const ext = extOf(name);
   if (kind === 'video' || ['mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v'].includes(ext)) return 'video';
@@ -58,27 +58,17 @@ export const previewKindOf = (name, kind) => {
   if (['md', 'markdown'].includes(ext)) return 'markdown';
   if (ext === 'json') return 'json';
   if (['yaml', 'yml'].includes(ext)) return 'yaml';
+  // Source code - syntax-highlighted.
   if (
     [
-      'txt',
-      'log',
-      'csv',
-      'xml',
-      'ini',
-      'conf',
-      'env',
-      'js',
-      'jsx',
-      'ts',
-      'tsx',
-      'py',
-      'sh',
-      'css',
-      'html',
-      'sql',
+      'js', 'jsx', 'ts', 'tsx', 'mjs', 'cjs', 'py', 'sh', 'bash', 'zsh', 'css', 'scss', 'less',
+      'html', 'htm', 'xml', 'sql', 'go', 'rs', 'rb', 'java', 'kt', 'swift', 'php', 'c', 'h',
+      'cpp', 'cc', 'hpp', 'cs', 'toml',
     ].includes(ext)
   )
-    return 'text';
+    return 'code';
+  // Plain text - shown verbatim, no highlighting.
+  if (['txt', 'log', 'csv', 'tsv', 'ini', 'conf', 'env', 'text'].includes(ext)) return 'text';
   return 'doc';
 };
 

@@ -9,9 +9,11 @@ unrestricted. This is why folder-scoping "just works" for the graph.
 """
 from __future__ import annotations
 
+import re
+
 from django.db.models import Q
 
-from apps.storage.scoping import scoped_folder_ids
+from apps.storage.scoping import scope_files, scoped_folder_ids
 
 from .models import GraphEdge, GraphNode
 
@@ -124,3 +126,104 @@ def related_to_file(user, request, file_id):
             "node": _node_dict(other),
         })
     return {"node": _node_dict(node), "related": neighbors}
+
+
+# --- Linked / unlinked mentions (Obsidian-style backlinks with context) -------
+#
+# Reuses the cached ``content_text`` (populated by search indexing) so we never
+# fetch a blob here. Everything is funneled through ``scope_files`` so a
+# folder-scoped key only ever sees mentions inside its subtree.
+_MENTION_SOURCE_CAP = 400  # most source files to scan (personal scale)
+_SNIPPETS_PER_SOURCE = 3
+_SNIPPET_RADIUS = 80
+
+_WIKI_MENTION_RE = re.compile(r"\[\[\s*([^\[\]]+?)\s*\]\]")
+
+
+def _title_of(name: str) -> str:
+    return re.sub(r"\.md$", "", name or "", flags=re.IGNORECASE).strip()
+
+
+def _clean(s: str) -> str:
+    return re.sub(r"\s+", " ", s or "").strip()
+
+
+def _snippet(text: str, start: int, end: int) -> dict:
+    a = max(0, start - _SNIPPET_RADIUS)
+    b = min(len(text), end + _SNIPPET_RADIUS)
+    before = _clean(text[a:start])
+    after = _clean(text[end:b])
+    if a > 0:
+        before = "…" + before
+    if b < len(text):
+        after = after + "…"
+    return {"before": before, "match": text[start:end].strip(), "after": after}
+
+
+def mentions_for_file(user, request, file_id):
+    """Notes that mention this one, split into *linked* (they contain a
+    ``[[Title]]`` wiki-link) and *unlinked* (they name the title in plain text
+    but never link it) - each with in-context snippets. Returns None when the
+    file isn't visible to this request."""
+    from apps.storage.models import File
+
+    visible = scope_files(File.objects.filter(owner=user, deleted_at__isnull=True), request)
+    target = visible.filter(id=file_id).first()
+    if target is None:
+        return None
+    title = _title_of(target.name)
+    empty = {"title": title, "linked": [], "unlinked": [], "counts": {"linked": 0, "unlinked": 0}}
+    if not title:
+        return empty
+    title_lc = title.lower()
+    # Plain mention: the title bounded by non-word chars (and not a bracket, so
+    # a linked [[Title]] never also counts as an unlinked mention).
+    plain_re = re.compile(r"(?<![\w\[])" + re.escape(title) + r"(?![\w\]])", re.IGNORECASE)
+
+    # Any file with indexed text can mention this note (notes are Kind.DOC);
+    # content_text is only populated for text-bearing files, so the exclude
+    # keeps this to real candidates.
+    sources = (
+        visible.exclude(id=file_id)
+        .exclude(content_text="")
+        .only("id", "name", "content_text")[:_MENTION_SOURCE_CAP]
+    )
+
+    linked, unlinked = [], []
+    for src in sources:
+        text = src.content_text or ""
+        if not text:
+            continue
+        link_spans = [
+            (m.start(), m.end())
+            for m in _WIKI_MENTION_RE.finditer(text)
+            if re.split(r"[|#]", m.group(1), 1)[0].strip().lower() == title_lc
+        ]
+        if link_spans:
+            linked.append({
+                "file_id": str(src.id),
+                "name": _title_of(src.name),
+                "count": len(link_spans),
+                "snippets": [_snippet(text, s, e) for (s, e) in link_spans[:_SNIPPETS_PER_SOURCE]],
+            })
+            continue
+        plain_spans = [(m.start(), m.end()) for m in plain_re.finditer(text)]
+        if plain_spans:
+            unlinked.append({
+                "file_id": str(src.id),
+                "name": _title_of(src.name),
+                "count": len(plain_spans),
+                "snippets": [_snippet(text, s, e) for (s, e) in plain_spans[:_SNIPPETS_PER_SOURCE]],
+            })
+
+    linked.sort(key=lambda x: x["name"].lower())
+    unlinked.sort(key=lambda x: x["name"].lower())
+    return {
+        "title": title,
+        "linked": linked,
+        "unlinked": unlinked,
+        "counts": {
+            "linked": sum(x["count"] for x in linked),
+            "unlinked": sum(x["count"] for x in unlinked),
+        },
+    }
