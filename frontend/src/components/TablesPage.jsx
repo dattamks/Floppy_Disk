@@ -109,7 +109,15 @@ export default function TablesPage({ V }) {
   // Snapshot the active table's live state so switching back to its tab is
   // instant (no refetch) and doesn't lose unsaved-to-cache edits.
   const snapshotActive = () => {
-    if (open) cacheRef.current[open.id] = { table: open, rows };
+    if (!open) return;
+    flushWidths();  // persist a pending column resize before we leave this table
+    // Bake the live widths into the cached table so an instant switch-back shows
+    // them immediately (the background refetch confirms them shortly after).
+    const av = activeView;
+    const table = av
+      ? { ...open, views: (open.views || []).map((v) => (v.id === av.id ? { ...v, config: { ...(v.config || {}), widths } } : v)) }
+      : open;
+    cacheRef.current[open.id] = { table, rows };
   };
   // Activate a table's data + its first saved view. View config (widths / sort /
   // filters / group / kanban field) is carried on the table object and applied
@@ -352,6 +360,7 @@ export default function TablesPage({ V }) {
   const switchView = (viewId) => {
     const v = viewsList.find((x) => x.id === viewId);
     if (!v || viewId === activeViewId) return;
+    flushWidths();  // persist a pending resize onto the view we're leaving
     setActiveViewId(viewId);
     setSelected(new Set()); setExpandedId(null); setFilterOpen(false); setGroupMenu(false); setCardsMenu(false);
     applyViewState(v);
@@ -449,12 +458,27 @@ export default function TablesPage({ V }) {
   }, [open, relRows, relFields]);
 
   // ---- resize persistence ----
-  const resize = (fieldId, w) => setWidths((x) => ({ ...x, [fieldId]: w }));
+  // Column resizes are debounced (600ms) to avoid a write per pixel. `dirty`
+  // marks a real user resize so loading a view's widths doesn't trigger a
+  // needless write, and `timer` is tracked so a tab/view switch can flush the
+  // pending save instead of the effect cleanup silently dropping it.
+  const widthsDirtyRef = React.useRef(false);
+  const widthsTimerRef = React.useRef(null);
+  const resize = (fieldId, w) => { widthsDirtyRef.current = true; setWidths((x) => ({ ...x, [fieldId]: w })); };
   React.useEffect(() => {
-    if (!open?.views?.[0]) return undefined;
-    const t = setTimeout(() => { patchViewConfig({ widths }); }, 600);
-    return () => clearTimeout(t);
+    if (!open?.views?.[0] || !widthsDirtyRef.current) return undefined;
+    widthsTimerRef.current = setTimeout(() => {
+      widthsTimerRef.current = null; widthsDirtyRef.current = false;
+      patchViewConfig({ widths });
+    }, 600);
+    return () => { if (widthsTimerRef.current) { clearTimeout(widthsTimerRef.current); widthsTimerRef.current = null; } };
   }, [widths]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Persist a pending resize immediately (called before leaving the active
+  // table/view) so a resize made within the debounce window survives the switch.
+  const flushWidths = () => {
+    if (widthsTimerRef.current) { clearTimeout(widthsTimerRef.current); widthsTimerRef.current = null; }
+    if (widthsDirtyRef.current) { widthsDirtyRef.current = false; patchViewConfig({ widths }); }
+  };
 
   const copySelected = () => {
     if (!selected.size) return;
